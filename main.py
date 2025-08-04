@@ -1,29 +1,40 @@
+import asyncio
 from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import Dispatcher
-import bot  # هذا ملف bot.py
+from telegram import Update
+from telegram.ext import Application, CommandHandler
 
-# ✅ توكن البوت (رجاءً غيّره لاحقًا لحمايتك)
 TOKEN = "8346251354:AAH3LqivEvbh-DaLmjViyN_ICzlTYb6W1ZM"
+WEBHOOK_PATH = f"/{TOKEN}"
+WEBHOOK_URL = f"https://qoub.onrender.com{WEBHOOK_PATH}"  # عدله لرابط موقعك على Render
 
-bot_instance = Bot(token=TOKEN)
 app = Flask(__name__)
-dispatcher = Dispatcher(bot_instance, None, workers=0)
+application = Application.builder().token(TOKEN).build()
 
-# تسجيل الهاندلرز من ملف bot.py
-bot.register_handlers(dispatcher)
+# أوامر البوت
+async def start(update: Update, context):
+    await update.message.reply_text("✅ بوتك شغال بنجاح على Render و PTB 20.3!")
 
-# نقطة استلام التحديثات من Telegram
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_instance)
-    dispatcher.process_update(update)
+# تسجيل الأوامر
+application.add_handler(CommandHandler("start", start))
+
+# نقطة استقبال التحديثات من تيليجرام
+@app.route(WEBHOOK_PATH, methods=["POST"])
+async def webhook():
+    update_data = request.get_json(force=True)
+    update = Update.de_json(update_data, application.bot)
+    await application.process_update(update)
     return "ok", 200
 
-# صفحة اختبار
+# الصفحة الرئيسية
 @app.route("/")
 def home():
-    return "✅ البوت شغال على Render!", 200
+    return "✅ البوت شغال"
 
+# بدء التطبيق وتشغيل Webhook
 if __name__ == "__main__":
-    app.run(port=5000)
+    async def run():
+        await application.initialize()
+        await application.bot.set_webhook(WEBHOOK_URL)
+        app.run(host="0.0.0.0", port=10000)  # أو 8080
+
+    asyncio.run(run())
