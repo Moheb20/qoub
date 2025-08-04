@@ -2,6 +2,13 @@ from bot_instance import bot
 from database import init_db, add_user, update_last_msg
 from qou_scraper import QOUScraper
 from scheduler import start_scheduler
+from telegram.ext import CommandHandler
+
+def start(update, context):
+    update.message.reply_text("✅ أهلاً! بوتك شغال تمام على Render 🚀")
+
+def register_handlers(dispatcher):
+    dispatcher.add_handler(CommandHandler("start", start))
 
 user_states = {}
 
