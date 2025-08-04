@@ -1,6 +1,6 @@
 
 python-telegram-bot==20.3
-flask
+Flask==2.3.3
 requests
 beautifulsoup4
 pyTelegramBotAPI
