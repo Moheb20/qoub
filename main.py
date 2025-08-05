@@ -38,6 +38,10 @@ major_groups = {
     "رياضيات": "https://chat.whatsapp.com/FKCxgfaJNWJ6CBnIB30FYO"
 }
 
+subject_list = list(subject_groups.items())
+university_list = list(university_groups.items())
+major_list = list(major_groups.items())
+
 # تهيئة قاعدة البيانات والجدولة
 init_db()
 start_scheduler()
@@ -126,10 +130,9 @@ def handle_group_category(call):
         bot.send_message(call.message.chat.id, "🧾 اختر المادة للحصول على رابط القروب:", reply_markup=markup)
 
     elif category == "university":
-        markup = InlineKeyboardMarkup()
-        for name in university_groups:
-            markup.add(InlineKeyboardButton(name, callback_data=f"univ:{name}"))
-        bot.send_message(call.message.chat.id, "📚 اختر قروب من قروبات الجامعة:", reply_markup=markup)
+        for idx, (name, _) in enumerate(university_list):
+            markup.add(InlineKeyboardButton(name, callback_data=f"univ_{idx}"))
+        bot.send_message(call.message.chat.id, "🏛 اختر قروب الجامعة:", reply_markup=markup)
 
     elif category == "majors":
         markup = InlineKeyboardMarkup()
