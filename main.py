@@ -139,6 +139,7 @@ def handle_group_category(call):
 # التعامل مع اختيار مادة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("subject:"))
 def handle_subject_selection(call):
+    bot.answer_callback_query(call.id)    
     subject = call.data.split("subject:")[1]
     link = subject_groups.get(subject, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{subject}*:\n{link}", parse_mode="Markdown")
@@ -146,6 +147,7 @@ def handle_subject_selection(call):
 # التعامل مع قروبات الجامعة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("univ:"))
 def handle_university_selection(call):
+    bot.answer_callback_query(call.id)    
     name = call.data.split("univ:")[1]
     link = university_groups.get(name, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"🏫 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
@@ -153,6 +155,7 @@ def handle_university_selection(call):
 # التعامل مع قروبات التخصصات
 @bot.callback_query_handler(func=lambda call: call.data.startswith("major:"))
 def handle_major_selection(call):
+    bot.answer_callback_query(call.id)    
     name = call.data.split("major:")[1]
     link = major_groups.get(name, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
