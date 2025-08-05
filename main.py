@@ -130,6 +130,7 @@ def handle_group_category(call):
         bot.send_message(call.message.chat.id, "🧾 اختر المادة للحصول على رابط القروب:", reply_markup=markup)
 
     elif category == "university":
+        markup = InlineKeyboardMarkup()  # ✅ تم إضافة هذا السطر
         for idx, (name, _) in enumerate(university_list):
             markup.add(InlineKeyboardButton(name, callback_data=f"univ_{idx}"))
         bot.send_message(call.message.chat.id, "🏛 اختر قروب الجامعة:", reply_markup=markup)
@@ -139,6 +140,7 @@ def handle_group_category(call):
         for name in major_groups:
             markup.add(InlineKeyboardButton(name, callback_data=f"major:{name}"))
         bot.send_message(call.message.chat.id, "🧑‍🎓 اختر قروب من قروبات التخصص:", reply_markup=markup)
+
 
 # التعامل مع اختيار مادة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("subject:"))
