@@ -104,12 +104,14 @@ def get_password(message):
 
 # أمر /groups يعرض التصنيفات
 @bot.message_handler(commands=['groups'])
-def handle_groups(message):
-    markup = InlineKeyboardMarkup()
-        InlineKeyboardButton("🏛 قروبات الجامعة", callback_data="groups_university"),
+def handle_groups_command(message):
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(
         InlineKeyboardButton("📚 قروبات المواد", callback_data="groups_subjects"),
-        InlineKeyboardButton("🎓 قروبات التخصصات", callback_data="groups_majors")
-    bot.send_message(message.chat.id, "📂 اختر نوع القروبات:", reply_markup=markup)
+        InlineKeyboardButton("🎓 قروبات التخصصات", callback_data="groups_majors"),
+        InlineKeyboardButton("🏛 قروبات الجامعة", callback_data="groups_university")
+    )
+    bot.send_message(message.chat.id, "🎯 اختر نوع القروبات:", reply_markup=keyboard)
 
 # التعامل مع اختيار نوع القروب
 @bot.callback_query_handler(func=lambda call: call.data.startswith("category:"))
