@@ -74,6 +74,12 @@ def get_password(message):
     user_states.pop(chat_id, None)
 
 # بدء التشغيل
+
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
+
+    # إزالة الـ Webhook لتجنب التعارض مع polling
+    bot.remove_webhook()
+
+    # تشغيل البوت باستخدام polling
     bot.infinity_polling()
