@@ -146,12 +146,16 @@ def handle_subject_selection(call):
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{subject}*:\n{link}", parse_mode="Markdown")
 
 # التعامل مع قروبات الجامعة
-@bot.callback_query_handler(func=lambda call: call.data.startswith("univ:"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("univ_"))
 def handle_university_selection(call):
-    bot.answer_callback_query(call.id)    
-    name = call.data.split("univ:")[1]
-    link = university_groups.get(name, "❌ الرابط غير متوفر")
-    bot.send_message(call.message.chat.id, f"🏫 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
+    bot.answer_callback_query(call.id)
+    try:
+        index = int(call.data.split("_")[1])
+        name, link = university_list[index]
+        bot.send_message(call.message.chat.id, f"🏫 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء استرجاع الرابط.")
+        print("[university error]", e)
 
 # التعامل مع قروبات التخصصات
 @bot.callback_query_handler(func=lambda call: call.data.startswith("major:"))
