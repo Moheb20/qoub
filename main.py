@@ -22,7 +22,7 @@ application.add_handler(CommandHandler("start", start))
 def webhook():
     update_data = request.get_json(force=True)
     update = Update.de_json(update_data, application.bot)
-    asyncio.get_event_loop().create_task(application.process_update(update))
+    asyncio.run(application.process_update(update))  # ✅ هذا هو التعديل
     return "ok", 200
 
 @app.route("/")
