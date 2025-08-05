@@ -83,8 +83,16 @@ async def handle_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def webhook():
     update_data = request.get_json(force=True)
     update = Update.de_json(update_data, application.bot)
-    asyncio.run(application.process_update(update))
+
+    # استخدم loop الحالية من التطبيق
+    loop = asyncio.get_event_loop()
+    if loop.is_closed():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    loop.create_task(application.process_update(update))
+
     return "ok", 200
+
 
 
 @app.route("/")
