@@ -31,7 +31,7 @@ subject_groups = {
 
 # 🔽 أمثلة لإضافة قروبات الجامعة أو التخصصات لاحقًا:
 university_groups = {
-    "طلاب جامعة القدس المفتوحة - جميع الافرع": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e"
+    "طلاب جامعة القدس المفتوحة جميع الافرع": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e"
 }
 
 major_groups = {
