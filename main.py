@@ -1,6 +1,6 @@
 import threading
 from flask import Flask
-from database import get_user
+from database import add_user
 from scheduler import start_scheduler
 from bot_instance import bot  # يحتوي على كائن TeleBot
 from qou_scraper import QOUScraper
@@ -43,7 +43,7 @@ university_list = list(university_groups.items())
 major_list = list(major_groups.items())
 
 # تهيئة قاعدة البيانات والجدولة
-get_user()
+add_user()
 start_scheduler()
 
 # إعداد Flask
