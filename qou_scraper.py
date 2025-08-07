@@ -90,16 +90,22 @@ class QOUScraper:
             resp.raise_for_status()
             return BeautifulSoup(resp.text, 'html.parser')
 
-        def get_label_value(soup: BeautifulSoup, label_text_pattern):
-            label = soup.find('label', string=re.compile(label_text_pattern, re.I))
-            if label:
-                parent = label.find_parent('div')
-                if parent:
-                    next_sibling = parent.find_next_sibling('div')
-                    if next_sibling:
-                        value = next_sibling.get_text(strip=True)
-                        return value if value else "-"
-            return "-"
+        def get_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
+            label_tags = soup.find_all('label', string=re.compile(label_text_pattern.strip(), re.I))
+            for label in label_tags: 
+                form_group = label.find_parent('div', class_='form-group')
+                if form_group:
+                    # احصل على كل العناصر داخل الـ form-group
+                    divs = form_group.find_all('div', recursive=False)
+                    for i, div in enumerate(divs):
+                        if label in div.descendants:
+                            # القيمة عادةً تكون في العنصر التالي
+                            if i + 1 < len(divs):
+                                value = divs[i + 1].get_text(strip=True)
+                                return value if value else "-"
+        return "-"
+
+
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern):
             label = soup.find('label', string=re.compile(label_text_pattern, re.I))
