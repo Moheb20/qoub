@@ -10,13 +10,4 @@ services:
       - key: PORT
         value: 10000
 
-  - type: web
-    name: qou-dashboard
-    env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python dashboard/app.py
-    autoDeploy: true
-    envVars:
-      - key: PORT
-        value: 10001
+ 
