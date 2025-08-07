@@ -77,8 +77,7 @@ class QOUScraper:
                 code = match.group(1)
                 title = match.group(2)
                 tab_id = f"tab{idx+1}"  # tab1, tab2, ...
-                # crsSeq غالباً هو 1 كما بالمثال
-                crsSeq = '1'
+                crsSeq = '1'  # غالباً هو 1 كما في المثال
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
@@ -97,20 +96,14 @@ class QOUScraper:
             for label in label_tags:
                 parent_div = label.find_parent('div', class_='form-group')
                 if parent_div:
-                    # كل div بداخل form-group
                     divs = parent_div.find_all('div', recursive=False)
-                    # ابحث في هذه الـ divs عن قيمة بعد div الذي يحتوي label
                     for i, div in enumerate(divs):
                         if label in div.descendants:
-                        # غالبًا القيمة في الـ div التالي
-                        if i + 1 < len(divs):
-                            value = divs[i + 1].get_text(strip=True)
-                            if value and value != '-':
-                                return value
-        return "-"
-
-
-        
+                            if i + 1 < len(divs):
+                                value = divs[i + 1].get_text(strip=True)
+                                if value and value != '-':
+                                    return value
+            return "-"
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
             label = soup.find('label', string=re.compile(label_text_pattern, re.I))
@@ -123,8 +116,7 @@ class QOUScraper:
                             value = divs[i + 1].get_text(strip=True)
                             if value and value != '-':
                                 return value
-        return "-"
-
+            return "-"
 
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
@@ -134,6 +126,7 @@ class QOUScraper:
 
         # 🟢 Step 1: Fetch marks tab
         marks_soup = fetch_tab("marks")
+        # print(marks_soup.prettify()[:1000])  # لفحص محتوى صفحة العلامات
 
         marks_data = {
             'assignment1': get_label_value(marks_soup, 'التعيين الأول'),
@@ -147,6 +140,8 @@ class QOUScraper:
 
         # 🟢 Step 2: Fetch schedule tab
         schedule_soup = fetch_tab("tSchedule")
+        # print(schedule_soup.prettify()[:1000])  # لفحص محتوى صفحة الجدول
+
         marks_data.update({
             'instructor': get_instructor(schedule_soup),
             'lecture_day': get_direct_label_value(schedule_soup, 'اليوم'),
