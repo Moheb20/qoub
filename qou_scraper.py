@@ -101,6 +101,12 @@ class QOUScraper:
                         return value if value else "غير متوفر"
             return "غير متوفر"
 
+        def get_direct_label_value(soup: BeautifulSoup, label_text_pattern):
+            label = soup.find('label', string=re.compile(label_text_pattern, re.I))
+            if label and label.next_sibling:
+                value = str(label.next_sibling).strip().replace("&nbsp;", "")
+                return value if value else "غير متوفر"
+            return "غير متوفر"
 
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
@@ -125,10 +131,10 @@ class QOUScraper:
         schedule_soup = fetch_tab("tSchedule")
         marks_data.update({
             'instructor': get_instructor(schedule_soup),
-            'lecture_day': get_label_value(schedule_soup, 'اليوم'),
-            'lecture_time': get_label_value(schedule_soup, 'الموعد'),
-            'building': get_label_value(schedule_soup, 'البناية'),
-            'hall': get_label_value(schedule_soup, 'القاعة'),
+            'lecture_day': get_direct_label_value(schedule_soup, 'اليوم'),
+            'lecture_time': get_direct_label_value(schedule_soup, 'الموعد'),
+            'building': get_direct_label_value(schedule_soup, 'البناية'),
+            'hall': get_direct_label_value(schedule_soup, 'القاعة'),
         })
 
         return marks_data
