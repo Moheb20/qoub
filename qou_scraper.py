@@ -114,10 +114,17 @@ class QOUScraper:
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
             label = soup.find('label', string=re.compile(label_text_pattern, re.I))
-            if label and label.next_sibling:
-                value = str(label.next_sibling).strip().replace("&nbsp;", "")
-                return value if value else "-"
-            return "-"
+            if label:
+                parent_div = label.find_parent('div', class_='form-group')
+                if parent_div:
+                    divs = parent_div.find_all('div', recursive=False)
+                    for i, div in enumerate(divs):
+                        if label in div.descendants and i + 1 < len(divs):
+                            value = divs[i + 1].get_text(strip=True)
+                            if value and value != '-':
+                                return value
+        return "-"
+
 
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
