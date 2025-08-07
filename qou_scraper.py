@@ -89,6 +89,8 @@ class QOUScraper:
             url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
             resp = self.session.post(url)
             resp.raise_for_status()
+            # إذا أردت التحقق من المحتوى، أزل تعليق السطر التالي:
+            # print(resp.text)
             return BeautifulSoup(resp.text, 'html.parser')
 
         def get_instructor(soup: BeautifulSoup) -> str:
@@ -97,7 +99,6 @@ class QOUScraper:
                 return instructor_div.get_text(strip=True)
             return "-"
 
-        # دالة استخراج العلامات والبيانات من HTML التاب
         def extract_marks_from_soup(soup: BeautifulSoup) -> dict:
             data = {
                 'assignment1': "-",
@@ -109,75 +110,39 @@ class QOUScraper:
                 'status': "-"
             }
 
-            form_groups = soup.select('div.form-group')
+            for fg in soup.select('div.form-group'):
+                label = fg.find('label')
+                if not label:
+                    continue
+                label_text = label.get_text(strip=True)
 
-            for fg in form_groups:
-                labels = fg.find_all('label')
-                for label in labels:
-                    label_text = label.get_text(strip=True)
-                    if "التعيين الاول" in label_text:
-                        sibling_divs = label.find_parent('div').find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['assignment1'] = text
-                                break
-
-                    elif "نصفي نظري" in label_text:
-                        sibling_divs = label.find_parent('div').find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['midterm'] = text
-                                break
-
-                    elif "تاريخ وضع الامتحان النصفي" in label_text:
-                        sibling_divs = label.find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['midterm_date'] = text
-                                break
-
-                    elif "التعيين الثاني" in label_text:
-                        sibling_divs = label.find_parent('div').find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['assignment2'] = text
-                                break
-
-                    elif "العلامة النهائية" in label_text:
-                        sibling_divs = label.find_parent('div').find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['final_mark'] = text
-                                break
-
-                    elif "تاريخ وضع العلامة النهائية" in label_text:
-                        sibling_divs = label.find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['final_date'] = text
-                                break
-
-                    elif "الحالة" in label_text:
-                        sibling_divs = label.find_parent('div').find_next_siblings('div')
-                        for d in sibling_divs:
-                            text = d.get_text(strip=True)
-                            if text != "":
-                                data['status'] = text
-                                break
+                if "التعيين الاول" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['assignment1'] = value_div.get_text(strip=True) if value_div else "-"
+                elif "نصفي نظري" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['midterm'] = value_div.get_text(strip=True) if value_div else "-"
+                elif "تاريخ وضع الامتحان النصفي" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['midterm_date'] = value_div.get_text(strip=True) if value_div else "-"
+                elif "التعيين الثاني" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['assignment2'] = value_div.get_text(strip=True) if value_div else "-"
+                elif "العلامة النهائية" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['final_mark'] = value_div.get_text(strip=True) if value_div else "-"
+                elif "تاريخ وضع العلامة النهائية" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['final_date'] = value_div.get_text(strip=True) if value_div else "-"
+                elif "الحالة" in label_text:
+                    value_div = fg.find_all('div')[-1]
+                    data['status'] = value_div.get_text(strip=True) if value_div else "-"
 
             return data
 
-        # 🟢 Fetch علامات التعيينات والامتحانات
         marks_soup = fetch_tab("marks")
         marks_data = extract_marks_from_soup(marks_soup)
 
-        # 🟢 Fetch لقاءات وجدول المحاضرات
         schedule_soup = fetch_tab("tSchedule")
 
         marks_data.update({
