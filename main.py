@@ -183,7 +183,10 @@ def handle_courses(message):
         bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
         return
 
-    student_id, password = user[1], user[2]
+    student_id = user["student_id"]
+    password = user["password"]
+
+    from qou_scraper import QOUScraper
     scraper = QOUScraper(student_id, password)
 
     if not scraper.login():
@@ -200,7 +203,6 @@ def handle_courses(message):
         text += f"📘 {course}\n"
     
     bot.send_message(chat_id, text, parse_mode="Markdown")
-
 
 # بدء التشغيل
 if __name__ == "__main__":
