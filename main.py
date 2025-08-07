@@ -176,7 +176,7 @@ def handle_major_selection(call):
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
-    from database import get_all_users
+    from database import get_user
 
     user = get_user(chat_id)
     if not user:
