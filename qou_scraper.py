@@ -62,23 +62,22 @@ class QOUScraper:
             'body': body_text
         }
 
-def fetch_courses(self) -> List[dict]:
-    resp = self.session.get(COURSES_URL)
-    resp.raise_for_status()
-    print(resp.text[:3000])
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    def fetch_courses(self) -> List[dict]:
+        resp = self.session.get(COURSES_URL)
+        resp.raise_for_status()
+        print(resp.text[:3000])
+        soup = BeautifulSoup(resp.text, 'html.parser')
 
-    courses = []
+        courses = []
 
-    course_titles = soup.select("div.pull-right.text-warning")
-    for item in course_titles:
-        full_text = item.get_text(strip=True)
-        # مثال: "0/0206 الثقافة الاسلامية"
-        match = re.match(r"\d+/(\d+)\s+(.*)", full_text)
-        if match:
-            code = match.group(1)
-            title = match.group(2)
-            courses.append({'code': code, 'title': title})
+        course_titles = soup.select("div.pull-right.text-warning")
+        for item in course_titles:
+            full_text = item.get_text(strip=True)
+            # مثال: "0/0206 الثقافة الاسلامية"
+            match = re.match(r"\d+/(\d+)\s+(.*)", full_text)
+            if match:
+                code = match.group(1)
+                title = match.group(2)
+                courses.append({'code': code, 'title': title})
 
-    return courses
-
+        return courses
