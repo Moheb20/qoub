@@ -85,47 +85,37 @@ def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, 'html.parser')
 
-
-    # نستخدم النص الكامل لتسهيل البحث بالكلمات المفتاحية
-    page_text = soup.get_text(separator=' ', strip=True)
-
-    def extract_by_keyword(keyword: str) -> str:
-        """
-        تبحث عن الكلمة المفتاحية وتستخرج النص بعدها.
-        """
-        pattern = rf"{re.escape(keyword)}[:\s]*([^\n\r:|]+)"
-        match = re.search(pattern, page_text)
-        return match.group(1).strip() if match else "غير متوفر"
+    def get_label_value(label_text):
+        label = soup.find('label', string=re.compile(label_text))
+        if label:
+            parent_div = label.find_parent('div')
+            if parent_div:
+                return parent_div.get_text(strip=True).replace(label_text, '').strip()
+        return "غير متوفر"
 
     def get_instructor_name():
-        """
-        يبحث عن اسم الدكتور باستخدام الكلمة المفتاحية أو الرابط.
-        """
-        match = re.search(r"عضو هيئة التدريس[:\s]*([^\n\r:|]+)", page_text)
-        if match:
-            return match.group(1).strip()
-
-        # بديل: البحث في رابط يحتوي على recieverName=
-        link = soup.find('a', href=re.compile('recieverName='))
-        if link:
-            return link.get_text(strip=True)
-
+        label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
+        if label:
+            parent = label.find_parent('div')
+            if parent:
+                return parent.get_text(strip=True).replace("عضو هيئة التدريس:", '').strip()
         return "غير متوفر"
 
     marks_data = {
-        'التعيين الأول': extract_by_keyword('التعيين الأول'),
-        'نصفي نظري': extract_by_keyword('نصفي نظري'),
-        'تاريخ الامتحان النصفي': extract_by_keyword('تاريخ وضع الامتحان النصفي'),
-        'التعيين الثاني': extract_by_keyword('التعيين الثاني'),
-        'العلامة النهائية': extract_by_keyword('العلامة النهائية'),
-        'تاريخ وضع العلامة النهائية': extract_by_keyword('تاريخ وضع العلامة النهائية'),
-        'الحالة': extract_by_keyword('الحالة'),
-        'lecture_day': extract_by_keyword('اليوم'),
-        'lecture_time': extract_by_keyword('الموعد'),
+        'assignment1': get_label_value('التعيين الأول'),
+        'نصفي نظري': get_label_value('نصفي نظري'),
+        'تاريخ الامتحان النصفي': get_label_value('تاريخ وضع الامتحان النصفي'),
+        'assignment2': get_label_value('التعيين الثاني'),
+        'العلامة النهائية': get_label_value('العلامة النهائية'),
+        'تاريخ وضع العلامة النهائية': get_label_value('تاريخ وضع العلامة النهائية'),
+        'الحالة': get_label_value('الحالة'),
         'instructor': get_instructor_name(),
+        'lecture_day': get_label_value('اليوم:'),
+        'lecture_time': get_label_value('الموعد:')
     }
 
     return marks_data
+
 
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
