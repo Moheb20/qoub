@@ -92,38 +92,45 @@ class QOUScraper:
             return BeautifulSoup(resp.text, 'html.parser')
 
         def get_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
-            labels = soup.find_all('label', string=re.compile(label_text_pattern.strip()))
-            for label in labels:
+            label_tags = soup.find_all('label', string=re.compile(label_text_pattern.strip(), re.I))
+            for label in label_tags:
                 parent_div = label.find_parent('div', class_='form-group')
                 if parent_div:
                     divs = parent_div.find_all('div', recursive=False)
-                    if len(divs) >= 4:
-                        value = divs[3].get_text(strip=True)
-                        if value and value != '-':
-                            return value
-                    else:
-                        text = parent_div.get_text(separator=" ", strip=True)
-                        val = text.replace(label.get_text(strip=True), '').strip()
-                        if val and val != '-':
-                            return val
+                    for i, div in enumerate(divs):
+                        if label in div.descendants:
+                            if i + 1 < len(divs):
+                                value = divs[i + 1].get_text(strip=True)
+                                if value and value != '-':
+                                    return value
             return "-"
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
-            label = soup.find('label', string=re.compile(label_text_pattern.strip()))
+            label = soup.find('label', string=re.compile(label_text_pattern, re.I))
             if label:
                 parent_div = label.find_parent('div', class_='form-group')
                 if parent_div:
                     divs = parent_div.find_all('div', recursive=False)
-                    if len(divs) >= 4:
-                        value = divs[3].get_text(strip=True)
-                        if value and value != '-':
-                            return value
-                    else:
-                        text = parent_div.get_text(separator=" ", strip=True)
-                        val = text.replace(label.get_text(strip=True), '').strip()
-                        if val and val != '-':
-                            return val
+                    for i, div in enumerate(divs):
+                        if label in div.descendants and i + 1 < len(divs):
+                            value = divs[i + 1].get_text(strip=True)
+                            if value and value != '-':
+                                return value
             return "-"
+
+        def get_label_pair_values(soup: BeautifulSoup, label1: str, label2: str) -> tuple:
+            label = soup.find('label', string=re.compile(label1, re.I))
+            if label:
+                parent_div = label.find_parent('div', class_='form-group')
+                if parent_div:
+                    text = parent_div.get_text(separator=" ", strip=True)
+                    text = re.sub(label1, '', text, flags=re.I).strip()
+                    parts = re.split(label2, text, flags=re.I)
+                    if len(parts) == 2:
+                        val1 = parts[0].strip() or "-"
+                        val2 = parts[1].strip() or "-"
+                        return val1, val2
+            return "-", "-"
 
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
@@ -131,6 +138,7 @@ class QOUScraper:
                 return instructor_div.get_text(strip=True)
             return "-"
 
+        # 🟢 Step 1: Fetch marks tab
         marks_soup = fetch_tab("marks")
 
         marks_data = {
@@ -143,12 +151,15 @@ class QOUScraper:
             'status': get_label_value(marks_soup, 'الحالة'),
         }
 
+        # 🟢 Step 2: Fetch schedule tab
         schedule_soup = fetch_tab("tSchedule")
+
+        lecture_day, lecture_time = get_label_pair_values(schedule_soup, 'اليوم', 'الموعد')
 
         marks_data.update({
             'instructor': get_instructor(schedule_soup),
-            'lecture_day': get_direct_label_value(schedule_soup, 'اليوم'),
-            'lecture_time': get_direct_label_value(schedule_soup, 'الموعد'),
+            'lecture_day': lecture_day,
+            'lecture_time': lecture_time,
             'building': get_direct_label_value(schedule_soup, 'البناية'),
             'hall': get_direct_label_value(schedule_soup, 'القاعة'),
         })
