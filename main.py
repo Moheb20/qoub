@@ -208,6 +208,32 @@ def handle_courses(message):
     user_states[chat_id] = {'courses': courses}
     bot.send_message(chat_id, "📘 اختر مادة لعرض التفاصيل:", reply_markup=markup)
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("course:"))
+def handle_course_details(call):
+    bot.answer_callback_query(call.id)
+    chat_id = call.message.chat.id
+
+    try:
+        index = int(call.data.split(":")[1])
+        course = user_states.get(chat_id, {}).get('courses', [])[index]
+
+        if not course:
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء تحميل تفاصيل المادة.")
+            return
+
+        # صياغة التفاصيل
+        text = f"📘 *{course['code']} - {course['title']}*\n\n"
+        text += f"👨‍🏫 الدكتور: {course.get('instructor', 'غير متوفر')}\n"
+        text += f"📅 المحاضرة: {course.get('lecture_day', 'غير متوفر')} - {course.get('lecture_time', 'غير متوفر')}\n\n"
+        text += f"📝 التعيين الأول: {course.get('assignment1', 'غير متوفر')}\n"
+        text += f"🧪 الامتحان النصفي: {course.get('midterm', 'غير متوفر')} | 📆 {course.get('midterm_date', 'غير متوفر')}\n"
+        text += f"📝 التعيين الثاني: {course.get('assignment2', 'غير متوفر')}\n"
+        text += f"🧪 الامتحان النهائي: {course.get('final', 'غير متوفر')} | 📆 {course.get('final_date', 'غير متوفر')}\n"
+
+        bot.send_message(chat_id, text, parse_mode="Markdown")
+    except Exception as e:
+        print("[Course Detail Error]", e)
+        bot.send_message(chat_id, "❌ تعذر عرض تفاصيل المادة.")
 
 
 
