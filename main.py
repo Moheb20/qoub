@@ -43,7 +43,7 @@ university_list = list(university_groups.items())
 major_list = list(major_groups.items())
 
 # تهيئة قاعدة البيانات والجدولة
-init_db()
+get_user()
 start_scheduler()
 
 # إعداد Flask
