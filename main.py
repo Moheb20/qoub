@@ -223,17 +223,17 @@ def handle_course_details(call):
 
         marks = course.get('marks', {})
         text = f"📘 *{course['code']} - {course['title']}*\n\n"
-        text += f"👨‍🏫 الدكتور: {marks.get('instructor', 'غير متوفر')}\n"
-        text += f"📅 اليوم: {marks.get('lecture_day', 'غير متوفر')}\n"
-        text += f"🕒 الموعد: {marks.get('lecture_time', 'غير متوفر')}\n"
-        text += f"🏢 البناية: {marks.get('building', 'غير متوفر')}\n"
-        text += f"🏫 القاعة: {marks.get('hall', 'غير متوفر')}\n\n"
+        text += f"👨‍🏫 الدكتور: {marks.get('instructor', '-')}\n"
+        text += f"📅 اليوم: {marks.get('lecture_day', '-')}\n"
+        text += f"🕒 الموعد: {marks.get('lecture_time', '-')}\n"
+        text += f"🏢 البناية: {marks.get('building', '-')}\n"
+        text += f"🏫 القاعة: {marks.get('hall', '-')}\n\n"
 
-        text += f"📝 التعيين الأول: {marks.get('assignment1', 'غير متوفر')}\n"
-        text += f"🧪 الامتحان النصفي: {marks.get('midterm', 'غير متوفر')} | 📆 {marks.get('midterm_date', 'غير متوفر')}\n"
-        text += f"📝 التعيين الثاني: {marks.get('assignment2', 'غير متوفر')}\n"
-        text += f"🧪 الامتحان النهائي: {marks.get('final_mark', 'غير متوفر')} | 📆 {marks.get('final_date', 'غير متوفر')}\n"
-        text += f"📋 الحالة: {marks.get('status', 'غير متوفر')}"
+        text += f"📝 التعيين الأول: {marks.get('assignment1', '-')}\n"
+        text += f"🧪 الامتحان النصفي: {marks.get('midterm', '-')} | 📆 {marks.get('midterm_date', '-')}\n"
+        text += f"📝 التعيين الثاني: {marks.get('assignment2', '-')}\n"
+        text += f"🧪 الامتحان النهائي: {marks.get('final_mark', '-')} | 📆 {marks.get('final_date', '-')}\n"
+        text += f"📋 الحالة: {marks.get('status', '-')}"
 
 
         bot.send_message(chat_id, text, parse_mode="Markdown")
