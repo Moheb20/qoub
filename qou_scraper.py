@@ -90,17 +90,35 @@ class QOUScraper:
         def get_label_value(label_text):
             label = soup.find('label', string=re.compile(label_text))
             if label:
-                parent_div = label.find_parent('div')
-                if parent_div:
-                    return parent_div.get_text(strip=True).replace(label_text, '').strip()
+                next_sib = label.next_sibling
+                if next_sib and isinstance(next_sib, str):
+                    value = next_sib.strip()
+                    if value:
+                        return value
+
+                parent = label.find_parent('div')
+                if parent:
+                    full_text = parent.get_text(separator=' ', strip=True)
+                    label_text_clean = label.get_text(strip=True)
+                    value = full_text.replace(label_text_clean, '').strip()
+                    return value if value else "غير متوفر"
             return "غير متوفر"
 
         def get_instructor_name():
             label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
             if label:
+                next_sib = label.next_sibling
+                if next_sib and isinstance(next_sib, str):
+                    value = next_sib.strip()
+                    if value:
+                        return value
+
                 parent = label.find_parent('div')
                 if parent:
-                    return parent.get_text(strip=True).replace("عضو هيئة التدريس:", '').strip()
+                    full_text = parent.get_text(separator=' ', strip=True)
+                    label_text_clean = label.get_text(strip=True)
+                    value = full_text.replace(label_text_clean, '').strip()
+                    return value if value else "غير متوفر"
             return "غير متوفر"
 
         marks_data = {
