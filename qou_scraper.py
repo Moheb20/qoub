@@ -1,9 +1,10 @@
 import requests
 from bs4 import BeautifulSoup
-from typing import Optional
+from typing import Optional, List
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
+COURSES_URL = 'https://portal.qou.edu/student/courseServices.do'
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
@@ -59,3 +60,18 @@ class QOUScraper:
             'date': date_text,
             'body': body_text
         }
+
+    def fetch_courses(self) -> List[dict]:
+        resp = self.session.get(COURSES_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        courses = []
+
+        course_boxes = soup.select("div.stdserv_box")  # كل صندوق يمثل مادة
+        for box in course_boxes:
+            title = box.select_one("div.stdserv_box_title")
+            if title:
+                courses.append({'title': title.get_text(strip=True)})
+
+        return courses
