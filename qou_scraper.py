@@ -79,11 +79,12 @@ class QOUScraper:
 
         return courses
 
-    def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
+def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
     marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId=tab1&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
     resp = self.session.post(marks_url, data={})
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, 'html.parser')
+
 
     # نستخدم النص الكامل لتسهيل البحث بالكلمات المفتاحية
     page_text = soup.get_text(separator=' ', strip=True)
