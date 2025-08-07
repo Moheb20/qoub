@@ -19,6 +19,16 @@ def add_user(chat_id, student_id, password):
             INSERT OR REPLACE INTO users (chat_id, student_id, password)
             VALUES (?, ?, ?)
         ''', (chat_id, student_id, password))
+def get_user(chat_id):
+    with sqlite3.connect(DB_NAME) as conn:
+        cur = conn.cursor()
+        cur.execute('SELECT chat_id, student_id, password, last_msg_id FROM users WHERE chat_id = ?', (chat_id,))
+        row = cur.fetchone()
+        if row:
+            return dict(zip(['chat_id', 'student_id', 'password', 'last_msg_id'], row))
+        else:
+            return None
+
 
 def remove_user(chat_id):
     with sqlite3.connect(DB_NAME) as conn:
