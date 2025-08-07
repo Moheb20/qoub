@@ -69,18 +69,21 @@ class QOUScraper:
 
         courses = []
         course_titles = soup.select("div.pull-right.text-warning")
-        for item in course_titles:
+        for idx, item in enumerate(course_titles):
             full_text = item.get_text(strip=True)
             match = re.match(r"\d+/(\d+)\s+(.*)", full_text)
             if match:
                 code = match.group(1)
                 title = match.group(2)
-                courses.append({'code': code, 'title': title})
+                tab_id = f"tab{idx+1}"  # <-- tab1, tab2, tab3...
+                courses.append({'code': code, 'title': title, 'tab_id': tab_id})
 
-        return courses
+    return courses
 
-    def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
-        marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId=tab1&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
+
+    def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
+        marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId={tab_id}&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
+
         resp = self.session.post(marks_url, data={})
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -116,9 +119,10 @@ class QOUScraper:
 
         return marks_data
 
-
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
         for course in courses:
-            course['marks'] = self.fetch_course_marks(course['code'], crsSeq='0')
+            course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'])
         return courses
+
+
