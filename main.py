@@ -183,7 +183,7 @@ def handle_courses(message):
         bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
         return
 
-    student_id, password = user['student_id'], user['password']  # ← استخدام المفاتيح بدلاً من الفهرسة
+    student_id, password = user['student_id'], user['password']
     scraper = QOUScraper(student_id, password)
 
     if not scraper.login():
@@ -197,9 +197,10 @@ def handle_courses(message):
 
     text = "📚 *المواد المسجلة:* \n\n"
     for course in courses:
-        text += f"📘 {course['title']}\n"
+        text += f"📘 *{course['code']}* - {course['title']}\n"
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
+
 
 
 # بدء التشغيل
