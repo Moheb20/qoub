@@ -43,7 +43,7 @@ university_list = list(university_groups.items())
 major_list = list(major_groups.items())
 
 # تهيئة قاعدة البيانات والجدولة
-
+user = get_user(chat_id)
 start_scheduler()
 
 # إعداد Flask
