@@ -92,30 +92,37 @@ class QOUScraper:
             return BeautifulSoup(resp.text, 'html.parser')
 
         def get_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
-            label_tags = soup.find_all('label', string=re.compile(label_text_pattern.strip(), re.I))
-            for label in label_tags:
+            labels = soup.find_all('label', string=re.compile(label_text_pattern.strip()))
+            for label in labels:
                 parent_div = label.find_parent('div', class_='form-group')
                 if parent_div:
                     divs = parent_div.find_all('div', recursive=False)
-                    for i, div in enumerate(divs):
-                        if label in div.descendants:
-                            if i + 1 < len(divs):
-                                value = divs[i + 1].get_text(strip=True)
-                                if value and value != '-':
-                                    return value
+                    if len(divs) >= 4:
+                        value = divs[3].get_text(strip=True)
+                        if value and value != '-':
+                            return value
+                    else:
+                        text = parent_div.get_text(separator=" ", strip=True)
+                        val = text.replace(label.get_text(strip=True), '').strip()
+                        if val and val != '-':
+                            return val
             return "-"
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
-            label = soup.find('label', string=re.compile(label_text_pattern, re.I))
+            label = soup.find('label', string=re.compile(label_text_pattern.strip()))
             if label:
                 parent_div = label.find_parent('div', class_='form-group')
                 if parent_div:
                     divs = parent_div.find_all('div', recursive=False)
-                    for i, div in enumerate(divs):
-                        if label in div.descendants and i + 1 < len(divs):
-                            value = divs[i + 1].get_text(strip=True)
-                            if value and value != '-':
-                                return value
+                    if len(divs) >= 4:
+                        value = divs[3].get_text(strip=True)
+                        if value and value != '-':
+                            return value
+                    else:
+                        text = parent_div.get_text(separator=" ", strip=True)
+                        val = text.replace(label.get_text(strip=True), '').strip()
+                        if val and val != '-':
+                            return val
             return "-"
 
         def get_instructor(soup: BeautifulSoup) -> str:
@@ -124,9 +131,7 @@ class QOUScraper:
                 return instructor_div.get_text(strip=True)
             return "-"
 
-        # 🟢 Step 1: Fetch marks tab
         marks_soup = fetch_tab("marks")
-        # print(marks_soup.prettify()[:1000])  # لفحص محتوى صفحة العلامات
 
         marks_data = {
             'assignment1': get_label_value(marks_soup, 'التعيين الأول'),
@@ -138,9 +143,7 @@ class QOUScraper:
             'status': get_label_value(marks_soup, 'الحالة'),
         }
 
-        # 🟢 Step 2: Fetch schedule tab
         schedule_soup = fetch_tab("tSchedule")
-        # print(schedule_soup.prettify()[:1000])  # لفحص محتوى صفحة الجدول
 
         marks_data.update({
             'instructor': get_instructor(schedule_soup),
