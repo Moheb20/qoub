@@ -1,6 +1,6 @@
 import threading
 from flask import Flask
-from database import get_all_users
+from database import get_user
 from scheduler import start_scheduler
 from bot_instance import bot  # يحتوي على كائن TeleBot
 from qou_scraper import QOUScraper
@@ -43,7 +43,7 @@ university_list = list(university_groups.items())
 major_list = list(major_groups.items())
 
 # تهيئة قاعدة البيانات والجدولة
-get_all_users()
+get_user()
 start_scheduler()
 
 # إعداد Flask
@@ -178,7 +178,7 @@ def handle_courses(message):
     chat_id = message.chat.id
     from database import get_all_users
 
-    user = get_all_users(chat_id)
+    user = get_user(chat_id)
     if not user:
         bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
         return
