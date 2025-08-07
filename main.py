@@ -176,9 +176,9 @@ def handle_major_selection(call):
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
-    from database import get_user
+    from database import get_all_users
 
-    user = get_user(chat_id)
+    user = get_all_users(chat_id)
     if not user:
         bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
         return
