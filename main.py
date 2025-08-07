@@ -1,6 +1,6 @@
 import threading
 from flask import Flask
-from database import init_db
+from database import get_user
 from scheduler import start_scheduler
 from bot_instance import bot  # يحتوي على كائن TeleBot
 from qou_scraper import QOUScraper
