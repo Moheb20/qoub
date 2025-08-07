@@ -97,27 +97,32 @@ class QOUScraper:
                         divs = form_group.find_all('div', recursive=False)
                         for i, div in enumerate(divs):
                             if label in div.descendants:
-                                # القيمة تكون في الـ div اللي بعده
                                 if i + 1 < len(divs):
                                     value_div = divs[i + 1]
                                     value = value_div.get_text(strip=True)
                                     return value if value else "غير متوفر"
             return "غير متوفر"
 
+        def get_simple_label_value(label_text):
+            label = soup.find('label', string=re.compile(label_text))
+            if label:
+                parent_div = label.find_parent('div')
+                if parent_div:
+                    text = parent_div.get_text(separator=' ', strip=True)
+                    return text.replace(label_text, '').strip() or "غير متوفر"
+            return "غير متوفر"
+
         def get_instructor_name():
             label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
             if label:
-                label_div = label.find_parent('div')
-                if label_div:
-                    form_group = label_div.find_parent('div', class_='form-group')
-                    if form_group:
-                        divs = form_group.find_all('div', recursive=False)
-                        for i, div in enumerate(divs):
-                            if label in div.descendants:
-                                if i + 1 < len(divs):
-                                    value_div = divs[i + 1]
-                                    value = value_div.get_text(strip=True)
-                                    return value if value else "غير متوفر"
+                parent_div = label.find_parent('div', class_='col-sm-3 col-md-3')
+                if parent_div:
+                    sibling_div = parent_div.find_next_sibling('div', class_='col-sm-9 col-md-9')
+                    if sibling_div:
+                        a_tag = sibling_div.find('a')
+                        if a_tag:
+                            return a_tag.get_text(strip=True)
+                        return sibling_div.get_text(strip=True)
             return "غير متوفر"
 
         marks_data = {
@@ -129,8 +134,10 @@ class QOUScraper:
             'final_date': get_label_value('تاريخ وضع العلامة النهائية'),
             'status': get_label_value('الحالة'),
             'instructor': get_instructor_name(),
-            'lecture_day': get_label_value('اليوم:'),
-            'lecture_time': get_label_value('الموعد:')
+            'lecture_day': get_simple_label_value('اليوم:'),
+            'lecture_time': get_simple_label_value('الموعد:'),
+            'building': get_simple_label_value('البناية:'),
+            'hall': get_simple_label_value('القاعة:')
         }
 
         return marks_data
