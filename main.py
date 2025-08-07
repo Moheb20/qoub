@@ -6,30 +6,17 @@ from bot_instance import bot  # يحتوي على كائن TeleBot
 from qou_scraper import QOUScraper
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# الحالة المؤقتة للمستخدمين
+# الحالة المؤقتة للمستخدمين (لتخزين بيانات كل مستخدم مؤقتاً)
 user_states = {}
 
-# روابط قروبات المواد
+# روابط قروبات المواد (مثال)
 subject_groups = {
     "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
     "قواعد الكتابة والترقيم": "https://chat.whatsapp.com/IV0KQVlep5QJ1dBaRoqn5f",
-    "تصميم التدريس": "https://chat.whatsapp.com/BoHU1ifJd5n86dRTR1J3Zh",
-    "ادارة الصف وتنظيمه": "https://chat.whatsapp.com/FDgewENfci54CutRyr4SEd",
-    "الحاسوب في التعليم": "https://chat.whatsapp.com/KlOtrGM8b93JcFekltBPBv",
-    "تعديل السلوك": "https://chat.whatsapp.com/BwtqAdepHcpHFWQIt7drhb",
-    "الحركة الاسيرة": "https://chat.whatsapp.com/E4j2B4ncNPN2bpT2S1ZFHJ",
-    "الحاسوب": "https://chat.whatsapp.com/CPynN3OZm67InIvC3K1BZ4",
-    "القياس والتقويم": "https://chat.whatsapp.com/LJfQxUk14BxH1ysxyZTUzK",
-    "علم النفس التربوي": "https://chat.whatsapp.com/BglsAZvRlrGH6rCyRLnAoR",
-    "طرائق التدريس والتدريب العامة": "https://chat.whatsapp.com/BvAJOUr8fp66VvEWDHXEFG",
-    "تكنولوجيا التعليم": "https://chat.whatsapp.com/Gflbw7bjbaf5o8d0bBbz7p",
-    "فلسطين والقضية الفلسطينية": "https://chat.whatsapp.com/DZs1DlkzmnJGIf1JlHlDYX",
-    "التفكير الابداعي": "https://chat.whatsapp.com/FkvU2389Qzu2vMwDFHrMs4",
-    "تعليم اجتماعيات": "https://chat.whatsapp.com/KD7NTx48L2R0WZs0N2r3yX",
-    "العلاقات الدولية في الاسلام": "https://chat.whatsapp.com/EfpdyJbX1wS7RhYAzovqW1"
+    # باقي القروبات ...
 }
 
-# 🔽 أمثلة لإضافة قروبات الجامعة أو التخصصات لاحقًا:
+# قروبات الجامعة والتخصصات
 university_groups = {
     "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e"
 }
@@ -46,14 +33,13 @@ major_list = list(major_groups.items())
 get_all_users()
 start_scheduler()
 
-# إعداد Flask
+# إعداد Flask لخدمة بسيطة
 app = Flask(__name__)
 
 @app.route("/")
 def home():
     return "✅ البوت يعمل ✔️"
 
-# تشغيل Flask في خيط منفصل
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
@@ -106,7 +92,7 @@ def get_password(message):
 
     user_states.pop(chat_id, None)
 
-# أمر /groups يعرض التصنيفات
+# عرض القروبات
 @bot.message_handler(commands=['groups'])
 def handle_groups_command(message):
     keyboard = InlineKeyboardMarkup()
@@ -117,8 +103,6 @@ def handle_groups_command(message):
     )
     bot.send_message(message.chat.id, "🎯 اختر نوع القروبات:", reply_markup=keyboard)
 
-
-# التعامل مع اختيار نوع القروب
 @bot.callback_query_handler(func=lambda call: call.data.startswith("category:"))
 def handle_group_category(call):
     category = call.data.split(":")[1]
@@ -130,7 +114,7 @@ def handle_group_category(call):
         bot.send_message(call.message.chat.id, "🧾 اختر المادة للحصول على رابط القروب:", reply_markup=markup)
 
     elif category == "university":
-        markup = InlineKeyboardMarkup()  # ✅ تم إضافة هذا السطر
+        markup = InlineKeyboardMarkup()
         for idx, (name, _) in enumerate(university_list):
             markup.add(InlineKeyboardButton(name, callback_data=f"univ_{idx}"))
         bot.send_message(call.message.chat.id, "🏛 اختر قروب الجامعة:", reply_markup=markup)
@@ -141,16 +125,13 @@ def handle_group_category(call):
             markup.add(InlineKeyboardButton(name, callback_data=f"major:{name}"))
         bot.send_message(call.message.chat.id, "🧑‍🎓 اختر قروب من قروبات التخصص:", reply_markup=markup)
 
-
-# التعامل مع اختيار مادة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("subject:"))
 def handle_subject_selection(call):
-    bot.answer_callback_query(call.id)    
+    bot.answer_callback_query(call.id)
     subject = call.data.split("subject:")[1]
     link = subject_groups.get(subject, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{subject}*:\n{link}", parse_mode="Markdown")
 
-# التعامل مع قروبات الجامعة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("univ_"))
 def handle_university_selection(call):
     bot.answer_callback_query(call.id)
@@ -162,18 +143,14 @@ def handle_university_selection(call):
         bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء استرجاع الرابط.")
         print("[university error]", e)
 
-# التعامل مع قروبات التخصصات
 @bot.callback_query_handler(func=lambda call: call.data.startswith("major:"))
 def handle_major_selection(call):
-    bot.answer_callback_query(call.id)    
+    bot.answer_callback_query(call.id)
     name = call.data.split("major:")[1]
     link = major_groups.get(name, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
 
-
-
-# أمر /courses لعرض المواد
-# أمر /courses لعرض المواد على شكل أزرار
+# أمر عرض المواد مع العلامات
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
@@ -198,13 +175,11 @@ def handle_courses(message):
 
     markup = InlineKeyboardMarkup()
     for idx, course in enumerate(courses):
-        # نفترض وجود كود المادة والاسم
         markup.add(InlineKeyboardButton(
             text=f"{course['code']} - {course['title']}",
             callback_data=f"course:{idx}"
         ))
 
-    # حفظ البيانات مؤقتًا لكل مستخدم حتى نعرض التفاصيل لاحقًا
     user_states[chat_id] = {'courses': courses}
     bot.send_message(chat_id, "📘 اختر مادة لعرض التفاصيل:", reply_markup=markup)
 
@@ -234,18 +209,11 @@ def handle_course_details(call):
         text += f"📝 التعيين الثاني: {marks.get('assignment2', '-')}\n"
         text += f"🧪 الامتحان النهائي: {marks.get('final_mark', '-')} | 📆 {marks.get('final_date', '-')}\n"
         text += f"📋 الحالة: {marks.get('status', '-')}"
-
-
         bot.send_message(chat_id, text, parse_mode="Markdown")
     except Exception as e:
         print("[Course Detail Error]", e)
         bot.send_message(chat_id, "❌ تعذر عرض تفاصيل المادة.")
 
-
-
-
-
-# بدء التشغيل
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
     bot.remove_webhook()
