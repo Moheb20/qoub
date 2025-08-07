@@ -82,63 +82,53 @@ class QOUScraper:
         return courses
 
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
-        marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId={tab_id}&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
-        resp = self.session.post(marks_url, data={})
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        base_url = "https://portal.qou.edu/student/loadCourseServices"
 
-        def get_label_value(label_text):
-            label = soup.find('label', string=re.compile(label_text))
+        def fetch_tab(tab: str) -> BeautifulSoup:
+            url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
+            resp = self.session.post(url)
+            resp.raise_for_status()
+            return BeautifulSoup(resp.text, 'html.parser')
+
+        def get_label_value(soup: BeautifulSoup, label_text_pattern):
+            label = soup.find('label', string=re.compile(label_text_pattern, re.I))
             if label:
-                label_div = label.find_parent('div')
-                if label_div:
-                    form_group = label_div.find_parent('div', class_='form-group')
-                    if form_group:
-                        divs = form_group.find_all('div', recursive=False)
-                        for i, div in enumerate(divs):
-                            if label in div.descendants:
-                                if i + 1 < len(divs):
-                                    value_div = divs[i + 1]
-                                    value = value_div.get_text(strip=True)
-                                    return value if value else "غير متوفر"
+                parent = label.find_parent('div')
+                if parent:
+                    next_sibling = parent.find_next_sibling('div')
+                    if next_sibling:
+                        value = next_sibling.get_text(strip=True)
+                        return value if value else "غير متوفر"
             return "غير متوفر"
 
-        def get_simple_label_value(label_text):
-            label = soup.find('label', string=re.compile(label_text))
-            if label:
-                parent_div = label.find_parent('div')
-                if parent_div:
-                    text = parent_div.get_text(separator=' ', strip=True)
-                    return text.replace(label_text, '').strip() or "غير متوفر"
+        def get_instructor(soup: BeautifulSoup) -> str:
+            instructor_div = soup.find('a', href=re.compile("createMessage"))
+            if instructor_div:
+                return instructor_div.get_text(strip=True)
             return "غير متوفر"
 
-        def get_instructor_name():
-            label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
-            if label:
-                parent_div = label.find_parent('div', class_='col-sm-3 col-md-3')
-                if parent_div:
-                    sibling_div = parent_div.find_next_sibling('div', class_='col-sm-9 col-md-9')
-                    if sibling_div:
-                        a_tag = sibling_div.find('a')
-                        if a_tag:
-                            return a_tag.get_text(strip=True)
-                        return sibling_div.get_text(strip=True)
-            return "غير متوفر"
+        # 🟢 Step 1: Fetch marks tab
+        marks_soup = fetch_tab("marks")
 
         marks_data = {
-            'assignment1': get_label_value('التعيين الأول'),
-            'midterm': get_label_value('نصفي نظري'),
-            'midterm_date': get_label_value('تاريخ وضع الامتحان النصفي'),
-            'assignment2': get_label_value('التعيين الثاني'),
-            'final_mark': get_label_value('العلامة النهائية'),
-            'final_date': get_label_value('تاريخ وضع العلامة النهائية'),
-            'status': get_label_value('الحالة'),
-            'instructor': get_instructor_name(),
-            'lecture_day': get_simple_label_value('اليوم:'),
-            'lecture_time': get_simple_label_value('الموعد:'),
-            'building': get_simple_label_value('البناية:'),
-            'hall': get_simple_label_value('القاعة:')
+            'assignment1': get_label_value(marks_soup, 'التعيين الأول'),
+            'midterm': get_label_value(marks_soup, 'نصفي نظري'),
+            'midterm_date': get_label_value(marks_soup, 'تاريخ وضع الامتحان النصفي'),
+            'assignment2': get_label_value(marks_soup, 'التعيين الثاني'),
+            'final_mark': get_label_value(marks_soup, 'العلامة النهائية'),
+            'final_date': get_label_value(marks_soup, 'تاريخ وضع العلامة النهائية'),
+            'status': get_label_value(marks_soup, 'الحالة'),
         }
+
+        # 🟢 Step 2: Fetch schedule tab
+        schedule_soup = fetch_tab("tSchedule")
+        marks_data.update({
+            'instructor': get_instructor(schedule_soup),
+            'lecture_day': get_label_value(schedule_soup, 'اليوم'),
+            'lecture_time': get_label_value(schedule_soup, 'الموعد'),
+            'building': get_label_value(schedule_soup, 'البناية'),
+            'hall': get_label_value(schedule_soup, 'القاعة'),
+        })
 
         return marks_data
 
