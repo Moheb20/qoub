@@ -173,6 +173,7 @@ def handle_major_selection(call):
 
 
 # أمر /courses لعرض المواد
+# أمر /courses لعرض المواد على شكل أزرار
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
@@ -195,11 +196,18 @@ def handle_courses(message):
         bot.send_message(chat_id, "📭 لم يتم العثور على مواد حالياً.")
         return
 
-    text = "📚 *المواد المسجلة:* \n\n"
-    for course in courses:
-        text += f"📘 *{course['code']}* - {course['title']}\n"
+    markup = InlineKeyboardMarkup()
+    for idx, course in enumerate(courses):
+        # نفترض وجود كود المادة والاسم
+        markup.add(InlineKeyboardButton(
+            text=f"{course['code']} - {course['title']}",
+            callback_data=f"course:{idx}"
+        ))
 
-    bot.send_message(chat_id, text, parse_mode="Markdown")
+    # حفظ البيانات مؤقتًا لكل مستخدم حتى نعرض التفاصيل لاحقًا
+    user_states[chat_id] = {'courses': courses}
+    bot.send_message(chat_id, "📘 اختر مادة لعرض التفاصيل:", reply_markup=markup)
+
 
 
 
