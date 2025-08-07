@@ -98,21 +98,21 @@ class QOUScraper:
                     next_sibling = parent.find_next_sibling('div')
                     if next_sibling:
                         value = next_sibling.get_text(strip=True)
-                        return value if value else "غير متوفر"
-            return "غير متوفر"
+                        return value if value else "-"
+            return "-"
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern):
             label = soup.find('label', string=re.compile(label_text_pattern, re.I))
             if label and label.next_sibling:
                 value = str(label.next_sibling).strip().replace("&nbsp;", "")
-                return value if value else "غير متوفر"
-            return "غير متوفر"
+                return value if value else "-"
+            return "-"
 
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
             if instructor_div:
                 return instructor_div.get_text(strip=True)
-            return "غير متوفر"
+            return "-"
 
         # 🟢 Step 1: Fetch marks tab
         marks_soup = fetch_tab("marks")
