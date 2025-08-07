@@ -52,13 +52,13 @@ def handle_start(message):
     user_states[chat_id] = {}
     bot.send_message(chat_id, "👤 الرجاء إدخال اسم المستخدم الخاص بك:")
 
-@bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'student_id' not in user_states[msg.chat.id])
+@bot.message_handler(func=lambda msg: msg.chat_id in user_states and 'student_id' not in user_states[msg.chat.id])
 def get_student_id(message):
     chat_id = message.chat.id
     user_states[chat_id]['student_id'] = message.text.strip()
     bot.send_message(chat_id, "🔒 الآن، الرجاء إدخال كلمة المرور:")
 
-@bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat_id])
+@bot.message_handler(func=lambda msg: msg.chat_id in user_states and 'password' not in user_states[msg.chat_id])
 def get_password(message):
     chat_id = message.chat.id
     user_states[chat_id]['password'] = message.text.strip()
