@@ -191,7 +191,7 @@ def handle_courses(message):
         bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
         return
 
-    courses = scraper.fetch_courses()
+    courses = scraper.fetch_courses_with_marks()
     if not courses:
         bot.send_message(chat_id, "📭 لم يتم العثور على مواد حالياً.")
         return
@@ -221,19 +221,23 @@ def handle_course_details(call):
             bot.send_message(chat_id, "❌ حدث خطأ أثناء تحميل تفاصيل المادة.")
             return
 
-        # صياغة التفاصيل
+        marks = course.get('marks', {})
+
         text = f"📘 *{course['code']} - {course['title']}*\n\n"
         text += f"👨‍🏫 الدكتور: {course.get('instructor', 'غير متوفر')}\n"
         text += f"📅 المحاضرة: {course.get('lecture_day', 'غير متوفر')} - {course.get('lecture_time', 'غير متوفر')}\n\n"
-        text += f"📝 التعيين الأول: {course.get('assignment1', 'غير متوفر')}\n"
-        text += f"🧪 الامتحان النصفي: {course.get('midterm', 'غير متوفر')} | 📆 {course.get('midterm_date', 'غير متوفر')}\n"
-        text += f"📝 التعيين الثاني: {course.get('assignment2', 'غير متوفر')}\n"
-        text += f"🧪 الامتحان النهائي: {course.get('final', 'غير متوفر')} | 📆 {course.get('final_date', 'غير متوفر')}\n"
+
+        text += f"📝 التعيين الأول: {marks.get('assignment1', 'غير متوفر')}\n"
+        text += f"🧪 الامتحان النصفي: {marks.get('نصفي نظري', 'غير متوفر')} | 📆 {marks.get('تاريخ الامتحان النصفي', 'غير متوفر')}\n"
+        text += f"📝 التعيين الثاني: {marks.get('assignment2', 'غير متوفر')}\n"
+        text += f"🧪 الامتحان النهائي: {marks.get('العلامة النهائية', 'غير متوفر')} | 📆 {marks.get('تاريخ وضع العلامة النهائية', 'غير متوفر')}\n"
+        text += f"📋 الحالة: {marks.get('الحالة', 'غير متوفر')}\n"
 
         bot.send_message(chat_id, text, parse_mode="Markdown")
     except Exception as e:
         print("[Course Detail Error]", e)
         bot.send_message(chat_id, "❌ تعذر عرض تفاصيل المادة.")
+
 
 
 
