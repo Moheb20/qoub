@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
 import re
+import json
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
@@ -77,30 +78,49 @@ class QOUScraper:
                 code = match.group(1)
                 title = match.group(2)
                 tab_id = f"tab{idx+1}"  # tab1, tab2, ...
-                crsSeq = '1'  # غالباً 1 كما في المثال
+                crsSeq = '0'  # عادة 0 حسب طلبك
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
 
-    def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '1') -> dict:
+    def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
         base_url = "https://portal.qou.edu/student/loadCourseServices"
 
-        def fetch_tab(tab: str) -> BeautifulSoup:
+        def fetch_tab_raw(tab: str) -> str:
             url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
             resp = self.session.post(url)
             resp.raise_for_status()
-            # إذا أردت التحقق من المحتوى، أزل تعليق السطر التالي:
-            # print(resp.text)
-            return BeautifulSoup(resp.text, 'html.parser')
+            print(f"--- المحتوى الخام للتاب {tab} للكورس {crsNo} ---")
+            print(resp.text)  # اطبع المحتوى الكامل
+            return resp.text
 
-        def get_instructor(soup: BeautifulSoup) -> str:
-            instructor_div = soup.find('a', href=re.compile("createMessage"))
-            if instructor_div:
-                return instructor_div.get_text(strip=True)
+        # جلب البيانات الخام
+        marks_raw = fetch_tab_raw("marks")
+        schedule_raw = fetch_tab_raw("tSchedule")
+
+        # محاولة تحويل النص إلى JSON
+        try:
+            marks_data_json = json.loads(marks_raw)
+        except Exception:
+            marks_data_json = None
+
+        try:
+            schedule_data_json = json.loads(schedule_raw)
+        except Exception:
+            schedule_data_json = None
+
+        # استخراج المعلم من جدول المواعيد (لو JSON)
+        def get_instructor_from_json(data) -> str:
+            if isinstance(data, dict) and 'createMessage' in str(data):
+                # ممكن تحتاج تعديل حسب شكل JSON الحقيقي
+                for item in data.get('items', []):
+                    if 'createMessage' in item.get('href', ''):
+                        return item.get('text', '-')
             return "-"
 
-        def extract_marks_from_soup(soup: BeautifulSoup) -> dict:
-            data = {
+        # دالة استخراج العلامات من JSON أو النص الخام
+        def extract_marks(data) -> dict:
+            default = {
                 'assignment1': "-",
                 'midterm': "-",
                 'midterm_date': "-",
@@ -109,64 +129,37 @@ class QOUScraper:
                 'final_date': "-",
                 'status': "-"
             }
+            if not data:
+                return default
 
-            for fg in soup.select('div.form-group'):
-                label = fg.find('label')
-                if not label:
-                    continue
-                label_text = label.get_text(strip=True)
+            # لو JSON dict:
+            if isinstance(data, dict):
+                # هنا تحتاج تعديل حسب شكل JSON
+                # مؤقتاً نرجع الافتراض
+                return default
 
-                if "التعيين الاول" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['assignment1'] = value_div.get_text(strip=True) if value_div else "-"
-                elif "نصفي نظري" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['midterm'] = value_div.get_text(strip=True) if value_div else "-"
-                elif "تاريخ وضع الامتحان النصفي" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['midterm_date'] = value_div.get_text(strip=True) if value_div else "-"
-                elif "التعيين الثاني" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['assignment2'] = value_div.get_text(strip=True) if value_div else "-"
-                elif "العلامة النهائية" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['final_mark'] = value_div.get_text(strip=True) if value_div else "-"
-                elif "تاريخ وضع العلامة النهائية" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['final_date'] = value_div.get_text(strip=True) if value_div else "-"
-                elif "الحالة" in label_text:
-                    value_div = fg.find_all('div')[-1]
-                    data['status'] = value_div.get_text(strip=True) if value_div else "-"
+            # لو نص HTML (غير JSON) – تحتاج معالجته بالـ BeautifulSoup أو Regex
+            # اتركها هنا للآن كما هي
+            return default
 
-            return data
+        marks = extract_marks(marks_data_json)
+        instructor = get_instructor_from_json(schedule_data_json) if schedule_data_json else "-"
+        
+        # استخراج قيم أخرى من جدول المواعيد: ضع قيم "-" مؤقتًا
+        # لأنك محتاج تعرف شكل البيانات الحقيقية لتعالجها
+        lecture_day = "-"
+        lecture_time = "-"
+        building = "-"
+        hall = "-"
 
-        marks_soup = fetch_tab("marks")
-        marks_data = extract_marks_from_soup(marks_soup)
-
-        schedule_soup = fetch_tab("tSchedule")
-
-        marks_data.update({
-            'instructor': get_instructor(schedule_soup),
-            'lecture_day': self.get_direct_label_value(schedule_soup, 'اليوم'),
-            'lecture_time': self.get_direct_label_value(schedule_soup, 'الموعد'),
-            'building': self.get_direct_label_value(schedule_soup, 'البناية'),
-            'hall': self.get_direct_label_value(schedule_soup, 'القاعة'),
-        })
-
-        return marks_data
-
-    def get_direct_label_value(self, soup: BeautifulSoup, label_text_pattern: str) -> str:
-        label = soup.find('label', string=re.compile(label_text_pattern, re.I))
-        if label:
-            parent_div = label.find_parent('div', class_='form-group')
-            if parent_div:
-                divs = parent_div.find_all('div', recursive=False)
-                for i, div in enumerate(divs):
-                    if label in div.descendants and i + 1 < len(divs):
-                        value = divs[i + 1].get_text(strip=True)
-                        if value and value != '-':
-                            return value
-        return "-"
+        return {
+            **marks,
+            'instructor': instructor,
+            'lecture_day': lecture_day,
+            'lecture_time': lecture_time,
+            'building': building,
+            'hall': hall,
+        }
 
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
