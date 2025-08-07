@@ -30,12 +30,12 @@ class QOUScraper:
 
         row = soup.select_one("tbody tr")
         if not row:
-            print("[❌] لا يوجد صفوف رسائل. - qou_scraper.py:31")
+            print("[❌] لا يوجد صفوف رسائل.")
             return None
 
         link_tag = row.select_one("td[col_4] a[href*='msgId=']")
         if not link_tag:
-            print("[❌] لم يتم العثور على الرابط داخل الموضوع. - qou_scraper.py:36")
+            print("[❌] لم يتم العثور على الرابط داخل الموضوع.")
             return None
 
         msg_id = link_tag['href'].split('msgId=')[-1]
@@ -117,4 +117,3 @@ class QOUScraper:
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], crsSeq='0')
         return courses
-
