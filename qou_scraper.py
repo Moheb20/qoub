@@ -94,17 +94,23 @@ class QOUScraper:
 
         def get_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
             label_tags = soup.find_all('label', string=re.compile(label_text_pattern.strip(), re.I))
-            for label in label_tags: 
-                form_group = label.find_parent('div', class_='form-group')
-                if form_group:
-                    divs = form_group.find_all('div', recursive=False)
+            for label in label_tags:
+                parent_div = label.find_parent('div', class_='form-group')
+                if parent_div:
+                    # كل div بداخل form-group
+                    divs = parent_div.find_all('div', recursive=False)
+                    # ابحث في هذه الـ divs عن قيمة بعد div الذي يحتوي label
                     for i, div in enumerate(divs):
                         if label in div.descendants:
-                            if i + 1 < len(divs):
-                                value = divs[i + 1].get_text(strip=True)
-                                if value:
-                                    return value
-            return "-"
+                        # غالبًا القيمة في الـ div التالي
+                        if i + 1 < len(divs):
+                            value = divs[i + 1].get_text(strip=True)
+                            if value and value != '-':
+                                return value
+        return "-"
+
+
+        
 
         def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
             label = soup.find('label', string=re.compile(label_text_pattern, re.I))
