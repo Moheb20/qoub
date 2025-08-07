@@ -7,6 +7,7 @@ LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 COURSES_URL = 'https://portal.qou.edu/student/courseServices.do'
 
+
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
@@ -75,15 +76,13 @@ class QOUScraper:
             if match:
                 code = match.group(1)
                 title = match.group(2)
-                tab_id = f"tab{idx+1}"  # <-- tab1, tab2, tab3...
+                tab_id = f"tab{idx+1}"  # tab1, tab2, ...
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id})
 
-    return courses
-
+        return courses
 
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
         marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId={tab_id}&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
-
         resp = self.session.post(marks_url, data={})
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -124,5 +123,3 @@ class QOUScraper:
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'])
         return courses
-
-
