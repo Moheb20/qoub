@@ -65,6 +65,7 @@ class QOUScraper:
 def fetch_courses(self) -> List[dict]:
     resp = self.session.get(COURSES_URL)
     resp.raise_for_status()
+    print(resp.text[:3000])
     soup = BeautifulSoup(resp.text, 'html.parser')
 
     courses = []
