@@ -90,35 +90,34 @@ class QOUScraper:
         def get_label_value(label_text):
             label = soup.find('label', string=re.compile(label_text))
             if label:
-                next_sib = label.next_sibling
-                if next_sib and isinstance(next_sib, str):
-                    value = next_sib.strip()
-                    if value:
-                        return value
-
-                parent = label.find_parent('div')
-                if parent:
-                    full_text = parent.get_text(separator=' ', strip=True)
-                    label_text_clean = label.get_text(strip=True)
-                    value = full_text.replace(label_text_clean, '').strip()
-                    return value if value else "غير متوفر"
+                label_div = label.find_parent('div')
+                if label_div:
+                    form_group = label_div.find_parent('div', class_='form-group')
+                    if form_group:
+                        divs = form_group.find_all('div', recursive=False)
+                        for i, div in enumerate(divs):
+                            if label in div.descendants:
+                                # القيمة تكون في الـ div اللي بعده
+                                if i + 1 < len(divs):
+                                    value_div = divs[i + 1]
+                                    value = value_div.get_text(strip=True)
+                                    return value if value else "غير متوفر"
             return "غير متوفر"
 
         def get_instructor_name():
             label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
             if label:
-                next_sib = label.next_sibling
-                if next_sib and isinstance(next_sib, str):
-                    value = next_sib.strip()
-                    if value:
-                        return value
-
-                parent = label.find_parent('div')
-                if parent:
-                    full_text = parent.get_text(separator=' ', strip=True)
-                    label_text_clean = label.get_text(strip=True)
-                    value = full_text.replace(label_text_clean, '').strip()
-                    return value if value else "غير متوفر"
+                label_div = label.find_parent('div')
+                if label_div:
+                    form_group = label_div.find_parent('div', class_='form-group')
+                    if form_group:
+                        divs = form_group.find_all('div', recursive=False)
+                        for i, div in enumerate(divs):
+                            if label in div.descendants:
+                                if i + 1 < len(divs):
+                                    value_div = divs[i + 1]
+                                    value = value_div.get_text(strip=True)
+                                    return value if value else "غير متوفر"
             return "غير متوفر"
 
         marks_data = {
