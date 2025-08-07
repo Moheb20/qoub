@@ -1,19 +1,19 @@
 import threading
 from flask import Flask
-from database import get_all_users
+from database import get_all_users, add_user, update_last_msg, get_user
 from scheduler import start_scheduler
-from bot_instance import bot  # يحتوي على كائن TeleBot
+from bot_instance import bot  # كائن TeleBot جاهز
 from qou_scraper import QOUScraper
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# الحالة المؤقتة للمستخدمين (لتخزين بيانات كل مستخدم مؤقتاً)
+# الحالة المؤقتة للمستخدمين (لتخزين بيانات مؤقتة لكل مستخدم)
 user_states = {}
 
 # روابط قروبات المواد (مثال)
 subject_groups = {
     "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
     "قواعد الكتابة والترقيم": "https://chat.whatsapp.com/IV0KQVlep5QJ1dBaRoqn5f",
-    # باقي القروبات ...
+    # أضف باقي قروبات المواد هنا حسب الحاجة
 }
 
 # قروبات الجامعة والتخصصات
@@ -23,6 +23,7 @@ university_groups = {
 
 major_groups = {
     "رياضيات": "https://chat.whatsapp.com/FKCxgfaJNWJ6CBnIB30FYO"
+    # أضف باقي التخصصات هنا حسب الحاجة
 }
 
 subject_list = list(subject_groups.items())
@@ -57,7 +58,7 @@ def get_student_id(message):
     user_states[chat_id]['student_id'] = message.text.strip()
     bot.send_message(chat_id, "🔒 الآن، الرجاء إدخال كلمة المرور:")
 
-@bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat.id])
+@bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat_id])
 def get_password(message):
     chat_id = message.chat.id
     user_states[chat_id]['password'] = message.text.strip()
@@ -67,8 +68,6 @@ def get_password(message):
     scraper = QOUScraper(student_id, password)
 
     if scraper.login():
-        from database import add_user, update_last_msg
-
         add_user(chat_id, student_id, password)
         bot.send_message(chat_id, "✅ تم تسجيل بياناتك بنجاح!\n🔍 يتم الآن البحث عن آخر رسالة...")
 
@@ -154,7 +153,6 @@ def handle_major_selection(call):
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
-    from database import get_user
 
     user = get_user(chat_id)
     if not user:
