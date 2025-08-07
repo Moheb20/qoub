@@ -101,6 +101,7 @@ class QOUScraper:
                         return value if value else "غير متوفر"
             return "غير متوفر"
 
+
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
             if instructor_div:
