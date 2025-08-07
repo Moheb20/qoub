@@ -79,43 +79,42 @@ class QOUScraper:
 
         return courses
 
-def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
-    marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId=tab1&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
-    resp = self.session.post(marks_url, data={})
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, 'html.parser')
+ def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
+        marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId=tab1&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
+        resp = self.session.post(marks_url, data={})
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
 
-    def get_label_value(label_text):
-        label = soup.find('label', string=re.compile(label_text))
-        if label:
-            parent_div = label.find_parent('div')
-            if parent_div:
-                return parent_div.get_text(strip=True).replace(label_text, '').strip()
-        return "غير متوفر"
+        def get_label_value(label_text):
+            label = soup.find('label', string=re.compile(label_text))
+            if label:
+                parent_div = label.find_parent('div')
+                if parent_div:
+                    return parent_div.get_text(strip=True).replace(label_text, '').strip()
+            return "غير متوفر"
 
-    def get_instructor_name():
-        label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
-        if label:
-            parent = label.find_parent('div')
-            if parent:
-                return parent.get_text(strip=True).replace("عضو هيئة التدريس:", '').strip()
-        return "غير متوفر"
+        def get_instructor_name():
+            label = soup.find('label', string=re.compile("عضو هيئة التدريس"))
+            if label:
+                parent = label.find_parent('div')
+                if parent:
+                    return parent.get_text(strip=True).replace("عضو هيئة التدريس:", '').strip()
+            return "غير متوفر"
 
-    marks_data = {
-        'assignment1': get_label_value('التعيين الأول'),
-        'نصفي نظري': get_label_value('نصفي نظري'),
-        'تاريخ الامتحان النصفي': get_label_value('تاريخ وضع الامتحان النصفي'),
-        'assignment2': get_label_value('التعيين الثاني'),
-        'العلامة النهائية': get_label_value('العلامة النهائية'),
-        'تاريخ وضع العلامة النهائية': get_label_value('تاريخ وضع العلامة النهائية'),
-        'الحالة': get_label_value('الحالة'),
-        'instructor': get_instructor_name(),
-        'lecture_day': get_label_value('اليوم:'),
-        'lecture_time': get_label_value('الموعد:')
-    }
+        marks_data = {
+            'assignment1': get_label_value('التعيين الأول'),
+            'midterm': get_label_value('نصفي نظري'),
+            'midterm_date': get_label_value('تاريخ وضع الامتحان النصفي'),
+            'assignment2': get_label_value('التعيين الثاني'),
+            'final_mark': get_label_value('العلامة النهائية'),
+            'final_date': get_label_value('تاريخ وضع العلامة النهائية'),
+            'status': get_label_value('الحالة'),
+            'instructor': get_instructor_name(),
+            'lecture_day': get_label_value('اليوم:'),
+            'lecture_time': get_label_value('الموعد:')
+        }
 
-    return marks_data
-
+        return marks_data
 
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
