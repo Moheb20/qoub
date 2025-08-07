@@ -224,8 +224,9 @@ def handle_course_details(call):
         marks = course.get('marks', {})
 
         text = f"📘 *{course['code']} - {course['title']}*\n\n"
-        text += f"👨‍🏫 الدكتور: {course.get('instructor', 'غير متوفر')}\n"
-        text += f"📅 المحاضرة: {course.get('lecture_day', 'غير متوفر')} - {course.get('lecture_time', 'غير متوفر')}\n\n"
+        text += f"👨‍🏫 الدكتور: {marks.get('instructor', 'غير متوفر')}\n"
+        text += f"📅 المحاضرة: {marks.get('lecture_day', 'غير متوفر')} - {marks.get('lecture_time', 'غير متوفر')}\n\n"
+
 
         text += f"📝 التعيين الأول: {marks.get('assignment1', 'غير متوفر')}\n"
         text += f"🧪 الامتحان النصفي: {marks.get('نصفي نظري', 'غير متوفر')} | 📆 {marks.get('تاريخ الامتحان النصفي', 'غير متوفر')}\n"
