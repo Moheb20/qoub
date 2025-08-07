@@ -170,6 +170,38 @@ def handle_major_selection(call):
     link = major_groups.get(name, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
 
+
+
+# أمر /courses لعرض المواد
+@bot.message_handler(commands=['courses'])
+def handle_courses(message):
+    chat_id = message.chat.id
+    from database import get_user
+
+    user = get_user(chat_id)
+    if not user:
+        bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+        return
+
+    student_id, password = user[1], user[2]
+    scraper = QOUScraper(student_id, password)
+
+    if not scraper.login():
+        bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+        return
+
+    courses = scraper.fetch_courses()
+    if not courses:
+        bot.send_message(chat_id, "📭 لم يتم العثور على مواد حالياً.")
+        return
+
+    text = "📚 *المواد المسجلة:* \n\n"
+    for course in courses:
+        text += f"📘 {course}\n"
+    
+    bot.send_message(chat_id, text, parse_mode="Markdown")
+
+
 # بدء التشغيل
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
