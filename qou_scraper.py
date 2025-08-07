@@ -77,7 +77,7 @@ class QOUScraper:
                 code = match.group(1)
                 title = match.group(2)
                 tab_id = f"tab{idx+1}"  # tab1, tab2, ...
-                crsSeq = '1'  # غالباً هو 1 كما في المثال
+                crsSeq = '1'  # غالباً 1 كما في المثال
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
@@ -91,64 +91,117 @@ class QOUScraper:
             resp.raise_for_status()
             return BeautifulSoup(resp.text, 'html.parser')
 
-        def get_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
-            label_tags = soup.find_all('label', string=re.compile(label_text_pattern.strip(), re.I))
-            for label in label_tags:
-                parent_div = label.find_parent('div', class_='form-group')
-                if parent_div:
-                    divs = parent_div.find_all('div', recursive=False)
-                    for i, div in enumerate(divs):
-                        if label in div.descendants:
-                            if i + 1 < len(divs):
-                                value = divs[i + 1].get_text(strip=True)
-                                if value and value != '-':
-                                    return value
-            return "-"
-
-        def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
-            label = soup.find('label', string=re.compile(label_text_pattern, re.I))
-            if label:
-                parent_div = label.find_parent('div', class_='form-group')
-                if parent_div:
-                    divs = parent_div.find_all('div', recursive=False)
-                    for i, div in enumerate(divs):
-                        if label in div.descendants and i + 1 < len(divs):
-                            value = divs[i + 1].get_text(strip=True)
-                            if value and value != '-':
-                                return value
-            return "-"
-
         def get_instructor(soup: BeautifulSoup) -> str:
             instructor_div = soup.find('a', href=re.compile("createMessage"))
             if instructor_div:
                 return instructor_div.get_text(strip=True)
             return "-"
 
-        # جلب تبويب العلامات
+        # دالة استخراج العلامات والبيانات من HTML التاب
+        def extract_marks_from_soup(soup: BeautifulSoup) -> dict:
+            data = {
+                'assignment1': "-",
+                'midterm': "-",
+                'midterm_date': "-",
+                'assignment2': "-",
+                'final_mark': "-",
+                'final_date': "-",
+                'status': "-"
+            }
+
+            form_groups = soup.select('div.form-group')
+
+            for fg in form_groups:
+                labels = fg.find_all('label')
+                for label in labels:
+                    label_text = label.get_text(strip=True)
+                    if "التعيين الاول" in label_text:
+                        sibling_divs = label.find_parent('div').find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['assignment1'] = text
+                                break
+
+                    elif "نصفي نظري" in label_text:
+                        sibling_divs = label.find_parent('div').find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['midterm'] = text
+                                break
+
+                    elif "تاريخ وضع الامتحان النصفي" in label_text:
+                        sibling_divs = label.find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['midterm_date'] = text
+                                break
+
+                    elif "التعيين الثاني" in label_text:
+                        sibling_divs = label.find_parent('div').find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['assignment2'] = text
+                                break
+
+                    elif "العلامة النهائية" in label_text:
+                        sibling_divs = label.find_parent('div').find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['final_mark'] = text
+                                break
+
+                    elif "تاريخ وضع العلامة النهائية" in label_text:
+                        sibling_divs = label.find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['final_date'] = text
+                                break
+
+                    elif "الحالة" in label_text:
+                        sibling_divs = label.find_parent('div').find_next_siblings('div')
+                        for d in sibling_divs:
+                            text = d.get_text(strip=True)
+                            if text != "":
+                                data['status'] = text
+                                break
+
+            return data
+
+        # 🟢 Fetch علامات التعيينات والامتحانات
         marks_soup = fetch_tab("marks")
+        marks_data = extract_marks_from_soup(marks_soup)
 
-        marks_data = {
-            'assignment1': get_label_value(marks_soup, 'التعيين الأول'),
-            'midterm': get_label_value(marks_soup, 'نصفي نظري'),
-            'midterm_date': get_label_value(marks_soup, 'تاريخ وضع الامتحان النصفي'),
-            'assignment2': get_label_value(marks_soup, 'التعيين الثاني'),
-            'final_mark': get_label_value(marks_soup, 'العلامة النهائية'),
-            'final_date': get_label_value(marks_soup, 'تاريخ وضع العلامة النهائية'),
-            'status': get_label_value(marks_soup, 'الحالة'),
-        }
-
-        # جلب تبويب الجدول
+        # 🟢 Fetch لقاءات وجدول المحاضرات
         schedule_soup = fetch_tab("tSchedule")
 
         marks_data.update({
             'instructor': get_instructor(schedule_soup),
-            'lecture_day': get_direct_label_value(schedule_soup, 'اليوم'),
-            'lecture_time': get_direct_label_value(schedule_soup, 'الموعد'),
-            'building': get_direct_label_value(schedule_soup, 'البناية'),
-            'hall': get_direct_label_value(schedule_soup, 'القاعة'),
+            'lecture_day': self.get_direct_label_value(schedule_soup, 'اليوم'),
+            'lecture_time': self.get_direct_label_value(schedule_soup, 'الموعد'),
+            'building': self.get_direct_label_value(schedule_soup, 'البناية'),
+            'hall': self.get_direct_label_value(schedule_soup, 'القاعة'),
         })
 
         return marks_data
+
+    def get_direct_label_value(self, soup: BeautifulSoup, label_text_pattern: str) -> str:
+        label = soup.find('label', string=re.compile(label_text_pattern, re.I))
+        if label:
+            parent_div = label.find_parent('div', class_='form-group')
+            if parent_div:
+                divs = parent_div.find_all('div', recursive=False)
+                for i, div in enumerate(divs):
+                    if label in div.descendants and i + 1 < len(divs):
+                        value = divs[i + 1].get_text(strip=True)
+                        if value and value != '-':
+                            return value
+        return "-"
 
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
