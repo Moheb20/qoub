@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
 import re
-import json
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
@@ -23,6 +22,7 @@ class QOUScraper:
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        # إذا الرابط يحتوي "student" يعتبر تسجيل دخول ناجح
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -78,7 +78,7 @@ class QOUScraper:
                 code = match.group(1)
                 title = match.group(2)
                 tab_id = f"tab{idx+1}"  # tab1, tab2, ...
-                crsSeq = '0'  # عادة 0 حسب طلبك
+                crsSeq = '0'  # عادة 0 حسب الـ requests التي أرسلتها
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
@@ -90,76 +90,117 @@ class QOUScraper:
             url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
             resp = self.session.post(url)
             resp.raise_for_status()
-            print(f"--- المحتوى الخام للتاب {tab} للكورس {crsNo} ---")
-            print(resp.text)  # اطبع المحتوى الكامل
+            # طباعة المحتوى الخام للمراجعة (يمكن إزالته بعد التأكد)
+            # print(f"--- المحتوى الخام للتاب {tab} للكورس {crsNo} ---")
+            # print(resp.text)
             return resp.text
 
-        # جلب البيانات الخام
-        marks_raw = fetch_tab_raw("marks")
-        schedule_raw = fetch_tab_raw("tSchedule")
+        def extract_html_from_js(js_text: str) -> str:
+            # استخراج المحتوى داخل html('...')
+            m = re.search(r"html\(['\"](.+?)['\"]\);", js_text, re.DOTALL)
+            if m:
+                html_content = m.group(1)
+                # إزالة علامات الهروب
+                html_content = html_content.replace("\\'", "'").replace('\\"', '"')
+                return html_content
+            return ""
 
-        # محاولة تحويل النص إلى JSON
-        try:
-            marks_data_json = json.loads(marks_raw)
-        except Exception:
-            marks_data_json = None
+        marks_js = fetch_tab_raw("marks")
+        schedule_js = fetch_tab_raw("tSchedule")
 
-        try:
-            schedule_data_json = json.loads(schedule_raw)
-        except Exception:
-            schedule_data_json = None
+        marks_html = extract_html_from_js(marks_js)
+        schedule_html = extract_html_from_js(schedule_js)
 
-        # استخراج المعلم من جدول المواعيد (لو JSON)
-        def get_instructor_from_json(data) -> str:
-            if isinstance(data, dict) and 'createMessage' in str(data):
-                # ممكن تحتاج تعديل حسب شكل JSON الحقيقي
-                for item in data.get('items', []):
-                    if 'createMessage' in item.get('href', ''):
-                        return item.get('text', '-')
+        marks_soup = BeautifulSoup(marks_html, "html.parser")
+        schedule_soup = BeautifulSoup(schedule_html, "html.parser")
+
+        data = {
+            'assignment1': "-",
+            'midterm': "-",
+            'midterm_date': "-",
+            'assignment2': "-",
+            'final_mark': "-",
+            'final_date': "-",
+            'status': "-",
+            'instructor': "-",
+            'lecture_day': "-",
+            'lecture_time': "-",
+            'building': "-",
+            'hall': "-"
+        }
+
+        # استخراج بيانات العلامات من marks_soup
+        for fg in marks_soup.select('div.form-group'):
+            labels = fg.find_all('label')
+            for label in labels:
+                text = label.get_text(strip=True)
+                if "التعيين الاول" in text:
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 1:
+                        val = sibling[1].get_text(strip=True)
+                        if val:
+                            data['assignment1'] = val
+                elif "نصفي نظري" in text:
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 3:
+                        val = sibling[3].get_text(strip=True)
+                        if val:
+                            data['midterm'] = val
+                elif "تاريخ وضع الامتحان النصفي" in text:
+                    divs = fg.find_all('div')
+                    if len(divs) > 1:
+                        val = divs[1].get_text(strip=True)
+                        if val:
+                            data['midterm_date'] = val
+                elif "التعيين الثاني" in text:
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 1:
+                        val = sibling[1].get_text(strip=True)
+                        if val:
+                            data['assignment2'] = val
+                elif "العلامة النهائية" in text:
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 3:
+                        val = sibling[3].get_text(strip=True)
+                        if val:
+                            data['final_mark'] = val
+                elif "تاريخ وضع العلامة النهائية" in text:
+                    divs = fg.find_all('div')
+                    if len(divs) > 1:
+                        val = divs[1].get_text(strip=True)
+                        if val:
+                            data['final_date'] = val
+                elif "الحالة" in text:
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 1:
+                        val = sibling[1].get_text(strip=True)
+                        if val:
+                            data['status'] = val
+
+        # استخراج بيانات الجدول من schedule_soup
+        def extract_schedule_field(field_name):
+            label = schedule_soup.find('label', string=re.compile(field_name))
+            if label:
+                parent = label.find_parent('div', class_='form-group')
+                if parent:
+                    divs = parent.find_all('div')
+                    if len(divs) > 1:
+                        val = divs[1].get_text(strip=True)
+                        if val and val != "&nbsp;&nbsp;":
+                            return val.strip()
             return "-"
 
-        # دالة استخراج العلامات من JSON أو النص الخام
-        def extract_marks(data) -> dict:
-            default = {
-                'assignment1': "-",
-                'midterm': "-",
-                'midterm_date': "-",
-                'assignment2': "-",
-                'final_mark': "-",
-                'final_date': "-",
-                'status': "-"
-            }
-            if not data:
-                return default
+        data['lecture_day'] = extract_schedule_field("اليوم")
+        data['lecture_time'] = extract_schedule_field("الموعد")
+        data['building'] = extract_schedule_field("البناية")
+        data['hall'] = extract_schedule_field("القاعة")
 
-            # لو JSON dict:
-            if isinstance(data, dict):
-                # هنا تحتاج تعديل حسب شكل JSON
-                # مؤقتاً نرجع الافتراض
-                return default
+        # استخراج اسم عضو هيئة التدريس
+        instructor_a = schedule_soup.select_one('div.form-group a[href*="createMessage"]')
+        if instructor_a:
+            data['instructor'] = instructor_a.get_text(strip=True)
 
-            # لو نص HTML (غير JSON) – تحتاج معالجته بالـ BeautifulSoup أو Regex
-            # اتركها هنا للآن كما هي
-            return default
-
-        marks = extract_marks(marks_data_json)
-        instructor = get_instructor_from_json(schedule_data_json) if schedule_data_json else "-"
-        
-        # استخراج قيم أخرى من جدول المواعيد: ضع قيم "-" مؤقتًا
-        # لأنك محتاج تعرف شكل البيانات الحقيقية لتعالجها
-        lecture_day = "-"
-        lecture_time = "-"
-        building = "-"
-        hall = "-"
-
-        return {
-            **marks,
-            'instructor': instructor,
-            'lecture_day': lecture_day,
-            'lecture_time': lecture_time,
-            'building': building,
-            'hall': hall,
-        }
+        return data
 
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
