@@ -77,11 +77,13 @@ class QOUScraper:
                 code = match.group(1)
                 title = match.group(2)
                 tab_id = f"tab{idx+1}"  # tab1, tab2, ...
-                courses.append({'code': code, 'title': title, 'tab_id': tab_id})
+                # crsSeq غالباً هو 1 كما بالمثال
+                crsSeq = '1'
+                courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
 
-    def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
+    def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '1') -> dict:
         base_url = "https://portal.qou.edu/student/loadCourseServices"
 
         def fetch_tab(tab: str) -> BeautifulSoup:
@@ -95,19 +97,16 @@ class QOUScraper:
             for label in label_tags: 
                 form_group = label.find_parent('div', class_='form-group')
                 if form_group:
-                    # احصل على كل العناصر داخل الـ form-group
                     divs = form_group.find_all('div', recursive=False)
                     for i, div in enumerate(divs):
                         if label in div.descendants:
-                            # القيمة عادةً تكون في العنصر التالي
                             if i + 1 < len(divs):
                                 value = divs[i + 1].get_text(strip=True)
-                                return value if value else "-"
-        return "-"
+                                if value:
+                                    return value
+            return "-"
 
-
-
-        def get_direct_label_value(soup: BeautifulSoup, label_text_pattern):
+        def get_direct_label_value(soup: BeautifulSoup, label_text_pattern: str) -> str:
             label = soup.find('label', string=re.compile(label_text_pattern, re.I))
             if label and label.next_sibling:
                 value = str(label.next_sibling).strip().replace("&nbsp;", "")
@@ -148,5 +147,5 @@ class QOUScraper:
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
         for course in courses:
-            course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'])
+            course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'], course['crsSeq'])
         return courses
