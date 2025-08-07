@@ -65,15 +65,12 @@ class QOUScraper:
     def fetch_courses(self) -> List[dict]:
         resp = self.session.get(COURSES_URL)
         resp.raise_for_status()
-        #print(resp.text[:3000])  # ممكن تفعلها لو تريد فحص نص الصفحة
         soup = BeautifulSoup(resp.text, 'html.parser')
 
         courses = []
-
         course_titles = soup.select("div.pull-right.text-warning")
         for item in course_titles:
             full_text = item.get_text(strip=True)
-            # مثال: "0/0206 الثقافة الاسلامية"
             match = re.match(r"\d+/(\d+)\s+(.*)", full_text)
             if match:
                 code = match.group(1)
@@ -82,44 +79,42 @@ class QOUScraper:
 
         return courses
 
-def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
-    marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId=tab1&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
-    resp = self.session.post(marks_url, data={})
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    def fetch_course_marks(self, crsNo: str, crsSeq: str = '0') -> dict:
+        marks_url = f"https://portal.qou.edu/student/loadCourseServices?tabId=tab1&dataType=marks&crsNo={crsNo}&crsSeq={crsSeq}"
+        resp = self.session.post(marks_url, data={})
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
 
-    def get_label_value(label_text):
-        label = soup.find('label', string=re.compile(label_text))
-        if label:
-            parent_div = label.find_parent('div')
-            if parent_div:
-                # جلب النص بعد الـ label مباشرة
-                return parent_div.get_text(strip=True).replace(label_text, '').strip()
-        return ""
+        def get_label_value(label_text):
+            label = soup.find('label', string=re.compile(label_text))
+            if label:
+                parent_div = label.find_parent('div')
+                if parent_div:
+                    return parent_div.get_text(strip=True).replace(label_text, '').strip()
+            return ""
 
-    # استخراج اسم الدكتور من رابط يحتوي على recieverName
-    def get_instructor_name():
-        link = soup.find('a', href=re.compile('recieverName='))
-        if link:
-            return link.get_text(strip=True)
-        return "غير متوفر"
+        def get_instructor_name():
+            link = soup.find('a', href=re.compile('recieverName='))
+            if link:
+                return link.get_text(strip=True)
+            return "غير متوفر"
 
-    marks_data = {
-        'نصفي نظري': get_label_value('نصفي نظري'),
-        'تاريخ الامتحان النصفي': get_label_value('تاريخ وضع الامتحان النصفي'),
-        'العلامة النهائية': get_label_value('العلامة النهائية'),
-        'تاريخ وضع العلامة النهائية': get_label_value('تاريخ وضع العلامة النهائية'),
-        'الحالة': get_label_value('الحالة'),
-        'instructor': get_instructor_name(),
-        'lecture_day': get_label_value('اليوم:'),
-        'lecture_time': get_label_value('الموعد:')
-    }
+        marks_data = {
+            'نصفي نظري': get_label_value('نصفي نظري'),
+            'تاريخ الامتحان النصفي': get_label_value('تاريخ وضع الامتحان النصفي'),
+            'العلامة النهائية': get_label_value('العلامة النهائية'),
+            'تاريخ وضع العلامة النهائية': get_label_value('تاريخ وضع العلامة النهائية'),
+            'الحالة': get_label_value('الحالة'),
+            'instructor': get_instructor_name(),
+            'lecture_day': get_label_value('اليوم:'),
+            'lecture_time': get_label_value('الموعد:')
+        }
 
-    return marks_data
-
+        return marks_data
 
     def fetch_courses_with_marks(self) -> List[dict]:
         courses = self.fetch_courses()
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], crsSeq='0')
         return courses
+
