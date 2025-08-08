@@ -107,11 +107,6 @@ class QOUScraper:
         marks_js = fetch_tab_raw("marks")
         schedule_js = fetch_tab_raw("tSchedule")
 
-        print(f"--- المحتوى الخام للتاب marks للكورس {crsNo} ---")
-        print(marks_js[:1000])
-        print(f"--- المحتوى الخام للتاب tSchedule للكورس {crsNo} ---")
-        print(schedule_js[:1000])
-
         marks_html = extract_html_from_js(marks_js)
 
         # شرط لتخطي الكورسات التي لا تحتوي علامات متوفرة
@@ -153,38 +148,48 @@ class QOUScraper:
 
         for fg in marks_soup.select('div.form-group'):
             divs = fg.find_all('div')
-            labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
+            labels = [div.find('label') for div in divs]
+            labels_text = [lbl.get_text(strip=True) if lbl else "" for lbl in labels]
 
+            # التعيين الأول
             if any("التعيين الاول" in text for text in labels_text):
-                # لا يوجد قيمة ظاهرة، غالبًا فارغة حسب البيانات
-                pass
+                val = divs[-1].get_text(strip=True)
+                if val:
+                    data['assignment1'] = val
 
+            # نصفي نظري (الامتحان النصفي)
             if any("نصفي نظري" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['midterm'] = val
 
+            # تاريخ الامتحان النصفي
             if any("تاريخ وضع الامتحان النصفي" in text for text in labels_text):
                 if len(divs) > 1:
                     val = divs[1].get_text(strip=True)
                     if val:
                         data['midterm_date'] = val
 
+            # التعيين الثاني
             if any("التعيين الثاني" in text for text in labels_text):
-                # غالبًا فارغة حسب البيانات
-                pass
+                val = divs[-1].get_text(strip=True)
+                if val:
+                    data['assignment2'] = val
 
+            # العلامة النهائية
             if any("العلامة النهائية" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['final_mark'] = val
 
+            # تاريخ العلامة النهائية
             if any("تاريخ وضع العلامة النهائية" in text for text in labels_text):
                 if len(divs) > 1:
                     val = divs[1].get_text(strip=True)
                     if val:
                         data['final_date'] = val
 
+            # الحالة
             if any("الحالة" in text for text in labels_text):
                 if len(divs) > 1:
                     val = divs[1].get_text(strip=True)
