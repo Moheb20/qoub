@@ -1,10 +1,15 @@
 import threading
+import re
 from flask import Flask
 from telebot import types
 from bot_instance import bot
 from database import get_all_users, get_user, add_user, update_last_msg
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
+
+# دالة لتنظيف callback_data: تحويل أي حرف غير أ-ز، أ-ي، 0-9، _ إلى _
+def sanitize_callback_data(text):
+    return re.sub(r'[^a-zA-Z0-9_]', '_', text)
 
 # الحالة المؤقتة لتخزين بيانات الدخول أثناء التسجيل
 user_states = {}
@@ -76,7 +81,7 @@ def get_password(message):
                 f"📬 آخر رسالة في البريد:\n"
                 f"📧 {latest['subject']}\n"
                 f"📝 {latest['sender']}\n"
-                f"🕒 {latest['date']}\n\n"
+                ف"🕒 {latest['date']}\n\n"
                 f"{latest['body']}"
             )
             bot.send_message(chat_id, text)
@@ -98,7 +103,8 @@ def handle_groups_command(message):
     markup = types.InlineKeyboardMarkup(row_width=2)
 
     for group_type in groups.keys():
-        btn = types.InlineKeyboardButton(text=group_type, callback_data=f"type_{group_type}")
+        safe_group_type = sanitize_callback_data(group_type)
+        btn = types.InlineKeyboardButton(text=group_type, callback_data=f"type_{safe_group_type}")
         markup.add(btn)
 
     bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
@@ -106,20 +112,30 @@ def handle_groups_command(message):
 # رد على اختيار نوع القروب ويعرض القروبات التابعة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("type_"))
 def callback_group_type(call):
-    group_type = call.data[len("type_"):]
-    if group_type not in groups:
+    safe_group_type = call.data[len("type_"):]
+    # البحث عن group_type الأصلي عبر التطابق بعد التنظيف
+    real_group_type = None
+    for gt in groups.keys():
+        if sanitize_callback_data(gt) == safe_group_type:
+            real_group_type = gt
+            break
+
+    if real_group_type is None:
         bot.answer_callback_query(call.id, "نوع القروب غير معروف.")
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-    for group_name in groups[group_type]:
-        btn = types.InlineKeyboardButton(text=group_name, callback_data=f"group_{group_type}_{group_name}")
+    for group_name in groups[real_group_type]:
+        safe_group_name = sanitize_callback_data(group_name)
+        callback_data = f"group_{safe_group_type}_{safe_group_name}"
+        callback_data = callback_data[:64]  # تأكد من الطول
+        btn = types.InlineKeyboardButton(text=group_name, callback_data=callback_data)
         markup.add(btn)
 
     bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
-        text=f"📂 القروبات ضمن '{group_type}': اختر قروب:",
+        text=f"📂 القروبات ضمن '{real_group_type}': اختر قروب:",
         reply_markup=markup
     )
     bot.answer_callback_query(call.id)
@@ -127,15 +143,30 @@ def callback_group_type(call):
 # رد على اختيار القروب ويرسل رابط القروب نصياً
 @bot.callback_query_handler(func=lambda call: call.data.startswith("group_"))
 def callback_group_link(call):
-    parts = call.data.split("_", 2)
-    if len(parts) < 3:
+    data = call.data[len("group_"):]
+    parts = data.split("_", 1)
+    if len(parts) < 2:
         bot.answer_callback_query(call.id, "خطأ في البيانات.")
         return
 
-    group_type, group_name = parts[1], parts[2]
-    if group_type in groups and group_name in groups[group_type]:
-        link = groups[group_type][group_name]
-        bot.send_message(call.message.chat.id, f"🔗 رابط قروب '{group_name}':\n{link}")
+    safe_group_type, safe_group_name = parts[0], parts[1]
+
+    real_group_type = None
+    real_group_name = None
+
+    # البحث عن group_type و group_name الأصليين عبر التطابق بعد التنظيف
+    for gt in groups.keys():
+        if sanitize_callback_data(gt) == safe_group_type:
+            real_group_type = gt
+            for gn in groups[gt].keys():
+                if sanitize_callback_data(gn) == safe_group_name:
+                    real_group_name = gn
+                    break
+            break
+
+    if real_group_type and real_group_name:
+        link = groups[real_group_type][real_group_name]
+        bot.send_message(call.message.chat.id, f"🔗 رابط قروب '{real_group_name}':\n{link}")
         bot.answer_callback_query(call.id)
     else:
         bot.answer_callback_query(call.id, "القروب غير موجود.")
