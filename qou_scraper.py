@@ -22,7 +22,6 @@ class QOUScraper:
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
-        # إذا الرابط يحتوي "student" يعتبر تسجيل دخول ناجح
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -32,12 +31,12 @@ class QOUScraper:
 
         row = soup.select_one("tbody tr")
         if not row:
-            print("[❌] لا يوجد صفوف رسائل.")
+            print("[❌] لا يوجد رسائل.")
             return None
 
         link_tag = row.select_one("td[col_4] a[href*='msgId=']")
         if not link_tag:
-            print("[❌] لم يتم العثور على الرابط داخل الموضوع.")
+            print("[❌] لم يتم العثور على رابط الرسالة.")
             return None
 
         msg_id = link_tag['href'].split('msgId=')[-1]
@@ -77,8 +76,8 @@ class QOUScraper:
             if match:
                 code = match.group(1)
                 title = match.group(2)
-                tab_id = f"tab{idx+1}"  # tab1, tab2, ...
-                crsSeq = '0'  # عادة 0 حسب الـ requests التي أرسلتها
+                tab_id = f"tab{idx+1}"
+                crsSeq = '0'
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
@@ -96,12 +95,22 @@ class QOUScraper:
             m = re.search(r"html\(['\"](.+?)['\"]\);", js_text, re.DOTALL)
             if m:
                 html_content = m.group(1)
-                html_content = html_content.replace("\\'", "'").replace('\\"', '"').replace("\\n", "").replace("\\t", "").replace("\\r", "")
+                html_content = (html_content
+                                .replace("\\'", "'")
+                                .replace('\\"', '"')
+                                .replace("\\n", "")
+                                .replace("\\t", "")
+                                .replace("\\r", ""))
                 return html_content
             return ""
 
         marks_js = fetch_tab_raw("marks")
         schedule_js = fetch_tab_raw("tSchedule")
+
+        print(f"--- المحتوى الخام للتاب marks للكورس {crsNo} ---")
+        print(marks_js[:1000])  # اطبع أول 1000 حرف فقط للتأكد
+        print(f"--- المحتوى الخام للتاب tSchedule للكورس {crsNo} ---")
+        print(schedule_js[:1000])
 
         marks_html = extract_html_from_js(marks_js)
         schedule_html = extract_html_from_js(schedule_js)
@@ -124,13 +133,12 @@ class QOUScraper:
             'hall': "-"
         }
 
-        # استخراج بيانات العلامات بدقة أكبر حسب البنية
         for fg in marks_soup.select('div.form-group'):
             divs = fg.find_all('div')
             labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
 
             if any("التعيين الاول" in text for text in labels_text):
-                # غالبا القيمة فارغة أو في div ثاني، ولكن حسب البيانات فارغة، فلا تغيير
+                # لا يوجد قيمة ظاهرة، غالبًا فارغة حسب البيانات
                 pass
 
             if any("نصفي نظري" in text for text in labels_text):
@@ -145,7 +153,7 @@ class QOUScraper:
                         data['midterm_date'] = val
 
             if any("التعيين الثاني" in text for text in labels_text):
-                # حسب المحتوى غالبا فارغ
+                # غالبًا فارغة حسب البيانات
                 pass
 
             if any("العلامة النهائية" in text for text in labels_text):
@@ -173,7 +181,7 @@ class QOUScraper:
                     divs = parent.find_all('div')
                     for d in divs:
                         text = d.get_text(strip=True)
-                        if text != "" and text != field_name and text != "&nbsp;&nbsp;":
+                        if text and text != field_name and text != "&nbsp;&nbsp;":
                             return text
             return "-"
 
