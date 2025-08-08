@@ -21,6 +21,7 @@ class QOUScraper:
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        print("Login redirect URL:", resp.url)  # طباعة للتأكد من نجاح الدخول
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -100,12 +101,20 @@ class QOUScraper:
 
         def fetch_tab_raw(tab: str) -> str:
             url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
-            resp = self.session.post(url)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": COURSES_URL
+            }
+            resp = self.session.post(url, headers=headers)
             resp.raise_for_status()
             return resp.text
 
         marks_js = fetch_tab_raw("marks")
+        print(f"Raw marks_js for course {crsNo}:", marks_js[:500])  # طباعة أول 500 حرف للرد
+
         marks_html = self.extract_html_from_js(marks_js)
+        print(f"Extracted marks_html for course {crsNo}:", marks_html[:500])
 
         if not marks_html or "العلامات غير متوفرة حاليا" in marks_html:
             return {
