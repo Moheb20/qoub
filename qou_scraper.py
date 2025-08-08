@@ -15,6 +15,7 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
+        # زيارة الصفحة أول مرة (جلب الكوكيز)
         self.session.get(LOGIN_URL)
         params = {
             'userId': self.student_id,
@@ -23,18 +24,22 @@ class QOUScraper:
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
         print("Login redirect URL:", resp.url)
+        # التحقق من وجود كلمة student في الرابط يعني نجاح الدخول
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
+        """جلب آخر رسالة من صندوق الوارد"""
         resp = self.session.get(INBOX_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
+        # الحصول على أول صف في الجدول (أحدث رسالة)
         row = soup.select_one("tbody tr")
         if not row:
             print("[❌] لا يوجد رسائل.")
             return None
 
+        # البحث عن الرابط داخل العمود المخصص (قد يكون col_4 أو حسب الهيكل)
         link_tag = row.select_one("td[col_4] a[href*='msgId=']")
         if not link_tag:
             print("[❌] لم يتم العثور على رابط الرسالة.")
@@ -50,9 +55,12 @@ class QOUScraper:
         date = row.select_one("td[col_5]")
         date_text = date.get_text(strip=True) if date else ''
 
+        # جلب محتوى الرسالة كاملة
         resp_msg = self.session.get(full_link)
         resp_msg.raise_for_status()
         soup_msg = BeautifulSoup(resp_msg.text, 'html.parser')
+
+        # محاولة العثور على محتوى الرسالة ضمن div بفئة message-body (تأكد من الفئة حسب المصدر)
         body = soup_msg.find('div', class_='message-body')
         body_text = body.get_text(strip=True) if body else ''
 
@@ -65,6 +73,7 @@ class QOUScraper:
         }
 
     def fetch_courses(self) -> List[dict]:
+        """جلب قائمة المقررات المسجلة"""
         resp = self.session.get(COURSES_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -84,7 +93,8 @@ class QOUScraper:
         return courses
 
     def extract_html_from_js(self, js_text: str) -> str:
-        match = re.search(r'\$\("#tab1"\)\.html\(\s*[\'"](.+)[\'"]\s*\);', js_text, re.DOTALL)
+        """استخراج html من جافا سكريبت منسق"""
+        match = re.search(r'\$\("#tab\d+"\)\.html\(\s*[\'"](.+)[\'"]\s*\);', js_text, re.DOTALL)
         if match:
             html_raw = match.group(1)
             html_unescaped = (html_raw
@@ -98,6 +108,7 @@ class QOUScraper:
         return ""
 
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
+        """جلب بيانات العلامات والجدول الزمني لمقرر معين"""
         base_url = "https://portal.qou.edu/student/loadCourseServices"
 
         def fetch_tab_raw(tab: str) -> str:
@@ -111,24 +122,19 @@ class QOUScraper:
             resp.raise_for_status()
             return resp.text
 
-        # Marks
         marks_js = fetch_tab_raw("marks")
         marks_html = self.extract_html_from_js(marks_js)
 
-        # حفظ HTML للـ Marks
         os.makedirs("debug_html", exist_ok=True)
         with open(f"debug_html/marks_{crsNo}.html", "w", encoding="utf-8") as f:
             f.write(marks_html)
 
-        # Schedule
         schedule_js = fetch_tab_raw("tSchedule")
         schedule_html = self.extract_html_from_js(schedule_js)
 
-        # حفظ HTML للـ Schedule
         with open(f"debug_html/schedule_{crsNo}.html", "w", encoding="utf-8") as f:
             f.write(schedule_html)
 
-        # البيانات الفارغة الافتراضية
         data = {
             'assignment1': "",
             'midterm': "",
@@ -146,7 +152,6 @@ class QOUScraper:
 
         if marks_html and "العلامات غير متوفرة حاليا" not in marks_html:
             soup = BeautifulSoup(marks_html, "html.parser")
-
             for fg in soup.select('div.form-group'):
                 divs = fg.find_all('div')
                 labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
@@ -175,7 +180,6 @@ class QOUScraper:
                     if len(divs) > 1:
                         data['status'] = divs[1].get_text(strip=True)
 
-        # استخراج بيانات الجدول الزمني
         if schedule_html:
             schedule_soup = BeautifulSoup(schedule_html, "html.parser")
 
