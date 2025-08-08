@@ -153,12 +153,12 @@ class QOUScraper:
             divs = fg.find_all('div')
             labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
 
-            if any("التعيين الاول" in text for text in labels_text):
+            if any("التعيين الاول :" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['assignment1'] = val
 
-            if any("نصفي نظري" in text for text in labels_text):
+            if any("نصفي نظري:" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['midterm'] = val
