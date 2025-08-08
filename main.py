@@ -1,34 +1,31 @@
 import threading
 from flask import Flask
 from telebot import types
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot_instance import bot
 from database import get_all_users, get_user, add_user, update_last_msg
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
 
-# الحالة المؤقتة لتخزين بيانات الدخول أثناء عملية التسجيل
+# الحالة المؤقتة لتخزين بيانات الدخول أثناء التسجيل
 user_states = {}
 
-# روابط القروبات
-subject_groups = {
-    "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
-    "قواعد الكتابة والترقيم": "https://chat.whatsapp.com/IV0KQVlep5QJ1dBaRoqn5f",
+# روابط القروبات (مقسمة حسب النوع)
+groups = {
+    "المواد": {
+        "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
+        "قواعد الكتابة والترقيم": "https://chat.whatsapp.com/IV0KQVlep5QJ1dBaRoqn5f",
+    },
+    "التخصصات": {
+        "رياضيات": "https://chat.whatsapp.com/FKCxgfaJNWJ6CBnIB30FYO",
+    },
+    "الجامعة": {
+        "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e",
+    }
 }
 
-university_groups = {
-    "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e"
-}
-
-major_groups = {
-    "رياضيات": "https://chat.whatsapp.com/FKCxgfaJNWJ6CBnIB30FYO"
-}
-
-# تهيئة قاعدة البيانات والجدولة
 get_all_users()
 start_scheduler()
 
-# إعداد تطبيق Flask لمراقبة حالة السيرفر
 app = Flask(__name__)
 
 @app.route("/")
@@ -37,8 +34,6 @@ def home():
 
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
-
-# ⬇️ بدء تنفيذ البوت ⬇️
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
@@ -94,29 +89,56 @@ def get_password(message):
 
     user_states.pop(chat_id, None)
 
-# أمر /groups يعرض أزرار روابط القروبات
+# --- التعديلات تبدأ هنا ---
+
+# أمر /groups يعرض أزرار لأنواع القروبات فقط
 @bot.message_handler(commands=['groups'])
 def handle_groups_command(message):
     chat_id = message.chat.id
+    markup = types.InlineKeyboardMarkup(row_width=2)
+
+    for group_type in groups.keys():
+        btn = types.InlineKeyboardButton(text=group_type, callback_data=f"type_{group_type}")
+        markup.add(btn)
+
+    bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
+
+# رد على اختيار نوع القروب ويعرض القروبات التابعة
+@bot.callback_query_handler(func=lambda call: call.data.startswith("type_"))
+def callback_group_type(call):
+    group_type = call.data[len("type_"):]
+    if group_type not in groups:
+        bot.answer_callback_query(call.id, "نوع القروب غير معروف.")
+        return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-
-    # أزرار قروبات المواد
-    for name, link in subject_groups.items():
-        btn = types.InlineKeyboardButton(text=name, url=link)
+    for group_name in groups[group_type]:
+        btn = types.InlineKeyboardButton(text=group_name, callback_data=f"group_{group_type}_{group_name}")
         markup.add(btn)
 
-    # أزرار قروبات التخصصات
-    for name, link in major_groups.items():
-        btn = types.InlineKeyboardButton(text=name, url=link)
-        markup.add(btn)
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text=f"📂 القروبات ضمن '{group_type}': اختر قروب:",
+        reply_markup=markup
+    )
+    bot.answer_callback_query(call.id)
 
-    # أزرار قروبات الجامعة
-    for name, link in university_groups.items():
-        btn = types.InlineKeyboardButton(text=name, url=link)
-        markup.add(btn)
+# رد على اختيار القروب ويرسل رابط القروب نصياً
+@bot.callback_query_handler(func=lambda call: call.data.startswith("group_"))
+def callback_group_link(call):
+    parts = call.data.split("_", 2)
+    if len(parts) < 3:
+        bot.answer_callback_query(call.id, "خطأ في البيانات.")
+        return
 
-    bot.send_message(chat_id, "📚 اختر القروب الذي تريد الدخول إليه:", reply_markup=markup)
+    group_type, group_name = parts[1], parts[2]
+    if group_type in groups and group_name in groups[group_type]:
+        link = groups[group_type][group_name]
+        bot.send_message(call.message.chat.id, f"🔗 رابط قروب '{group_name}':\n{link}")
+        bot.answer_callback_query(call.id)
+    else:
+        bot.answer_callback_query(call.id, "القروب غير موجود.")
 
 # أمر /courses يعرض المقررات والعلامات نصياً بدون أزرار
 @bot.message_handler(commands=['courses'])
@@ -150,13 +172,13 @@ def handle_courses(message):
         text += (
             f"🔹 *{code}* - {name}\n"
             f"    🧪 نصفي: {midterm}\n"
-            f"    🏁 نهائي: {final} (تاريخ: {final_date})\n\n"
+            f"    🏁 نهائي: {final}\n"
+            f"    (تاريخ: {final_date})\n\n"
         )
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# لا أزرار أو كولباك أخرى، فقط الأوامر نصية
+# --- التعديلات انتهت ---
 
-# بدء الخادم Flask وبوت التيليجرام
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
     bot.remove_webhook()
