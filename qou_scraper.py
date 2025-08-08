@@ -15,15 +15,13 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        # فتح صفحة الدخول أولاً لأخذ الكوكيز
-        self.session.get(LOGIN_URL)
+        self.session.get(LOGIN_URL)  # الحصول على الكوكيز
         params = {
             'userId': self.student_id,
             'password': self.password,
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
-        # التحقق من نجاح الدخول عبر وجود كلمة "student" في الرابط بعد الدخول
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -83,23 +81,26 @@ class QOUScraper:
         return courses
 
     def extract_html_from_js(self, js_text: str) -> str:
-        matches = re.findall(r'\.html\(\s*[\'"](.+?)[\'"]\s*\);', js_text, re.DOTALL)
-        if matches:
-            html_raw = matches[-1]
-            # فك الترميز html entities و تنظيف السلاسل
-            html_unescaped = html.unescape(html_raw)
-            html_clean = (html_unescaped
-                          .replace("\\'", "'")
-                          .replace('\\"', '"')
-                          .replace("\\n", "")
-                          .replace("\\r", "")
-                          .replace("\\t", "")
-                          .replace("\\\\", "\\"))
-            return html_clean
-        return ""
+        # استخراج محتوى .html("...") أو .html('...')
+        match = re.search(r'\.html\(\s*([\'"])(.*?)\1\s*\);', js_text, re.DOTALL)
+        if not match:
+            return ""
+
+        raw_html = match.group(2)
+
+        # فك ترميز HTML entities والهروب
+        html_unescaped = html.unescape(raw_html)
+        html_clean = (html_unescaped
+                      .replace("\\'", "'")
+                      .replace('\\"', '"')
+                      .replace("\\n", "")
+                      .replace("\\r", "")
+                      .replace("\\t", "")
+                      .replace("\\\\", "\\"))
+
+        return html_clean.strip()
 
     def _extract_next_sibling_text(self, label_tag) -> str:
-        # محاولة إيجاد النص الصحيح بعد الليبل
         parent_div = label_tag.find_parent('div', class_='col-sm-4') or label_tag.find_parent('div')
         if not parent_div:
             return "-"
@@ -168,8 +169,7 @@ class QOUScraper:
         if marks_html and "العلامات غير متوفرة حاليا" not in marks_html:
             soup = BeautifulSoup(marks_html, "html.parser")
             for fg in soup.select('div.form-group'):
-                label_elements = fg.find_all('label')
-                for label in label_elements:
+                for label in fg.find_all('label'):
                     label_text = label.get_text(strip=True)
                     if re.search(r"^التعيين الاول:?$", label_text):
                         data['assignment1'] = self._extract_next_sibling_text(label)
@@ -204,6 +204,3 @@ class QOUScraper:
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'], course['crsSeq'])
         return courses
-
-
-
