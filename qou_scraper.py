@@ -82,7 +82,6 @@ class QOUScraper:
         return courses
 
     def extract_html_from_js(self, js_text: str) -> str:
-        # استخراج محتوى HTML من استدعاء $("#tab1").html('...'); في جافاسكريبت
         match = re.search(r'\$\("#tab1"\)\.html\(\s*[\'"](.+)[\'"]\s*\);', js_text, re.DOTALL)
         if match:
             html_raw = match.group(1)
@@ -105,51 +104,47 @@ class QOUScraper:
             resp.raise_for_status()
             return resp.text
 
-        # جلب علامات المادة (تاب العلامات)
         marks_js = fetch_tab_raw("marks")
-
         marks_html = self.extract_html_from_js(marks_js)
 
         if not marks_html or "العلامات غير متوفرة حاليا" in marks_html:
             return {
-                'assignment1': "-",
-                'midterm': "-",
-                'midterm_date': "-",
-                'assignment2': "-",
-                'final_mark': "-",
-                'final_date': "-",
-                'status': "-",
-                'instructor': "-",
-                'lecture_day': "-",
-                'lecture_time': "-",
-                'building': "-",
-                'hall': "-"
+                'assignment1': "",
+                'midterm': "",
+                'midterm_date': "",
+                'assignment2': "",
+                'final_mark': "",
+                'final_date': "",
+                'status': "",
+                'instructor': "",
+                'lecture_day': "",
+                'lecture_time': "",
+                'building': "",
+                'hall': ""
             }
 
         soup = BeautifulSoup(marks_html, "html.parser")
 
         data = {
-            'assignment1': "-",
-            'midterm': "-",
-            'midterm_date': "-",
-            'assignment2': "-",
-            'final_mark': "-",
-            'final_date': "-",
-            'status': "-",
-            'instructor': "-",
-            'lecture_day': "-",
-            'lecture_time': "-",
-            'building': "-",
-            'hall': "-"
+            'assignment1': "",
+            'midterm': "",
+            'midterm_date': "",
+            'assignment2': "",
+            'final_mark': "",
+            'final_date': "",
+            'status': "",
+            'instructor': "",
+            'lecture_day': "",
+            'lecture_time': "",
+            'building': "",
+            'hall': ""
         }
 
-        # تحليل البيانات من علامات المادة
         for fg in soup.select('div.form-group'):
             divs = fg.find_all('div')
             labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
 
             if any("التعيين الاول" in text for text in labels_text):
-                # غالبا القيمة في div آخر داخل هذا العنصر
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['assignment1'] = val
@@ -187,7 +182,6 @@ class QOUScraper:
                     if val:
                         data['status'] = val
 
-        # جلب بيانات الجدول (اللقاءات والمحاضرات)
         schedule_js = fetch_tab_raw("tSchedule")
         schedule_html = self.extract_html_from_js(schedule_js)
         schedule_soup = BeautifulSoup(schedule_html, "html.parser")
@@ -202,7 +196,7 @@ class QOUScraper:
                         text = d.get_text(strip=True)
                         if text and text != field_name and text != "&nbsp;&nbsp;":
                             return text
-            return "-"
+            return ""
 
         data['lecture_day'] = extract_schedule_field("اليوم")
         data['lecture_time'] = extract_schedule_field("الموعد")
