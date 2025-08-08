@@ -149,7 +149,7 @@ def handle_major_selection(call):
     link = major_groups.get(name, "❌ الرابط غير متوفر")
     bot.send_message(call.message.chat.id, f"📘 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
 
-# أمر عرض المواد مع العلامات
+# أمر عرض المواد مع ملخص علامات الفصل
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
@@ -166,51 +166,26 @@ def handle_courses(message):
         bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
         return
 
-    courses = scraper.fetch_courses_with_marks()
+    courses = scraper.fetch_term_summary_courses()
     if not courses:
-        bot.send_message(chat_id, "📭 لم يتم العثور على مواد حالياً.")
+        bot.send_message(chat_id, "📭 لم يتم العثور على مقررات أو علامات.")
         return
 
-    markup = InlineKeyboardMarkup()
-    for idx, course in enumerate(courses):
-        markup.add(InlineKeyboardButton(
-            text=f"{course['code']} - {course['title']}",
-            callback_data=f"course:{idx}"
-        ))
+    # بناء نص ملخص المقررات والعلامات مع تنسيق جميل
+    text = "📚 *ملخص علامات المقررات الفصلية:*\n\n"
+    for c in courses:
+        code = c.get('course_code', '-')
+        name = c.get('course_name', '-')
+        midterm = c.get('midterm_mark', '-')
+        final = c.get('final_mark', '-')
+        final_date = c.get('final_mark_date', '-')
+        text += (
+            f"🔹 *{code}* - {name}\n"
+            f"    🧪 نصفي: {midterm}\n"
+            f"    🏁 نهائي: {final} (تاريخ: {final_date})\n\n"
+        )
 
-    user_states[chat_id] = {'courses': courses}
-    bot.send_message(chat_id, "📘 اختر مادة لعرض التفاصيل:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("course:"))
-def handle_course_details(call):
-    bot.answer_callback_query(call.id)
-    chat_id = call.message.chat.id
-
-    try:
-        index = int(call.data.split(":")[1])
-        course = user_states.get(chat_id, {}).get('courses', [])[index]
-
-        if not course:
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء تحميل تفاصيل المادة.")
-            return
-
-        marks = course.get('marks', {})
-        text = f"📘 *{course['code']} - {course['title']}*\n\n"
-        text += f"👨‍🏫 الدكتور: {marks.get('instructor', '-')}\n"
-        text += f"📅 اليوم: {marks.get('lecture_day', '-')}\n"
-        text += f"🕒 الموعد: {marks.get('lecture_time', '-')}\n"
-        text += f"🏢 البناية: {marks.get('building', '-')}\n"
-        text += f"🏫 القاعة: {marks.get('hall', '-')}\n\n"
-
-        text += f"📝 التعيين الأول: {marks.get('assignment1', '-')}\n"
-        text += f"🧪 الامتحان النصفي: {marks.get('midterm', '-')} | 📆 {marks.get('midterm_date', '-')}\n"
-        text += f"📝 التعيين الثاني: {marks.get('assignment2', '-')}\n"
-        text += f"🧪 الامتحان النهائي: {marks.get('final_mark', '-')} | 📆 {marks.get('final_date', '-')}\n"
-        text += f"📋 الحالة: {marks.get('status', '-')}"
-        bot.send_message(chat_id, text, parse_mode="Markdown")
-    except Exception as e:
-        print("[Course Detail Error]", e)
-        bot.send_message(chat_id, "❌ تعذر عرض تفاصيل المادة.")
+    bot.send_message(chat_id, text, parse_mode="Markdown")
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
