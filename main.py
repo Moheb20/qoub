@@ -1,10 +1,11 @@
 import threading
+import telebot
 from flask import Flask
 from database import get_all_users, add_user, update_last_msg, get_user
 from scheduler import start_scheduler
 from bot_instance import bot  # كائن TeleBot جاهز
 from qou_scraper import QOUScraper
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # الحالة المؤقتة للمستخدمين (لتخزين بيانات مؤقتة لكل مستخدم)
 user_states = {}
@@ -58,7 +59,7 @@ def get_student_id(message):
     user_states[chat_id]['student_id'] = message.text.strip()
     bot.send_message(chat_id, "🔒 الآن، الرجاء إدخال كلمة المرور:")
 
-@bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat_id])
+@bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat.id])
 def get_password(message):
     chat_id = message.chat.id
     user_states[chat_id]['password'] = message.text.strip()
@@ -91,66 +92,65 @@ def get_password(message):
 
     user_states.pop(chat_id, None)
 
-
-# =================== قائمة القروبات مع أزرار تحت صندوق الكتابة ===================
+# عرض القروبات
 @bot.message_handler(commands=['groups'])
 def handle_groups_command(message):
-    markup = ReplyKeyboardMarkup(row_width=3, resize_keyboard=True, one_time_keyboard=True)
-    markup.add(
-        KeyboardButton("📚 قروبات المواد"),
-        KeyboardButton("🎓 قروبات التخصصات"),
-        KeyboardButton("🏛 قروبات الجامعة")
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(
+        InlineKeyboardButton("📚 قروبات المواد", callback_data="category:subjects"),
+        InlineKeyboardButton("🎓 قروبات التخصصات", callback_data="category:majors"),
+        InlineKeyboardButton("🏛 قروبات الجامعة", callback_data="category:university")
     )
-    bot.send_message(message.chat.id, "🎯 اختر نوع القروبات:", reply_markup=markup)
+    bot.send_message(message.chat.id, "🎯 اختر نوع القروبات:", reply_markup=keyboard)
 
-@bot.message_handler(func=lambda message: message.text == "📚 قروبات المواد")
-def handle_subjects_group(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    for name in subject_groups:
-        markup.add(KeyboardButton(name))
-    markup.add(KeyboardButton("عودة"))
-    bot.send_message(message.chat.id, "🧾 اختر المادة للحصول على رابط القروب:", reply_markup=markup)
+@bot.callback_query_handler(func=lambda call: call.data.startswith("category:"))
+def handle_group_category(call):
+    category = call.data.split(":")[1]
 
-@bot.message_handler(func=lambda message: message.text == "🎓 قروبات التخصصات")
-def handle_majors_group(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    for name in major_groups:
-        markup.add(KeyboardButton(name))
-    markup.add(KeyboardButton("عودة"))
-    bot.send_message(message.chat.id, "🧑‍🎓 اختر قروب من قروبات التخصص:", reply_markup=markup)
+    if category == "subjects":
+        markup = InlineKeyboardMarkup()
+        for name in subject_groups:
+            markup.add(InlineKeyboardButton(name, callback_data=f"subject:{name}"))
+        bot.send_message(call.message.chat.id, "🧾 اختر المادة للحصول على رابط القروب:", reply_markup=markup)
 
-@bot.message_handler(func=lambda message: message.text == "🏛 قروبات الجامعة")
-def handle_university_group(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    for name in university_groups:
-        markup.add(KeyboardButton(name))
-    markup.add(KeyboardButton("عودة"))
-    bot.send_message(message.chat.id, "🏛 اختر قروب الجامعة:", reply_markup=markup)
+    elif category == "university":
+        markup = InlineKeyboardMarkup()
+        for idx, (name, _) in enumerate(university_list):
+            markup.add(InlineKeyboardButton(name, callback_data=f"univ_{idx}"))
+        bot.send_message(call.message.chat.id, "🏛 اختر قروب الجامعة:", reply_markup=markup)
 
-# إرسال الرابط حسب اختيار القروب
-@bot.message_handler(func=lambda message: message.text in subject_groups)
-def send_subject_link(message):
-    link = subject_groups.get(message.text, "❌ الرابط غير متوفر")
-    bot.send_message(message.chat.id, f"📘 رابط قروب *{message.text}*:\n{link}", parse_mode="Markdown")
+    elif category == "majors":
+        markup = InlineKeyboardMarkup()
+        for name in major_groups:
+            markup.add(InlineKeyboardButton(name, callback_data=f"major:{name}"))
+        bot.send_message(call.message.chat.id, "🧑‍🎓 اختر قروب من قروبات التخصص:", reply_markup=markup)
 
-@bot.message_handler(func=lambda message: message.text in major_groups)
-def send_major_link(message):
-    link = major_groups.get(message.text, "❌ الرابط غير متوفر")
-    bot.send_message(message.chat.id, f"📘 رابط قروب *{message.text}*:\n{link}", parse_mode="Markdown")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("subject:"))
+def handle_subject_selection(call):
+    bot.answer_callback_query(call.id)
+    subject = call.data.split("subject:")[1]
+    link = subject_groups.get(subject, "❌ الرابط غير متوفر")
+    bot.send_message(call.message.chat.id, f"📘 رابط قروب *{subject}*:\n{link}", parse_mode="Markdown")
 
-@bot.message_handler(func=lambda message: message.text in university_groups)
-def send_university_link(message):
-    link = university_groups.get(message.text, "❌ الرابط غير متوفر")
-    bot.send_message(message.chat.id, f"🏫 رابط قروب *{message.text}*:\n{link}", parse_mode="Markdown")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("univ_"))
+def handle_university_selection(call):
+    bot.answer_callback_query(call.id)
+    try:
+        index = int(call.data.split("_")[1])
+        name, link = university_list[index]
+        bot.send_message(call.message.chat.id, f"🏫 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء استرجاع الرابط.")
+        print("[university error]", e)
 
-# زر العودة للقائمة الرئيسية
-@bot.message_handler(func=lambda message: message.text == "عودة")
-def back_to_main_menu(message):
-    bot.send_message(message.chat.id, "🔙 تم الرجوع للقائمة الرئيسية.")
-    handle_groups_command(message)
+@bot.callback_query_handler(func=lambda call: call.data.startswith("major:"))
+def handle_major_selection(call):
+    bot.answer_callback_query(call.id)
+    name = call.data.split("major:")[1]
+    link = major_groups.get(name, "❌ الرابط غير متوفر")
+    bot.send_message(call.message.chat.id, f"📘 رابط قروب *{name}*:\n{link}", parse_mode="Markdown")
 
-
-# =================== أمر عرض المقررات والعلامات ===================
+# أمر عرض المواد مع ملخص علامات الفصل
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
@@ -183,19 +183,20 @@ def handle_courses(message):
         text += (
             f"🔹 *{code}* - {name}\n"
             f"    🧪 نصفي: {midterm}\n"
-            f"    🏁 نهائي: {final} (التاريخ: {final_date})\n\n"
+            f"    🏁 نهائي: {final} (تاريخ: {final_date})\n\n"
         )
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-
 if __name__ == "__main__":
-    import telebot
+    import telebot.types
+    # أوامر تظهر في قائمة الأوامر أسفل صندوق الكتابة (تظهر في لوحة الأوامر الرسمية للبوت)
     bot.set_my_commands([
         telebot.types.BotCommand("start", "بدء التسجيل وتسجيل الدخول"),
         telebot.types.BotCommand("groups", "عرض قروبات الجامعة والمواد"),
         telebot.types.BotCommand("courses", "عرض المقررات والعلامات"),
     ])
+
     threading.Thread(target=run_flask).start()
     bot.remove_webhook()
     bot.infinity_polling()
