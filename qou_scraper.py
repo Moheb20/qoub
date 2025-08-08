@@ -15,7 +15,7 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        # زيارة الصفحة أول مرة (جلب الكوكيز)
+        # زيارة الصفحة أول مرة لجلب الكوكيز
         self.session.get(LOGIN_URL)
         params = {
             'userId': self.student_id,
@@ -24,7 +24,7 @@ class QOUScraper:
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
         print("Login redirect URL:", resp.url)
-        # التحقق من وجود كلمة student في الرابط يعني نجاح الدخول
+        # تحقق من نجاح الدخول عبر وجود كلمة student في رابط الرد
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -33,13 +33,11 @@ class QOUScraper:
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
-        # الحصول على أول صف في الجدول (أحدث رسالة)
         row = soup.select_one("tbody tr")
         if not row:
             print("[❌] لا يوجد رسائل.")
             return None
 
-        # البحث عن الرابط داخل العمود المخصص (قد يكون col_4 أو حسب الهيكل)
         link_tag = row.select_one("td[col_4] a[href*='msgId=']")
         if not link_tag:
             print("[❌] لم يتم العثور على رابط الرسالة.")
@@ -55,12 +53,10 @@ class QOUScraper:
         date = row.select_one("td[col_5]")
         date_text = date.get_text(strip=True) if date else ''
 
-        # جلب محتوى الرسالة كاملة
         resp_msg = self.session.get(full_link)
         resp_msg.raise_for_status()
         soup_msg = BeautifulSoup(resp_msg.text, 'html.parser')
 
-        # محاولة العثور على محتوى الرسالة ضمن div بفئة message-body (تأكد من الفئة حسب المصدر)
         body = soup_msg.find('div', class_='message-body')
         body_text = body.get_text(strip=True) if body else ''
 
@@ -207,6 +203,7 @@ class QOUScraper:
         return data
 
     def fetch_courses_with_marks(self) -> List[dict]:
+        """جلب كل المواد مع بيانات العلامات الخاصة بها"""
         courses = self.fetch_courses()
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'], course['crsSeq'])
