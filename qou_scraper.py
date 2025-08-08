@@ -97,15 +97,24 @@ class QOUScraper:
         return ""
 
     def _extract_next_sibling_text(self, label_tag) -> str:
+        # نحاول أكثر للحصول على النص الصحيح بعد الليبل، حتى لو التنسيق مختلف
         parent_div = label_tag.find_parent('div', class_='col-sm-4') or label_tag.find_parent('div')
         if not parent_div:
             return "-"
+        # بعض الأحيان النص يكون في نفس الـ div وليس التابع التالي، جرب النص مباشرة بعد الليبل
+        next_node = label_tag.next_sibling
+        while next_node and (not isinstance(next_node, str) or not next_node.strip()):
+            next_node = next_node.next_sibling
+        if isinstance(next_node, str):
+            text = next_node.strip()
+            if text:
+                return text
+        # لو ما في نص مباشر، نرجع للتابع التالي div
         sibling_div = parent_div.find_next_sibling('div')
         if sibling_div:
             text = sibling_div.get_text(strip=True)
-            if not text:
-                return "-"
-            return text
+            if text:
+                return text
         return "-"
 
     def find_field_value_by_label(self, soup: BeautifulSoup, field_name: str) -> str:
@@ -177,19 +186,20 @@ class QOUScraper:
                 for label in label_elements:
                     label_text = label.get_text(strip=True)
 
-                    if "التعيين الاول" in label_text:
+                    # نستخدم regex مع دقة وجود النقطتين ":" والمطابقة بدون مسافات زائدة
+                    if re.search(r"^التعيين الاول:?$", label_text):
                         data['assignment1'] = self._extract_next_sibling_text(label)
-                    elif "نصفي نظري" in label_text:
+                    elif re.search(r"^نصفي نظري:?$", label_text):
                         data['midterm'] = self._extract_next_sibling_text(label)
-                    elif "تاريخ وضع الامتحان النصفي" in label_text:
+                    elif re.search(r"^تاريخ وضع الامتحان النصفي:?$", label_text):
                         data['midterm_date'] = self._extract_next_sibling_text(label)
-                    elif "التعيين الثاني" in label_text:
+                    elif re.search(r"^التعيين الثاني:?$", label_text):
                         data['assignment2'] = self._extract_next_sibling_text(label)
-                    elif "العلامة النهائية" in label_text:
+                    elif re.search(r"^العلامة النهائية:?$", label_text):
                         data['final_mark'] = self._extract_next_sibling_text(label)
-                    elif "تاريخ وضع العلامة النهائية" in label_text:
+                    elif re.search(r"^تاريخ وضع العلامة النهائية:?$", label_text):
                         data['final_date'] = self._extract_next_sibling_text(label)
-                    elif "الحالة" in label_text:
+                    elif re.search(r"^الحالة:?$", label_text):
                         data['status'] = self._extract_next_sibling_text(label)
 
         if schedule_html:
