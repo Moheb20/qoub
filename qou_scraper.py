@@ -96,7 +96,7 @@ class QOUScraper:
             m = re.search(r"html\(['\"](.+?)['\"]\);", js_text, re.DOTALL)
             if m:
                 html_content = m.group(1)
-                html_content = html_content.replace("\\'", "'").replace('\\"', '"')
+                html_content = html_content.replace("\\'", "'").replace('\\"', '"').replace("\\n", "").replace("\\t", "").replace("\\r", "")
                 return html_content
             return ""
 
@@ -124,65 +124,57 @@ class QOUScraper:
             'hall': "-"
         }
 
-        # استخراج بيانات العلامات
+        # استخراج بيانات العلامات بدقة أكبر حسب البنية
         for fg in marks_soup.select('div.form-group'):
-            labels = fg.find_all('label')
-            for label in labels:
-                text = label.get_text(strip=True)
-                if "التعيين الاول" in text:
-                    sibling = label.find_parent('div').find_all('div')
-                    if len(sibling) > 1:
-                        val = sibling[1].get_text(strip=True)
-                        if val:
-                            data['assignment1'] = val
-                elif "نصفي نظري" in text:
-                    sibling = label.find_parent('div').find_all('div')
-                    if len(sibling) > 3:
-                        val = sibling[3].get_text(strip=True)
-                        if val:
-                            data['midterm'] = val
-                elif "تاريخ وضع الامتحان النصفي" in text:
-                    divs = fg.find_all('div')
-                    if len(divs) > 1:
-                        val = divs[1].get_text(strip=True)
-                        if val:
-                            data['midterm_date'] = val
-                elif "التعيين الثاني" in text:
-                    sibling = label.find_parent('div').find_all('div')
-                    if len(sibling) > 1:
-                        val = sibling[1].get_text(strip=True)
-                        if val:
-                            data['assignment2'] = val
-                elif "العلامة النهائية" in text:
-                    sibling = label.find_parent('div').find_all('div')
-                    if len(sibling) > 3:
-                        val = sibling[3].get_text(strip=True)
-                        if val:
-                            data['final_mark'] = val
-                elif "تاريخ وضع العلامة النهائية" in text:
-                    divs = fg.find_all('div')
-                    if len(divs) > 1:
-                        val = divs[1].get_text(strip=True)
-                        if val:
-                            data['final_date'] = val
-                elif "الحالة" in text:
-                    sibling = label.find_parent('div').find_all('div')
-                    if len(sibling) > 1:
-                        val = sibling[1].get_text(strip=True)
-                        if val:
-                            data['status'] = val
+            divs = fg.find_all('div')
+            labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
 
-        # استخراج بيانات الجدول
+            if any("التعيين الاول" in text for text in labels_text):
+                # غالبا القيمة فارغة أو في div ثاني، ولكن حسب البيانات فارغة، فلا تغيير
+                pass
+
+            if any("نصفي نظري" in text for text in labels_text):
+                val = divs[-1].get_text(strip=True)
+                if val:
+                    data['midterm'] = val
+
+            if any("تاريخ وضع الامتحان النصفي" in text for text in labels_text):
+                if len(divs) > 1:
+                    val = divs[1].get_text(strip=True)
+                    if val:
+                        data['midterm_date'] = val
+
+            if any("التعيين الثاني" in text for text in labels_text):
+                # حسب المحتوى غالبا فارغ
+                pass
+
+            if any("العلامة النهائية" in text for text in labels_text):
+                val = divs[-1].get_text(strip=True)
+                if val:
+                    data['final_mark'] = val
+
+            if any("تاريخ وضع العلامة النهائية" in text for text in labels_text):
+                if len(divs) > 1:
+                    val = divs[1].get_text(strip=True)
+                    if val:
+                        data['final_date'] = val
+
+            if any("الحالة" in text for text in labels_text):
+                if len(divs) > 1:
+                    val = divs[1].get_text(strip=True)
+                    if val:
+                        data['status'] = val
+
         def extract_schedule_field(field_name):
             label = schedule_soup.find('label', string=re.compile(field_name))
             if label:
                 parent = label.find_parent('div', class_='form-group')
                 if parent:
                     divs = parent.find_all('div')
-                    if len(divs) > 1:
-                        val = divs[1].get_text(strip=True)
-                        if val and val != "&nbsp;&nbsp;":
-                            return val.strip()
+                    for d in divs:
+                        text = d.get_text(strip=True)
+                        if text != "" and text != field_name and text != "&nbsp;&nbsp;":
+                            return text
             return "-"
 
         data['lecture_day'] = extract_schedule_field("اليوم")
@@ -190,7 +182,6 @@ class QOUScraper:
         data['building'] = extract_schedule_field("البناية")
         data['hall'] = extract_schedule_field("القاعة")
 
-        # استخراج اسم عضو هيئة التدريس
         instructor_a = schedule_soup.select_one('div.form-group a[href*="createMessage"]')
         if instructor_a:
             data['instructor'] = instructor_a.get_text(strip=True)
