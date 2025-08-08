@@ -97,30 +97,29 @@ class QOUScraper:
         return ""
 
     def _extract_next_sibling_text(self, label_tag) -> str:
-        # البحث عن العنصر التالي من نوع div بشكل موثوق
         parent_div = label_tag.find_parent('div', class_='col-sm-4') or label_tag.find_parent('div')
         if not parent_div:
-            return ""
+            return "-"
         sibling_div = parent_div.find_next_sibling('div')
         if sibling_div:
-            return sibling_div.get_text(strip=True)
-        return ""
+            text = sibling_div.get_text(strip=True)
+            if not text:
+                return "-"
+            return text
+        return "-"
 
     def find_field_value_by_label(self, soup: BeautifulSoup, field_name: str) -> str:
         label = soup.find('label', string=re.compile(field_name))
         if not label:
-            return ""
-        # في بعض الأحيان الحقل الهدف موجود في نفس مستوى الأب مع النصوص الأخرى
+            return "-"
         parent = label.find_parent('div', class_='form-group')
         if not parent:
-            return ""
-        # البحث عن النصوص بعد الاستثناء
+            return "-"
         texts = [t for t in parent.stripped_strings if field_name not in t]
-        # نبحث عن أول نص يحتوي على أرقام (كعلامة مثلاً)
         for text in texts:
             if text and re.search(r'\d', text):
                 return text
-        return texts[0] if texts else ""
+        return texts[0] if texts else "-"
 
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
         base_url = "https://portal.qou.edu/student/loadCourseServices"
@@ -137,24 +136,38 @@ class QOUScraper:
             return resp.text
 
         marks_js = fetch_tab_raw("marks")
+        print("==== RAW marks_js ====")
+        print(marks_js)
+        print("======================")
+
         marks_html = self.extract_html_from_js(marks_js)
+        print("==== Extracted marks_html ====")
+        print(marks_html)
+        print("==============================")
 
         schedule_js = fetch_tab_raw("tSchedule")
+        print("==== RAW schedule_js ====")
+        print(schedule_js)
+        print("========================")
+
         schedule_html = self.extract_html_from_js(schedule_js)
+        print("==== Extracted schedule_html ====")
+        print(schedule_html)
+        print("===============================")
 
         data = {
-            'assignment1': "",
-            'midterm': "",
-            'midterm_date': "",
-            'assignment2': "",
-            'final_mark': "",
-            'final_date': "",
-            'status': "",
-            'instructor': "",
-            'lecture_day': "",
-            'lecture_time': "",
-            'building': "",
-            'hall': ""
+            'assignment1': "-",
+            'midterm': "-",
+            'midterm_date': "-",
+            'assignment2': "-",
+            'final_mark': "-",
+            'final_date': "-",
+            'status': "-",
+            'instructor': "-",
+            'lecture_day': "-",
+            'lecture_time': "-",
+            'building': "-",
+            'hall': "-"
         }
 
         if marks_html and "العلامات غير متوفرة حاليا" not in marks_html:
