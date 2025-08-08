@@ -1,11 +1,11 @@
 import threading
-import telebot
 from flask import Flask
 from database import get_all_users, add_user, update_last_msg, get_user
 from scheduler import start_scheduler
 from bot_instance import bot  # كائن TeleBot جاهز
 from qou_scraper import QOUScraper
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import telebot
 
 # الحالة المؤقتة للمستخدمين (لتخزين بيانات مؤقتة لكل مستخدم)
 user_states = {}
@@ -51,7 +51,14 @@ def run_flask():
 def handle_start(message):
     chat_id = message.chat.id
     user_states[chat_id] = {}
-    bot.send_message(chat_id, "👤 الرجاء إدخال اسم المستخدم الخاص بك:")
+
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(
+        InlineKeyboardButton("📚 قروبات الجامعة والمواد", callback_data="show_groups"),
+        InlineKeyboardButton("📋 عرض المقررات والعلامات", callback_data="show_courses"),
+    )
+
+    bot.send_message(chat_id, "👋 أهلاً! اختر أحد الخيارات من الأزرار أدناه:", reply_markup=keyboard)
 
 @bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'student_id' not in user_states[msg.chat.id])
 def get_student_id(message):
@@ -188,15 +195,22 @@ def handle_courses(message):
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
+# التعامل مع أزرار القائمة في رسالة /start
+@bot.callback_query_handler(func=lambda call: call.data in ["show_groups", "show_courses"])
+def callback_handler(call):
+    bot.answer_callback_query(call.id)
+    if call.data == "show_groups":
+        handle_groups_command(call.message)
+    elif call.data == "show_courses":
+        handle_courses(call.message)
+
 if __name__ == "__main__":
-    import telebot.types
-    # أوامر تظهر في قائمة الأوامر أسفل صندوق الكتابة (تظهر في لوحة الأوامر الرسمية للبوت)
+    # تسجيل أوامر البوت التي تظهر في قائمة أوامر Telegram الرسمية تحت مربع النص
     bot.set_my_commands([
         telebot.types.BotCommand("start", "بدء التسجيل وتسجيل الدخول"),
         telebot.types.BotCommand("groups", "عرض قروبات الجامعة والمواد"),
         telebot.types.BotCommand("courses", "عرض المقررات والعلامات"),
     ])
-
     threading.Thread(target=run_flask).start()
     bot.remove_webhook()
     bot.infinity_polling()
