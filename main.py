@@ -81,7 +81,7 @@ def get_password(message):
                 f"📬 آخر رسالة في البريد:\n"
                 f"📧 {latest['subject']}\n"
                 f"📝 {latest['sender']}\n"
-                ف"🕒 {latest['date']}\n\n"
+                f"🕒 {latest['date']}\n\n"
                 f"{latest['body']}"
             )
             bot.send_message(chat_id, text)
@@ -93,8 +93,6 @@ def get_password(message):
         bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة البيانات.")
 
     user_states.pop(chat_id, None)
-
-# --- التعديلات تبدأ هنا ---
 
 # أمر /groups يعرض أزرار لأنواع القروبات فقط
 @bot.message_handler(commands=['groups'])
@@ -203,12 +201,10 @@ def handle_courses(message):
         text += (
             f"🔹 *{code}* - {name}\n"
             f"    🧪 نصفي: {midterm}\n"
-            f"    🏁 نهائي: {final}\n"
-            f"    (تاريخ: {final_date})\n\n"
+            f"    🏁 العلامة النهائية: {final}\n"
+            f"    (التاريخ: {final_date})\n\n"
         )
     bot.send_message(chat_id, text, parse_mode="Markdown")
-
-# --- التعديلات انتهت ---
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
