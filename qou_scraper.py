@@ -7,7 +7,6 @@ LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 COURSES_URL = 'https://portal.qou.edu/student/courseServices.do'
 
-
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
@@ -82,6 +81,21 @@ class QOUScraper:
 
         return courses
 
+    def extract_html_from_js(self, js_text: str) -> str:
+        # استخراج محتوى HTML من استدعاء $("#tab1").html('...'); في جافاسكريبت
+        match = re.search(r'\$\("#tab1"\)\.html\(\s*[\'"](.+)[\'"]\s*\);', js_text, re.DOTALL)
+        if match:
+            html_raw = match.group(1)
+            html_unescaped = (html_raw
+                              .replace("\\'", "'")
+                              .replace('\\"', '"')
+                              .replace("\\n", "")
+                              .replace("\\r", "")
+                              .replace("\\t", "")
+                              .replace("\\\\", "\\"))
+            return html_unescaped
+        return ""
+
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
         base_url = "https://portal.qou.edu/student/loadCourseServices"
 
@@ -91,26 +105,12 @@ class QOUScraper:
             resp.raise_for_status()
             return resp.text
 
-        def extract_html_from_js(js_text: str) -> str:
-            m = re.search(r"html\(['\"](.+?)['\"]\);", js_text, re.DOTALL)
-            if m:
-                html_content = m.group(1)
-                html_content = (html_content
-                                .replace("\\'", "'")
-                                .replace('\\"', '"')
-                                .replace("\\n", "")
-                                .replace("\\t", "")
-                                .replace("\\r", ""))
-                return html_content
-            return ""
-
+        # جلب علامات المادة (تاب العلامات)
         marks_js = fetch_tab_raw("marks")
-        schedule_js = fetch_tab_raw("tSchedule")
 
-        marks_html = extract_html_from_js(marks_js)
+        marks_html = self.extract_html_from_js(marks_js)
 
-        # شرط لتخطي الكورسات التي لا تحتوي علامات متوفرة
-        if "العلامات غير متوفرة حاليا" in marks_html:
+        if not marks_html or "العلامات غير متوفرة حاليا" in marks_html:
             return {
                 'assignment1': "-",
                 'midterm': "-",
@@ -126,10 +126,7 @@ class QOUScraper:
                 'hall': "-"
             }
 
-        schedule_html = extract_html_from_js(schedule_js)
-
-        marks_soup = BeautifulSoup(marks_html, "html.parser")
-        schedule_soup = BeautifulSoup(schedule_html, "html.parser")
+        soup = BeautifulSoup(marks_html, "html.parser")
 
         data = {
             'assignment1': "-",
@@ -146,55 +143,54 @@ class QOUScraper:
             'hall': "-"
         }
 
-        for fg in marks_soup.select('div.form-group'):
+        # تحليل البيانات من علامات المادة
+        for fg in soup.select('div.form-group'):
             divs = fg.find_all('div')
-            labels = [div.find('label') for div in divs]
-            labels_text = [lbl.get_text(strip=True) if lbl else "" for lbl in labels]
+            labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
 
-            # التعيين الأول
             if any("التعيين الاول" in text for text in labels_text):
+                # غالبا القيمة في div آخر داخل هذا العنصر
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['assignment1'] = val
 
-            # نصفي نظري (الامتحان النصفي)
             if any("نصفي نظري" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['midterm'] = val
 
-            # تاريخ الامتحان النصفي
             if any("تاريخ وضع الامتحان النصفي" in text for text in labels_text):
                 if len(divs) > 1:
                     val = divs[1].get_text(strip=True)
                     if val:
                         data['midterm_date'] = val
 
-            # التعيين الثاني
             if any("التعيين الثاني" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['assignment2'] = val
 
-            # العلامة النهائية
             if any("العلامة النهائية" in text for text in labels_text):
                 val = divs[-1].get_text(strip=True)
                 if val:
                     data['final_mark'] = val
 
-            # تاريخ العلامة النهائية
             if any("تاريخ وضع العلامة النهائية" in text for text in labels_text):
                 if len(divs) > 1:
                     val = divs[1].get_text(strip=True)
                     if val:
                         data['final_date'] = val
 
-            # الحالة
             if any("الحالة" in text for text in labels_text):
                 if len(divs) > 1:
                     val = divs[1].get_text(strip=True)
                     if val:
                         data['status'] = val
+
+        # جلب بيانات الجدول (اللقاءات والمحاضرات)
+        schedule_js = fetch_tab_raw("tSchedule")
+        schedule_html = self.extract_html_from_js(schedule_js)
+        schedule_soup = BeautifulSoup(schedule_html, "html.parser")
 
         def extract_schedule_field(field_name):
             label = schedule_soup.find('label', string=re.compile(field_name))
