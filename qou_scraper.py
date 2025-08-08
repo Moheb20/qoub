@@ -22,7 +22,6 @@ class QOUScraper:
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
-        print("Login redirect URL:", resp.url)
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -32,12 +31,10 @@ class QOUScraper:
 
         row = soup.select_one("tbody tr")
         if not row:
-            print("[❌] لا يوجد رسائل.")
             return None
 
         link_tag = row.select_one("td[col_4] a[href*='msgId=']")
         if not link_tag:
-            print("[❌] لم يتم العثور على رابط الرسالة.")
             return None
 
         msg_id = link_tag['href'].split('msgId=')[-1]
@@ -81,13 +78,12 @@ class QOUScraper:
                 tab_id = f"tab{idx+1}"
                 crsSeq = '0'
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
-
         return courses
 
     def extract_html_from_js(self, js_text: str) -> str:
-        match = re.search(r'\$\("#tab\d+"\)\.html\(\s*[\'"](.+)[\'"]\s*\);', js_text, re.DOTALL)
-        if match:
-            html_raw = match.group(1)
+        matches = re.findall(r'\.html\(\s*[\'"](.+?)[\'"]\s*\);', js_text, re.DOTALL)
+        if matches:
+            html_raw = matches[-1]
             html_unescaped = (html_raw
                               .replace("\\'", "'")
                               .replace('\\"', '"')
@@ -113,13 +109,21 @@ class QOUScraper:
                 return text
         return texts[0] if texts else ""
 
+    def _extract_next_sibling_text(self, label_tag) -> str:
+        next_div = label_tag.find_parent('div')
+        if next_div and next_div.next_sibling:
+            sibling = next_div.find_next_sibling('div')
+            if sibling:
+                return sibling.get_text(strip=True)
+        return ""
+
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
         base_url = "https://portal.qou.edu/student/loadCourseServices"
 
         def fetch_tab_raw(tab: str) -> str:
             url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
+                "User-Agent": "Mozilla/5.0",
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": COURSES_URL
             }
@@ -130,15 +134,8 @@ class QOUScraper:
         marks_js = fetch_tab_raw("marks")
         marks_html = self.extract_html_from_js(marks_js)
 
-        os.makedirs("debug_html", exist_ok=True)
-        with open(f"debug_html/marks_{crsNo}.html", "w", encoding="utf-8") as f:
-            f.write(marks_html)
-
         schedule_js = fetch_tab_raw("tSchedule")
         schedule_html = self.extract_html_from_js(schedule_js)
-
-        with open(f"debug_html/schedule_{crsNo}.html", "w", encoding="utf-8") as f:
-            f.write(schedule_html)
 
         data = {
             'assignment1': "",
@@ -158,36 +155,27 @@ class QOUScraper:
         if marks_html and "العلامات غير متوفرة حاليا" not in marks_html:
             soup = BeautifulSoup(marks_html, "html.parser")
             for fg in soup.select('div.form-group'):
-                divs = fg.find_all('div')
-                labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
+                label_elements = fg.find_all('label')
+                for label in label_elements:
+                    label_text = label.get_text(strip=True)
 
-                if any("التعيين الاول" in text for text in labels_text):
-                    data['assignment1'] = divs[-1].get_text(strip=True)
-
-                if any("نصفي نظري" in text for text in labels_text):
-                    data['midterm'] = divs[-1].get_text(strip=True)
-
-                if any("تاريخ وضع الامتحان النصفي" in text for text in labels_text):
-                    if len(divs) > 1:
-                        data['midterm_date'] = divs[1].get_text(strip=True)
-
-                if any("التعيين الثاني" in text for text in labels_text):
-                    data['assignment2'] = divs[-1].get_text(strip=True)
-
-                if any("العلامة النهائية" in text for text in labels_text):
-                    data['final_mark'] = divs[-1].get_text(strip=True)
-
-                if any("تاريخ وضع العلامة النهائية" in text for text in labels_text):
-                    if len(divs) > 1:
-                        data['final_date'] = divs[1].get_text(strip=True)
-
-                if any("الحالة" in text for text in labels_text):
-                    if len(divs) > 1:
-                        data['status'] = divs[1].get_text(strip=True)
+                    if "التعيين الاول" in label_text:
+                        data['assignment1'] = self._extract_next_sibling_text(label)
+                    elif "نصفي نظري" in label_text:
+                        data['midterm'] = self._extract_next_sibling_text(label)
+                    elif "تاريخ وضع الامتحان النصفي" in label_text:
+                        data['midterm_date'] = self._extract_next_sibling_text(label)
+                    elif "التعيين الثاني" in label_text:
+                        data['assignment2'] = self._extract_next_sibling_text(label)
+                    elif "العلامة النهائية" in label_text:
+                        data['final_mark'] = self._extract_next_sibling_text(label)
+                    elif "تاريخ وضع العلامة النهائية" in label_text:
+                        data['final_date'] = self._extract_next_sibling_text(label)
+                    elif "الحالة" in label_text:
+                        data['status'] = self._extract_next_sibling_text(label)
 
         if schedule_html:
             schedule_soup = BeautifulSoup(schedule_html, "html.parser")
-
             data['lecture_day'] = self.find_field_value_by_label(schedule_soup, "اليوم")
             data['lecture_time'] = self.find_field_value_by_label(schedule_soup, "الموعد")
             data['building'] = self.find_field_value_by_label(schedule_soup, "البناية")
