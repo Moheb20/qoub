@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
 import re
-import os
+import html
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
@@ -84,38 +84,43 @@ class QOUScraper:
         matches = re.findall(r'\.html\(\s*[\'"](.+?)[\'"]\s*\);', js_text, re.DOTALL)
         if matches:
             html_raw = matches[-1]
-            html_unescaped = (html_raw
-                              .replace("\\'", "'")
-                              .replace('\\"', '"')
-                              .replace("\\n", "")
-                              .replace("\\r", "")
-                              .replace("\\t", "")
-                              .replace("\\\\", "\\"))
-            return html_unescaped
+            # فك الترميز html entities و تنظيف السلاسل
+            html_unescaped = html.unescape(html_raw)
+            html_clean = (html_unescaped
+                          .replace("\\'", "'")
+                          .replace('\\"', '"')
+                          .replace("\\n", "")
+                          .replace("\\r", "")
+                          .replace("\\t", "")
+                          .replace("\\\\", "\\"))
+            return html_clean
+        return ""
+
+    def _extract_next_sibling_text(self, label_tag) -> str:
+        # البحث عن العنصر التالي من نوع div بشكل موثوق
+        parent_div = label_tag.find_parent('div', class_='col-sm-4') or label_tag.find_parent('div')
+        if not parent_div:
+            return ""
+        sibling_div = parent_div.find_next_sibling('div')
+        if sibling_div:
+            return sibling_div.get_text(strip=True)
         return ""
 
     def find_field_value_by_label(self, soup: BeautifulSoup, field_name: str) -> str:
         label = soup.find('label', string=re.compile(field_name))
         if not label:
             return ""
-
+        # في بعض الأحيان الحقل الهدف موجود في نفس مستوى الأب مع النصوص الأخرى
         parent = label.find_parent('div', class_='form-group')
         if not parent:
             return ""
-
+        # البحث عن النصوص بعد الاستثناء
         texts = [t for t in parent.stripped_strings if field_name not in t]
+        # نبحث عن أول نص يحتوي على أرقام (كعلامة مثلاً)
         for text in texts:
             if text and re.search(r'\d', text):
                 return text
         return texts[0] if texts else ""
-
-    def _extract_next_sibling_text(self, label_tag) -> str:
-        next_div = label_tag.find_parent('div')
-        if next_div and next_div.next_sibling:
-            sibling = next_div.find_next_sibling('div')
-            if sibling:
-                return sibling.get_text(strip=True)
-        return ""
 
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
         base_url = "https://portal.qou.edu/student/loadCourseServices"
