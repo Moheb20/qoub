@@ -108,11 +108,29 @@ class QOUScraper:
         schedule_js = fetch_tab_raw("tSchedule")
 
         print(f"--- المحتوى الخام للتاب marks للكورس {crsNo} ---")
-        print(marks_js[:1000])  # اطبع أول 1000 حرف فقط للتأكد
+        print(marks_js[:1000])
         print(f"--- المحتوى الخام للتاب tSchedule للكورس {crsNo} ---")
         print(schedule_js[:1000])
 
         marks_html = extract_html_from_js(marks_js)
+
+        # شرط لتخطي الكورسات التي لا تحتوي علامات متوفرة
+        if "العلامات غير متوفرة حاليا" in marks_html:
+            return {
+                'assignment1': "-",
+                'midterm': "-",
+                'midterm_date': "-",
+                'assignment2': "-",
+                'final_mark': "-",
+                'final_date': "-",
+                'status': "-",
+                'instructor': "-",
+                'lecture_day': "-",
+                'lecture_time': "-",
+                'building': "-",
+                'hall': "-"
+            }
+
         schedule_html = extract_html_from_js(schedule_js)
 
         marks_soup = BeautifulSoup(marks_html, "html.parser")
