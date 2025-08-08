@@ -15,14 +15,54 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        self.session.get(LOGIN_URL)  # لتحميل الكوكيز وغيرها
+        self.session.get(LOGIN_URL)
         params = {
             'userId': self.student_id,
             'password': self.password,
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        # إذا الرابط يحتوي "student" يعتبر تسجيل دخول ناجح
         return 'student' in resp.url
+
+    def fetch_latest_message(self) -> Optional[dict]:
+        resp = self.session.get(INBOX_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        row = soup.select_one("tbody tr")
+        if not row:
+            print("[❌] لا يوجد صفوف رسائل.")
+            return None
+
+        link_tag = row.select_one("td[col_4] a[href*='msgId=']")
+        if not link_tag:
+            print("[❌] لم يتم العثور على الرابط داخل الموضوع.")
+            return None
+
+        msg_id = link_tag['href'].split('msgId=')[-1]
+        full_link = requests.compat.urljoin(INBOX_URL, link_tag['href'])
+        subject = link_tag.get_text(strip=True)
+
+        sender = row.select_one("td[col_7]")
+        sender_text = sender.get_text(strip=True) if sender else ''
+
+        date = row.select_one("td[col_5]")
+        date_text = date.get_text(strip=True) if date else ''
+
+        resp_msg = self.session.get(full_link)
+        resp_msg.raise_for_status()
+        soup_msg = BeautifulSoup(resp_msg.text, 'html.parser')
+        body = soup_msg.find('div', class_='message-body')
+        body_text = body.get_text(strip=True) if body else ''
+
+        return {
+            'msg_id': msg_id,
+            'subject': subject,
+            'sender': sender_text,
+            'date': date_text,
+            'body': body_text
+        }
 
     def fetch_courses(self) -> List[dict]:
         resp = self.session.get(COURSES_URL)
@@ -37,8 +77,8 @@ class QOUScraper:
             if match:
                 code = match.group(1)
                 title = match.group(2)
-                tab_id = f"tab{idx + 1}"  # tab1, tab2, ...
-                crsSeq = '0'  # حسب بيانات الموقع غالباً 0
+                tab_id = f"tab{idx+1}"  # tab1, tab2, ...
+                crsSeq = '0'  # عادة 0 حسب الـ requests التي أرسلتها
                 courses.append({'code': code, 'title': title, 'tab_id': tab_id, 'crsSeq': crsSeq})
 
         return courses
@@ -53,15 +93,10 @@ class QOUScraper:
             return resp.text
 
         def extract_html_from_js(js_text: str) -> str:
-            # استخراج المحتوى داخل html('...')
-            # قد يكون داخل علامات ' أو "
-            m = re.search(r"html\((['\"])(.*?)\1\);", js_text, re.DOTALL)
+            m = re.search(r"html\(['\"](.+?)['\"]\);", js_text, re.DOTALL)
             if m:
-                html_content = m.group(2)
-                # إزالة علامات الهروب
-                html_content = html_content.encode('utf-8').decode('unicode_escape')
-                # إزالة بعض escapes الزائدة مثل \n \r
-                html_content = html_content.replace('\r', '').replace('\n', '').replace('\\\'', '\'')
+                html_content = m.group(1)
+                html_content = html_content.replace("\\'", "'").replace('\\"', '"')
                 return html_content
             return ""
 
@@ -89,43 +124,61 @@ class QOUScraper:
             'hall': "-"
         }
 
-        # استخراج بيانات العلامات من marks_soup
+        # استخراج بيانات العلامات
         for fg in marks_soup.select('div.form-group'):
             labels = fg.find_all('label')
-            # جمع كل نصوص div مباشرة داخل form-group (لا تشمل العناوين الفرعية)
-            div_texts = [div.get_text(strip=True) for div in fg.find_all('div', recursive=False)]
             for label in labels:
                 text = label.get_text(strip=True)
                 if "التعيين الاول" in text:
-                    if len(div_texts) > 1 and div_texts[1]:
-                        data['assignment1'] = div_texts[1]
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 1:
+                        val = sibling[1].get_text(strip=True)
+                        if val:
+                            data['assignment1'] = val
                 elif "نصفي نظري" in text:
-                    # عادة يكون في div الرابع (index 3)
-                    if len(div_texts) > 3 and div_texts[3]:
-                        data['midterm'] = div_texts[3]
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 3:
+                        val = sibling[3].get_text(strip=True)
+                        if val:
+                            data['midterm'] = val
                 elif "تاريخ وضع الامتحان النصفي" in text:
-                    if len(div_texts) > 1 and div_texts[1]:
-                        data['midterm_date'] = div_texts[1]
+                    divs = fg.find_all('div')
+                    if len(divs) > 1:
+                        val = divs[1].get_text(strip=True)
+                        if val:
+                            data['midterm_date'] = val
                 elif "التعيين الثاني" in text:
-                    if len(div_texts) > 1 and div_texts[1]:
-                        data['assignment2'] = div_texts[1]
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 1:
+                        val = sibling[1].get_text(strip=True)
+                        if val:
+                            data['assignment2'] = val
                 elif "العلامة النهائية" in text:
-                    if len(div_texts) > 3 and div_texts[3]:
-                        data['final_mark'] = div_texts[3]
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 3:
+                        val = sibling[3].get_text(strip=True)
+                        if val:
+                            data['final_mark'] = val
                 elif "تاريخ وضع العلامة النهائية" in text:
-                    if len(div_texts) > 1 and div_texts[1]:
-                        data['final_date'] = div_texts[1]
+                    divs = fg.find_all('div')
+                    if len(divs) > 1:
+                        val = divs[1].get_text(strip=True)
+                        if val:
+                            data['final_date'] = val
                 elif "الحالة" in text:
-                    if len(div_texts) > 1 and div_texts[1]:
-                        data['status'] = div_texts[1]
+                    sibling = label.find_parent('div').find_all('div')
+                    if len(sibling) > 1:
+                        val = sibling[1].get_text(strip=True)
+                        if val:
+                            data['status'] = val
 
-        # استخراج بيانات الجدول من schedule_soup
+        # استخراج بيانات الجدول
         def extract_schedule_field(field_name):
             label = schedule_soup.find('label', string=re.compile(field_name))
             if label:
                 parent = label.find_parent('div', class_='form-group')
                 if parent:
-                    divs = parent.find_all('div', recursive=False)
+                    divs = parent.find_all('div')
                     if len(divs) > 1:
                         val = divs[1].get_text(strip=True)
                         if val and val != "&nbsp;&nbsp;":
