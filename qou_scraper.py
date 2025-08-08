@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
 import re
+import os
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
@@ -44,20 +45,20 @@ class QOUScraper:
         subject = link_tag.get_text(strip=True)
 
         sender = row.select_one("td[col_7]")
-        sender_text = sender.get_text(strip=True) if sender else "-"
+        sender_text = sender.get_text(strip=True) if sender else ''
 
         date = row.select_one("td[col_5]")
-        date_text = date.get_text(strip=True) if date else "-"
+        date_text = date.get_text(strip=True) if date else ''
 
         resp_msg = self.session.get(full_link)
         resp_msg.raise_for_status()
         soup_msg = BeautifulSoup(resp_msg.text, 'html.parser')
         body = soup_msg.find('div', class_='message-body')
-        body_text = body.get_text(strip=True) if body else "-"
+        body_text = body.get_text(strip=True) if body else ''
 
         return {
             'msg_id': msg_id,
-            'subject': subject or "-",
+            'subject': subject,
             'sender': sender_text,
             'date': date_text,
             'body': body_text
@@ -102,7 +103,7 @@ class QOUScraper:
         def fetch_tab_raw(tab: str) -> str:
             url = f"{base_url}?tabId={tab_id}&dataType={tab}&crsNo={crsNo}&crsSeq={crsSeq}"
             headers = {
-                "User-Agent": "Mozilla/5.0",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": COURSES_URL
             }
@@ -110,23 +111,37 @@ class QOUScraper:
             resp.raise_for_status()
             return resp.text
 
+        # Marks
         marks_js = fetch_tab_raw("marks")
         marks_html = self.extract_html_from_js(marks_js)
 
-        # إعداد القيم المبدئية كلها "-"
+        # حفظ HTML للـ Marks
+        os.makedirs("debug_html", exist_ok=True)
+        with open(f"debug_html/marks_{crsNo}.html", "w", encoding="utf-8") as f:
+            f.write(marks_html)
+
+        # Schedule
+        schedule_js = fetch_tab_raw("tSchedule")
+        schedule_html = self.extract_html_from_js(schedule_js)
+
+        # حفظ HTML للـ Schedule
+        with open(f"debug_html/schedule_{crsNo}.html", "w", encoding="utf-8") as f:
+            f.write(schedule_html)
+
+        # البيانات الفارغة الافتراضية
         data = {
-            'assignment1': "-",
-            'midterm': "-",
-            'midterm_date': "-",
-            'assignment2': "-",
-            'final_mark': "-",
-            'final_date': "-",
-            'status': "-",
-            'instructor': "-",
-            'lecture_day': "-",
-            'lecture_time': "-",
-            'building': "-",
-            'hall': "-"
+            'assignment1': "",
+            'midterm': "",
+            'midterm_date': "",
+            'assignment2': "",
+            'final_mark': "",
+            'final_date': "",
+            'status': "",
+            'instructor': "",
+            'lecture_day': "",
+            'lecture_time': "",
+            'building': "",
+            'hall': ""
         }
 
         if marks_html and "العلامات غير متوفرة حاليا" not in marks_html:
@@ -136,44 +151,54 @@ class QOUScraper:
                 divs = fg.find_all('div')
                 labels_text = [div.get_text(strip=True) for div in divs if div.find('label')]
 
-                def set_if_found(key, label_text, index=-1):
-                    if any(label_text in text for text in labels_text):
-                        val = divs[index].get_text(strip=True)
-                        if val:
-                            data[key] = val
+                if any("التعيين الاول" in text for text in labels_text):
+                    data['assignment1'] = divs[-1].get_text(strip=True)
 
-                set_if_found('assignment1', "التعيين الاول :")
-                set_if_found('midterm', "نصفي نظري:")
-                set_if_found('midterm_date', "تاريخ وضع الامتحان النصفي", 1)
-                set_if_found('assignment2', "التعيين الثاني")
-                set_if_found('final_mark', "العلامة النهائية")
-                set_if_found('final_date', "تاريخ وضع العلامة النهائية", 1)
-                set_if_found('status', "الحالة", 1)
+                if any("نصفي نظري" in text for text in labels_text):
+                    data['midterm'] = divs[-1].get_text(strip=True)
 
-        schedule_js = fetch_tab_raw("tSchedule")
-        schedule_html = self.extract_html_from_js(schedule_js)
-        schedule_soup = BeautifulSoup(schedule_html, "html.parser")
+                if any("تاريخ وضع الامتحان النصفي" in text for text in labels_text):
+                    if len(divs) > 1:
+                        data['midterm_date'] = divs[1].get_text(strip=True)
 
-        def extract_schedule_field(field_name):
-            label = schedule_soup.find('label', string=re.compile(field_name))
-            if label:
-                parent = label.find_parent('div', class_='form-group')
-                if parent:
-                    divs = parent.find_all('div')
-                    for d in divs:
-                        text = d.get_text(strip=True)
-                        if text and text != field_name and text != "&nbsp;&nbsp;":
-                            return text
-            return "-"
+                if any("التعيين الثاني" in text for text in labels_text):
+                    data['assignment2'] = divs[-1].get_text(strip=True)
 
-        data['lecture_day'] = extract_schedule_field("اليوم")
-        data['lecture_time'] = extract_schedule_field("الموعد")
-        data['building'] = extract_schedule_field("البناية")
-        data['hall'] = extract_schedule_field("القاعة")
+                if any("العلامة النهائية" in text for text in labels_text):
+                    data['final_mark'] = divs[-1].get_text(strip=True)
 
-        instructor_a = schedule_soup.select_one('div.form-group a[href*="createMessage"]')
-        if instructor_a:
-            data['instructor'] = instructor_a.get_text(strip=True) or "-"
+                if any("تاريخ وضع العلامة النهائية" in text for text in labels_text):
+                    if len(divs) > 1:
+                        data['final_date'] = divs[1].get_text(strip=True)
+
+                if any("الحالة" in text for text in labels_text):
+                    if len(divs) > 1:
+                        data['status'] = divs[1].get_text(strip=True)
+
+        # استخراج بيانات الجدول الزمني
+        if schedule_html:
+            schedule_soup = BeautifulSoup(schedule_html, "html.parser")
+
+            def extract_schedule_field(field_name):
+                label = schedule_soup.find('label', string=re.compile(field_name))
+                if label:
+                    parent = label.find_parent('div', class_='form-group')
+                    if parent:
+                        divs = parent.find_all('div')
+                        for d in divs:
+                            text = d.get_text(strip=True)
+                            if text and text != field_name and text != "&nbsp;&nbsp;":
+                                return text
+                return ""
+
+            data['lecture_day'] = extract_schedule_field("اليوم")
+            data['lecture_time'] = extract_schedule_field("الموعد")
+            data['building'] = extract_schedule_field("البناية")
+            data['hall'] = extract_schedule_field("القاعة")
+
+            instructor_a = schedule_soup.select_one('div.form-group a[href*="createMessage"]')
+            if instructor_a:
+                data['instructor'] = instructor_a.get_text(strip=True)
 
         return data
 
