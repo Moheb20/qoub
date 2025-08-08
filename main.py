@@ -188,6 +188,11 @@ def handle_courses(message):
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
 if __name__ == "__main__":
+        bot.set_my_commands([
+        telebot.types.BotCommand("start", "بدء التسجيل وتسجيل الدخول"),
+        telebot.types.BotCommand("groups", "عرض قروبات الجامعة والمواد"),
+        telebot.types.BotCommand("courses", "عرض المقررات والعلامات"),
+    ])
     threading.Thread(target=run_flask).start()
     bot.remove_webhook()
     bot.infinity_polling()
