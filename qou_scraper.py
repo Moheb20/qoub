@@ -15,7 +15,6 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        # زيارة الصفحة أول مرة لجلب الكوكيز
         self.session.get(LOGIN_URL)
         params = {
             'userId': self.student_id,
@@ -24,11 +23,9 @@ class QOUScraper:
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
         print("Login redirect URL:", resp.url)
-        # تحقق من نجاح الدخول عبر وجود كلمة student في رابط الرد
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
-        """جلب آخر رسالة من صندوق الوارد"""
         resp = self.session.get(INBOX_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -69,7 +66,6 @@ class QOUScraper:
         }
 
     def fetch_courses(self) -> List[dict]:
-        """جلب قائمة المقررات المسجلة"""
         resp = self.session.get(COURSES_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -89,7 +85,6 @@ class QOUScraper:
         return courses
 
     def extract_html_from_js(self, js_text: str) -> str:
-        """استخراج html من جافا سكريبت منسق"""
         match = re.search(r'\$\("#tab\d+"\)\.html\(\s*[\'"](.+)[\'"]\s*\);', js_text, re.DOTALL)
         if match:
             html_raw = match.group(1)
@@ -103,8 +98,22 @@ class QOUScraper:
             return html_unescaped
         return ""
 
+    def find_field_value_by_label(self, soup: BeautifulSoup, field_name: str) -> str:
+        label = soup.find('label', string=re.compile(field_name))
+        if not label:
+            return ""
+
+        parent = label.find_parent('div', class_='form-group')
+        if not parent:
+            return ""
+
+        texts = [t for t in parent.stripped_strings if field_name not in t]
+        for text in texts:
+            if text and re.search(r'\d', text):
+                return text
+        return texts[0] if texts else ""
+
     def fetch_course_marks(self, crsNo: str, tab_id: str, crsSeq: str = '0') -> dict:
-        """جلب بيانات العلامات والجدول الزمني لمقرر معين"""
         base_url = "https://portal.qou.edu/student/loadCourseServices"
 
         def fetch_tab_raw(tab: str) -> str:
@@ -179,22 +188,10 @@ class QOUScraper:
         if schedule_html:
             schedule_soup = BeautifulSoup(schedule_html, "html.parser")
 
-            def extract_schedule_field(field_name):
-                label = schedule_soup.find('label', string=re.compile(field_name))
-                if label:
-                    parent = label.find_parent('div', class_='form-group')
-                    if parent:
-                        divs = parent.find_all('div')
-                        for d in divs:
-                            text = d.get_text(strip=True)
-                            if text and text != field_name and text != "&nbsp;&nbsp;":
-                                return text
-                return ""
-
-            data['lecture_day'] = extract_schedule_field("اليوم")
-            data['lecture_time'] = extract_schedule_field("الموعد")
-            data['building'] = extract_schedule_field("البناية")
-            data['hall'] = extract_schedule_field("القاعة")
+            data['lecture_day'] = self.find_field_value_by_label(schedule_soup, "اليوم")
+            data['lecture_time'] = self.find_field_value_by_label(schedule_soup, "الموعد")
+            data['building'] = self.find_field_value_by_label(schedule_soup, "البناية")
+            data['hall'] = self.find_field_value_by_label(schedule_soup, "القاعة")
 
             instructor_a = schedule_soup.select_one('div.form-group a[href*="createMessage"]')
             if instructor_a:
@@ -203,7 +200,6 @@ class QOUScraper:
         return data
 
     def fetch_courses_with_marks(self) -> List[dict]:
-        """جلب كل المواد مع بيانات العلامات الخاصة بها"""
         courses = self.fetch_courses()
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'], course['crsSeq'])
