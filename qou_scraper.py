@@ -15,6 +15,7 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
+        # فتح صفحة الدخول أولاً لأخذ الكوكيز
         self.session.get(LOGIN_URL)
         params = {
             'userId': self.student_id,
@@ -22,6 +23,7 @@ class QOUScraper:
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        # التحقق من نجاح الدخول عبر وجود كلمة "student" في الرابط بعد الدخول
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -97,11 +99,10 @@ class QOUScraper:
         return ""
 
     def _extract_next_sibling_text(self, label_tag) -> str:
-        # نحاول أكثر للحصول على النص الصحيح بعد الليبل، حتى لو التنسيق مختلف
+        # محاولة إيجاد النص الصحيح بعد الليبل
         parent_div = label_tag.find_parent('div', class_='col-sm-4') or label_tag.find_parent('div')
         if not parent_div:
             return "-"
-        # بعض الأحيان النص يكون في نفس الـ div وليس التابع التالي، جرب النص مباشرة بعد الليبل
         next_node = label_tag.next_sibling
         while next_node and (not isinstance(next_node, str) or not next_node.strip()):
             next_node = next_node.next_sibling
@@ -109,7 +110,6 @@ class QOUScraper:
             text = next_node.strip()
             if text:
                 return text
-        # لو ما في نص مباشر، نرجع للتابع التالي div
         sibling_div = parent_div.find_next_sibling('div')
         if sibling_div:
             text = sibling_div.get_text(strip=True)
@@ -145,24 +145,10 @@ class QOUScraper:
             return resp.text
 
         marks_js = fetch_tab_raw("marks")
-        print("==== RAW marks_js ====")
-        print(marks_js)
-        print("======================")
-
         marks_html = self.extract_html_from_js(marks_js)
-        print("==== Extracted marks_html ====")
-        print(marks_html)
-        print("==============================")
 
         schedule_js = fetch_tab_raw("tSchedule")
-        print("==== RAW schedule_js ====")
-        print(schedule_js)
-        print("========================")
-
         schedule_html = self.extract_html_from_js(schedule_js)
-        print("==== Extracted schedule_html ====")
-        print(schedule_html)
-        print("===============================")
 
         data = {
             'assignment1': "-",
@@ -185,8 +171,6 @@ class QOUScraper:
                 label_elements = fg.find_all('label')
                 for label in label_elements:
                     label_text = label.get_text(strip=True)
-
-                    # نستخدم regex مع دقة وجود النقطتين ":" والمطابقة بدون مسافات زائدة
                     if re.search(r"^التعيين الاول:?$", label_text):
                         data['assignment1'] = self._extract_next_sibling_text(label)
                     elif re.search(r"^نصفي نظري:?$", label_text):
@@ -220,3 +204,6 @@ class QOUScraper:
         for course in courses:
             course['marks'] = self.fetch_course_marks(course['code'], course['tab_id'], course['crsSeq'])
         return courses
+
+
+
