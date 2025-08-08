@@ -181,8 +181,8 @@ def handle_courses(message):
         final_date = c.get('final_mark_date', '-')
         text += (
             f"🔹 *{code}* - {name}\n"
-            f"    🧪 نصفي: {midterm}\n"
-            f"    🏁 نهائي: {final} (تاريخ: {final_date})\n\n"
+            f"    📝 علامة النصفي: {midterm}\n"
+            f"    📝 العلامة النهائية: {final} (التاريخ: {final_date})\n\n"
         )
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
