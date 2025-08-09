@@ -6,7 +6,7 @@ import re
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
-CALENDAR_URL = 'https://portal.qou.edu/calendarProposed.do'  # استبدل بالرابط الصحيح
+
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
@@ -90,44 +90,4 @@ class QOUScraper:
             courses.append(course)
         return courses
 
-    def fetch_academic_calendar(self) -> List[dict]:
-        resp = self.session.get(CALENDAR_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-
-    # نبحث عن جميع div التي تحتوي class يحتوي على text-warning حتى لو مع مسافات
-        semester_titles = soup.find_all('div', class_=re.compile(r'\btext-warning\b'))
-        tables = soup.find_all('table', id='dataTable')
-
-        if not tables or not semester_titles or len(tables) != len(semester_titles):
-            return []
-
-        calendar_data = []
-        for i in range(len(tables)):
-            semester_name = semester_titles[i].get_text(strip=True)
-            table = tables[i]
-
-            rows = []
-            for tr in table.tbody.find_all('tr'):
-                cols = tr.find_all('td')
-                if len(cols) >= 5:
-                    subject = cols[0].get_text(strip=True)
-                    week = cols[1].get_text(strip=True)
-                    day = cols[2].get_text(strip=True)
-                    start = cols[3].get_text(strip=True)
-                    end = cols[4].get_text(strip=True)
-                    rows.append({
-                        'subject': subject,
-                        'week': week,
-                        'day': day,
-                        'start': start,
-                        'end': end,
-                    })
-
-            calendar_data.append({
-                'semester': semester_name,
-                'events': rows,
-            })
-
-        return calendar_data
-        
+    
