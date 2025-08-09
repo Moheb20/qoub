@@ -109,31 +109,32 @@ class QOUScraper:
             return "📭 لم يتم العثور على بيانات التقويم الأكاديمي حالياً."
 
         calendar_data = []
-            for i in range(len(tables)):
+        for i in range(len(tables)):
             semester_name = semester_titles[i].get_text(strip=True)
             table = tables[i]
 
         # نجمع بيانات الصفوف
-        rows = []
-        for tr in table.tbody.find_all('tr'):
-            cols = tr.find_all('td')
-            if len(cols) >= 5:
-                subject = cols[0].get_text(strip=True)
-                week = cols[1].get_text(strip=True)
-                day = cols[2].get_text(strip=True)
-                start = cols[3].get_text(strip=True)
-                end = cols[4].get_text(strip=True)
-                rows.append({
-                    'subject': subject,
-                    'week': week,
-                    'day': day,
-                    'start': start,
-                    'end': end,
-                })
+            rows = []
+            for tr in table.tbody.find_all('tr'):
+                cols = tr.find_all('td')
+                if len(cols) >= 5:
+                    subject = cols[0].get_text(strip=True)
+                    week = cols[1].get_text(strip=True)
+                    day = cols[2].get_text(strip=True)
+                    start = cols[3].get_text(strip=True)
+                    end = cols[4].get_text(strip=True)
+                    rows.append({
+                        'subject': subject,
+                        'week': week,
+                        'day': day,
+                        'start': start,
+                        'end': end,
+                    })
 
-        calendar_data.append({
-            'semester': semester_name,
-            'events': rows,
-        })
+            calendar_data.append({
+                'semester': semester_name,
+                'events': rows,
+            })
 
-    return calendar_data
+        return calendar_data
+
