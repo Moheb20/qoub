@@ -206,6 +206,40 @@ def handle_courses(message):
         )
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
+@bot.message_handler(commands=['lectures'])
+def handle_lectures(message):
+    chat_id = message.chat.id
+    user = get_user(chat_id)
+
+    if not user:
+        bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+        return
+
+    student_id, password = user['student_id'], user['password']
+    scraper = QOUScraper(student_id, password)
+
+    if not scraper.login():
+        bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+        return
+
+    lectures = scraper.fetch_lectures_schedule()
+    if not lectures:
+        bot.send_message(chat_id, "📭 لم يتم العثور على جدول محاضرات.")
+        return
+
+    text = "📅 *جدول المحاضرات التفصيلي:*\n\n"
+    for lec in lectures:
+        text += (
+            f"🔹 *{lec['course_code']}* - {lec['course_name']}\n"
+            f"   🗓️ اليوم: {lec['day']}\n"
+            f"   ⏰ الوقت: {lec['time']}\n"
+            f"   📍 القاعة: {lec['location']}\n"
+            f"   👨‍🏫 المحاضر: {lec.get('instructor', '-')}\n\n"
+        )
+
+    bot.send_message(chat_id, text, parse_mode="Markdown")
+
+
 
 
 
