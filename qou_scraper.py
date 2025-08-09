@@ -5,7 +5,7 @@ from typing import Optional, List
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
-WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showWeeklyMeetings.do'  # رابط اللقاءات الأسبوعية
+WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'  # رابط اللقاءات الأسبوعية
 
 
 class QOUScraper:
