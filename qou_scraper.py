@@ -98,6 +98,8 @@ class QOUScraper:
     def fetch_academic_calendar(self):
         resp = self.session.get(CALENDAR_URL)
         resp.raise_for_status()
+        print(resp.text)  # اطبع المحتوى لتفحص الهيكل
+
         soup = BeautifulSoup(resp.text, 'html.parser')
 
         tables = soup.find_all('table', id='dataTable')
