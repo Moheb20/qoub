@@ -1,11 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
-import re
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
+WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showWeeklyMeetings.do'  # رابط اللقاءات الأسبوعية
 
 
 class QOUScraper:
@@ -90,4 +90,33 @@ class QOUScraper:
             courses.append(course)
         return courses
 
-    
+    def fetch_weekly_meetings(self) -> List[dict]:
+        resp = self.session.get(WEEKLY_MEETINGS_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        meetings = []
+        table = soup.find('table', id='dataTable')  # جدول اللقاءات غالبًا له id 'dataTable'
+        if not table:
+            return meetings
+
+        rows = table.find('tbody').find_all('tr')
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) < 9:
+                continue
+
+            meeting = {
+                'course_code': cols[0].get_text(strip=True),
+                'course_name': cols[1].get_text(strip=True),
+                'credit_hours': cols[2].get_text(strip=True),
+                'section': cols[3].get_text(strip=True),
+                'day': cols[4].get_text(strip=True),
+                'time': cols[5].get_text(strip=True),
+                'building': cols[6].get_text(strip=True),
+                'room': cols[7].get_text(strip=True),
+                'lecturer': cols[8].get_text(strip=True),
+            }
+            meetings.append(meeting)
+
+        return meetings
