@@ -1,21 +1,20 @@
 import sqlite3
-import json
 
 DB_NAME = 'users.db'
 
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
+        # إنشاء الجدول إذا مش موجود
         conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 chat_id INTEGER PRIMARY KEY,
                 student_id TEXT NOT NULL,
                 password TEXT NOT NULL,
-                last_msg_id TEXT,
-                courses_data TEXT
+                last_msg_id TEXT
             )
         ''')
 
-        # لو الجدول موجود وما فيه العمود الجديد courses_data نضيفه
+        # التأكد من وجود العمود courses_data وإضافته إذا مش موجود
         cur = conn.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in cur.fetchall()]
         if 'courses_data' not in columns:
