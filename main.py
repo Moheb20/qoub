@@ -236,8 +236,9 @@ def fetch_lectures_schedule(message):
             f"🔹 *{lec['course_code']}* - {lec['course_name']}\n"
             f"   🗓️ اليوم: {lec['day']}\n"
             f"   ⏰ الوقت: {lec['time']}\n"
-            f"   📍 القاعة: {lec['location']}\n"
-            f"   👨‍🏫 المحاضر: {lec.get('instructor', '-')}\n\n"
+            f"   📍 المبنى: {lec.get('building', '-')}\n"
+            f"   🚪 القاعة: {lec.get('room', '-')}\n"
+            f"   👨‍🏫 المحاضر: {lec.get('lecturer', '-')}\n\n"
         )
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
