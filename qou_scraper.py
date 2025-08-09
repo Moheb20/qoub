@@ -1,23 +1,17 @@
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
-import telebot
-import scheduler
-import time
-import threading
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
-CALENDAR_URL = 'https://portal.qou.edu/calendarProposed.do'  # رابط تقريبي، استبدل بالرابط الصحيح
+CALENDAR_URL = 'https://portal.qou.edu/calendarProposed.do'  # استبدل بالرابط الصحيح
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
         self.student_id = student_id
         self.password = password
-
-        self.academic_calendar = []
 
     def login(self) -> bool:
         self.session.get(LOGIN_URL)  # للحصول على الكوكيز
@@ -94,26 +88,23 @@ class QOUScraper:
             }
             courses.append(course)
         return courses
-    def fetch_academic_calendar(self):
+
+    def fetch_academic_calendar(self) -> List[dict]:
         resp = self.session.get(CALENDAR_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
-    # نجد كل الفصول الدراسية (div يحمل النص "الفصل الأول" أو "الفصل الثاني" ... )
         semester_titles = soup.find_all('div', class_='text-warning')
-
-    # نجد كل الجداول التي تحمل id="dataTable" (كل فصل جدول)
         tables = soup.find_all('table', id='dataTable')
 
         if not tables or not semester_titles or len(tables) != len(semester_titles):
-            return "📭 لم يتم العثور على بيانات التقويم الأكاديمي حالياً."
+            return []  # ترجع قائمة فارغة بدل نص
 
         calendar_data = []
         for i in range(len(tables)):
             semester_name = semester_titles[i].get_text(strip=True)
             table = tables[i]
 
-        # نجمع بيانات الصفوف
             rows = []
             for tr in table.tbody.find_all('tr'):
                 cols = tr.find_all('td')
@@ -137,4 +128,3 @@ class QOUScraper:
             })
 
         return calendar_data
-
