@@ -27,7 +27,9 @@ groups = {
         "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e",
     }
 }
-init_db() 
+
+# تهيئة قاعدة البيانات، جلب المستخدمين، بدء الجدولة
+init_db()
 get_all_users()
 start_scheduler()
 
@@ -40,27 +42,32 @@ def home():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
+# معالج الأمر /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     chat_id = message.chat.id
     user = get_user(chat_id)
 
     if user:
-        text = ("👋 مرحباً بك مجددًا!\n"
-                "استخدم الأوامر التالية:\n"
-                "/groups - لعرض روابط القروبات\n"
-                "/courses - لعرض المقررات والعلامات")
+        text = (
+            "👋 مرحباً بك مجددًا!\n"
+            "استخدم الأوامر التالية:\n"
+            "/groups - لعرض روابط القروبات\n"
+            "/courses - لعرض المقررات والعلامات"
+        )
         bot.send_message(chat_id, text)
     else:
         user_states[chat_id] = {}
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد.\n📩 الرجاء إرسال رقمك الجامعي:")
 
+# استقبال رقم الطالب أثناء التسجيل
 @bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'student_id' not in user_states[msg.chat.id])
 def get_student_id(message):
     chat_id = message.chat.id
     user_states[chat_id]['student_id'] = message.text.strip()
     bot.send_message(chat_id, "🔒 الآن، الرجاء إرسال كلمة المرور:")
 
+# استقبال كلمة المرور والتحقق من الدخول
 @bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat.id])
 def get_password(message):
     chat_id = message.chat.id
@@ -94,7 +101,7 @@ def get_password(message):
 
     user_states.pop(chat_id, None)
 
-# أمر /groups يعرض أزرار لأنواع القروبات فقط
+# أمر /groups يعرض أزرار لأنواع القروبات
 @bot.message_handler(commands=['groups'])
 def handle_groups_command(message):
     chat_id = message.chat.id
@@ -107,11 +114,10 @@ def handle_groups_command(message):
 
     bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
 
-# رد على اختيار نوع القروب ويعرض القروبات التابعة
+# الرد على اختيار نوع القروب وعرض القروبات التابعة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("type_"))
 def callback_group_type(call):
     safe_group_type = call.data[len("type_"):]
-    # البحث عن group_type الأصلي عبر التطابق بعد التنظيف
     real_group_type = None
     for gt in groups.keys():
         if sanitize_callback_data(gt) == safe_group_type:
@@ -125,8 +131,7 @@ def callback_group_type(call):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for group_name in groups[real_group_type]:
         safe_group_name = sanitize_callback_data(group_name)
-        callback_data = f"group_{safe_group_type}_{safe_group_name}"
-        callback_data = callback_data[:64]  # تأكد من الطول
+        callback_data = f"group_{safe_group_type}_{safe_group_name}"[:64]  # تأكد من طول البيانات
         btn = types.InlineKeyboardButton(text=group_name, callback_data=callback_data)
         markup.add(btn)
 
@@ -138,7 +143,7 @@ def callback_group_type(call):
     )
     bot.answer_callback_query(call.id)
 
-# رد على اختيار القروب ويرسل رابط القروب نصياً
+# الرد على اختيار القروب وإرسال رابط القروب
 @bot.callback_query_handler(func=lambda call: call.data.startswith("group_"))
 def callback_group_link(call):
     data = call.data[len("group_"):]
@@ -148,11 +153,8 @@ def callback_group_link(call):
         return
 
     safe_group_type, safe_group_name = parts[0], parts[1]
+    real_group_type, real_group_name = None, None
 
-    real_group_type = None
-    real_group_name = None
-
-    # البحث عن group_type و group_name الأصليين عبر التطابق بعد التنظيف
     for gt in groups.keys():
         if sanitize_callback_data(gt) == safe_group_type:
             real_group_type = gt
@@ -169,7 +171,7 @@ def callback_group_link(call):
     else:
         bot.answer_callback_query(call.id, "القروب غير موجود.")
 
-# أمر /courses يعرض المقررات والعلامات نصياً بدون أزرار
+# أمر /courses يعرض المقررات والعلامات نصياً
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
@@ -206,6 +208,7 @@ def handle_courses(message):
         )
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
+# أمر /lectures يعرض جدول المحاضرات التفصيلي
 @bot.message_handler(commands=['lectures'])
 def handle_lectures(message):
     chat_id = message.chat.id
@@ -238,9 +241,6 @@ def handle_lectures(message):
         )
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
-
-
-
 
 
 if __name__ == "__main__":
