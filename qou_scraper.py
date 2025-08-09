@@ -9,7 +9,7 @@ import threading
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
-CALENDAR_URL = 'https://portal.qou.edu/student/academicCalendar.do'  # رابط تقريبي، استبدل بالرابط الصحيح
+CALENDAR_URL = 'https://portal.qou.edu/calendarProposed.do'  # رابط تقريبي، استبدل بالرابط الصحيح
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
