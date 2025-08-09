@@ -94,11 +94,12 @@ class QOUScraper:
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
-        semester_titles = soup.find_all('div', class_='text-warning')
+    # نبحث عن جميع div التي تحتوي class يحتوي على text-warning حتى لو مع مسافات
+        semester_titles = soup.find_all('div', class_=re.compile(r'\btext-warning\b'))
         tables = soup.find_all('table', id='dataTable')
 
         if not tables or not semester_titles or len(tables) != len(semester_titles):
-            return []  # ترجع قائمة فارغة بدل نص
+            return []
 
         calendar_data = []
         for i in range(len(tables)):
@@ -128,3 +129,4 @@ class QOUScraper:
             })
 
         return calendar_data
+        
