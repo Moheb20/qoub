@@ -15,13 +15,15 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        self.session.get(LOGIN_URL)  # للحصول على الكوكيز
+        # الحصول على الكوكيز أولاً
+        self.session.get(LOGIN_URL)
         params = {
             'userId': self.student_id,
             'password': self.password,
             'logBtn': 'Login'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        # التحقق من وجود "student" في رابط العودة للدلالة على نجاح الدخول
         return 'student' in resp.url
 
     def fetch_latest_message(self) -> Optional[dict]:
@@ -29,6 +31,7 @@ class QOUScraper:
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
+        # اختيار أول صف من الرسائل
         row = soup.select_one("tbody tr")
         if not row:
             return None
@@ -96,26 +99,33 @@ class QOUScraper:
         soup = BeautifulSoup(resp.text, 'html.parser')
 
         meetings = []
-        table = soup.find('table', id='dataTable')  # جدول اللقاءات غالبًا له id 'dataTable'
+        # كما في الكود الذي أرسلته، جدول اللقاءات لا يحتوي على id="dataTable"
+        # لكن بناء على ال HTML الذي أرفقته، جدول اللقاءات هو أول جدول داخل div.box-body
+        # يمكننا اختيار الجدول الأول في الصفحة أو تحسين التحديد:
+        table = soup.find('table', class_='table table-hover table-condensed table-striped table-curved')
         if not table:
             return meetings
 
         rows = table.find('tbody').find_all('tr')
         for row in rows:
+            # صفوف الجدول هي داخل form > tr حسب ال HTML، لذلك نأخذ tr مباشرة
             cols = row.find_all('td')
-            if len(cols) < 9:
+            if len(cols) < 12:
                 continue
 
             meeting = {
-                'course_code': cols[0].get_text(strip=True),
-                'course_name': cols[1].get_text(strip=True),
-                'credit_hours': cols[2].get_text(strip=True),
-                'section': cols[3].get_text(strip=True),
-                'day': cols[4].get_text(strip=True),
-                'time': cols[5].get_text(strip=True),
-                'building': cols[6].get_text(strip=True),
-                'room': cols[7].get_text(strip=True),
-                'lecturer': cols[8].get_text(strip=True),
+                'course_code': cols[0].get_text(strip=True),       # ر.م
+                'course_name': cols[1].get_text(strip=True),       # اسم المقرر
+                'credit_hours': cols[2].get_text(strip=True),      # س.م
+                'section': cols[3].get_text(strip=True),           # الشعبة
+                'day': cols[4].get_text(strip=True),               # اليوم
+                'time': cols[5].get_text(strip=True),              # الموعد
+                'building': cols[6].get_text(strip=True),          # البناية
+                'room': cols[7].get_text(strip=True),              # القاعة
+                'lecturer': cols[8].get_text(strip=True),          # عضو هيئة التدريس
+                'office_hours': cols[9].get_text(strip=True),      # الساعات المكتبية (رابط عرض)
+                'course_content_link': cols[10].find('a')['href'] if cols[10].find('a') else '',
+                'study_plan_link': cols[11].find('a')['href'] if cols[11].find('a') else ''
             }
             meetings.append(meeting)
 
