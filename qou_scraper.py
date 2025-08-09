@@ -95,48 +95,46 @@ class QOUScraper:
             courses.append(course)
         return courses
 
-    def fetch_academic_calendar(self):
-        resp = self.session.get(CALENDAR_URL)
-        resp.raise_for_status()
-        print(resp.text)  # اطبع المحتوى لتفحص الهيكل
+def fetch_academic_calendar(self):
+    resp = self.session.get(CALENDAR_URL)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, 'html.parser')
 
-        soup = BeautifulSoup(resp.text, 'html.parser')
+    # نجد كل الفصول الدراسية (div يحمل النص "الفصل الأول" أو "الفصل الثاني" ... )
+    semester_titles = soup.find_all('div', class_='text-warning')
 
-        tables = soup.find_all('table', id='dataTable')
-        calendar_data = []
+    # نجد كل الجداول التي تحمل id="dataTable" (كل فصل جدول)
+    tables = soup.find_all('table', id='dataTable')
 
-        for table in tables:
-            term_title = table.find_previous_sibling('div', class_='text-warning')
-            term_name = term_title.text.strip() if term_title else "غير معروف"
+    if not tables or not semester_titles or len(tables) != len(semester_titles):
+        return "📭 لم يتم العثور على بيانات التقويم الأكاديمي حالياً."
 
-            events = []
+    calendar_data = []
+    for i in range(len(tables)):
+        semester_name = semester_titles[i].get_text(strip=True)
+        table = tables[i]
 
-            for tr in table.tbody.find_all('tr'):
-                if 'text-not-active' in tr.get('class', []):
-                    continue  # تجاهل الصفوف الغير نشطة
-
-                tds = tr.find_all('td')
-                if len(tds) < 5:
-                    continue
-
-                subject = tds[0].text.strip()
-                week = tds[1].text.strip()
-                day = tds[2].text.strip()
-                from_date = tds[3].text.strip()
-                to_date = tds[4].text.strip()
-
-                events.append({
-                    "subject": subject,
-                    "week": week,
-                    "day": day,
-                    "from": from_date,
-                    "to": to_date
+        # نجمع بيانات الصفوف
+        rows = []
+        for tr in table.tbody.find_all('tr'):
+            cols = tr.find_all('td')
+            if len(cols) >= 5:
+                subject = cols[0].get_text(strip=True)
+                week = cols[1].get_text(strip=True)
+                day = cols[2].get_text(strip=True)
+                start = cols[3].get_text(strip=True)
+                end = cols[4].get_text(strip=True)
+                rows.append({
+                    'subject': subject,
+                    'week': week,
+                    'day': day,
+                    'start': start,
+                    'end': end,
                 })
 
-            calendar_data.append({
-                "term": term_name,
-                "events": events
-            })
+        calendar_data.append({
+            'semester': semester_name,
+            'events': rows,
+        })
 
-        self.academic_calendar = calendar_data
-        print("تم تحديث التقويم الأكاديمي بنجاح!")
+    return calendar_data
