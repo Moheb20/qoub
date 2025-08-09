@@ -1,18 +1,23 @@
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
-import re
-import html
+import telebot
+import schedule
+import time
+import threading
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
+CALENDAR_URL = 'https://portal.qou.edu/student/academicCalendar.do'  # رابط تقريبي، استبدل بالرابط الصحيح
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
         self.student_id = student_id
         self.password = password
+
+        self.academic_calendar = []
 
     def login(self) -> bool:
         self.session.get(LOGIN_URL)  # للحصول على الكوكيز
@@ -63,16 +68,11 @@ class QOUScraper:
         }
 
     def fetch_term_summary_courses(self) -> List[dict]:
-        """
-        جلب المقررات مع علامة النصفي، العلامة النهائية، وتاريخ وضع العلامة النهائية
-        من صفحة ملخص البيانات الفصلية فقط
-        """
         resp = self.session.get(TERM_SUMMARY_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
 
         courses = []
-        # ابحث عن جدول المقررات (id=dataTable)
         table = soup.find('table', id='dataTable')
         if not table:
             return courses
@@ -94,3 +94,47 @@ class QOUScraper:
             }
             courses.append(course)
         return courses
+
+    def fetch_academic_calendar(self):
+        resp = self.session.get(CALENDAR_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        tables = soup.find_all('table', id='dataTable')
+        calendar_data = []
+
+        for table in tables:
+            term_title = table.find_previous_sibling('div', class_='text-warning')
+            term_name = term_title.text.strip() if term_title else "غير معروف"
+
+            events = []
+
+            for tr in table.tbody.find_all('tr'):
+                if 'text-not-active' in tr.get('class', []):
+                    continue  # تجاهل الصفوف الغير نشطة
+
+                tds = tr.find_all('td')
+                if len(tds) < 5:
+                    continue
+
+                subject = tds[0].text.strip()
+                week = tds[1].text.strip()
+                day = tds[2].text.strip()
+                from_date = tds[3].text.strip()
+                to_date = tds[4].text.strip()
+
+                events.append({
+                    "subject": subject,
+                    "week": week,
+                    "day": day,
+                    "from": from_date,
+                    "to": to_date
+                })
+
+            calendar_data.append({
+                "term": term_name,
+                "events": events
+            })
+
+        self.academic_calendar = calendar_data
+        print("تم تحديث التقويم الأكاديمي بنجاح!")
