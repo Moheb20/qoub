@@ -206,35 +206,7 @@ def handle_courses(message):
         )
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=['calendar'])
-def handle_calendar(message):
-  chat_id = message.chat.id
-  user = get_user(chat_id)
 
-  if not user:
-    bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
-    return
-
-  student_id, password = user['student_id'], user['password']
-  scraper = QOUScraper(student_id, password)
-
-  if not scraper.login():
-    bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-    return
-
-  calendar = scraper.fetch_academic_calendar()
-  if not calendar:
-    bot.send_message(chat_id, "📭 لم يتم العثور على بيانات التقويم الأكاديمي حالياً.")
-    return
-
-  text = "📅 *التقويم الأكاديمي:*\n\n"
-  for semester in calendar:
-    text += f"📚 *{semester['semester']}*\n"
-    for event in semester['events']:
-      text += f"🗓 {event['day']} - {event['subject']} ({event['start']} - {event['end']})\n"
-    text += "\n"
-
-  bot.send_message(chat_id, text, parse_mode="Markdown")
 
 
 if __name__ == "__main__":
