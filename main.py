@@ -210,7 +210,7 @@ def handle_courses(message):
 
 # أمر /lectures يعرض جدول المحاضرات التفصيلي
 @bot.message_handler(commands=['lectures'])
-def handle_lectures(message):
+def fetch_lectures_schedule(message):
     chat_id = message.chat.id
     user = get_user(chat_id)
 
