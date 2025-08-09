@@ -94,25 +94,24 @@ class QOUScraper:
             }
             courses.append(course)
         return courses
-
-def fetch_academic_calendar(self):
-    resp = self.session.get(CALENDAR_URL)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    def fetch_academic_calendar(self):
+        resp = self.session.get(CALENDAR_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
 
     # نجد كل الفصول الدراسية (div يحمل النص "الفصل الأول" أو "الفصل الثاني" ... )
-    semester_titles = soup.find_all('div', class_='text-warning')
+        semester_titles = soup.find_all('div', class_='text-warning')
 
     # نجد كل الجداول التي تحمل id="dataTable" (كل فصل جدول)
-    tables = soup.find_all('table', id='dataTable')
+        tables = soup.find_all('table', id='dataTable')
 
-    if not tables or not semester_titles or len(tables) != len(semester_titles):
-        return "📭 لم يتم العثور على بيانات التقويم الأكاديمي حالياً."
+        if not tables or not semester_titles or len(tables) != len(semester_titles):
+            return "📭 لم يتم العثور على بيانات التقويم الأكاديمي حالياً."
 
-    calendar_data = []
-    for i in range(len(tables)):
-        semester_name = semester_titles[i].get_text(strip=True)
-        table = tables[i]
+        calendar_data = []
+            for i in range(len(tables)):
+            semester_name = semester_titles[i].get_text(strip=True)
+            table = tables[i]
 
         # نجمع بيانات الصفوف
         rows = []
