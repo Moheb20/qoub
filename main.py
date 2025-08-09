@@ -3,7 +3,7 @@ import re
 from flask import Flask
 from telebot import types
 from bot_instance import bot
-from database import get_all_users, get_user, add_user, update_last_msg
+from database import init_db, get_all_users, get_user, add_user, update_last_msg
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
 
@@ -27,7 +27,7 @@ groups = {
         "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e",
     }
 }
-
+init_db() 
 get_all_users()
 start_scheduler()
 
