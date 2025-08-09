@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
 import telebot
-import schedule
+import scheduler
 import time
 import threading
 
