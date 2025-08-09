@@ -90,7 +90,7 @@ class QOUScraper:
             courses.append(course)
         return courses
 
-    def fetch_weekly_meetings(self) -> List[dict]:
+    def fetch_lectures_schedule(self) -> List[dict]:
         resp = self.session.get(WEEKLY_MEETINGS_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
