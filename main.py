@@ -207,7 +207,7 @@ def handle_all_messages(message):
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-
+    
         scraper = QOUScraper(user['student_id'], user['password'])
         if not scraper.login():
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
@@ -217,35 +217,35 @@ def handle_all_messages(message):
         if not schedule:
             bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
             return
-
-        # ترتيب الأيام
+    
         days_order = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
-
         schedule_by_day = {}
+
         for meeting in schedule:
             day = meeting.get('day', '').strip()
+            if not day:
+                continue
+
             time = meeting.get('time', '-')
             course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-')}"
             building = meeting.get('building', '-')
             room = meeting.get('room', '-')
-
-            if not day:
-                continue
+            lecturer = meeting.get('lecturer', '-')
 
             if day not in schedule_by_day:
                 schedule_by_day[day] = []
 
             schedule_by_day[day].append(
-                f"⏰ {time}\n📘 {course}\n📍 {building} - {room}"
+                f"⏰ {time}\n📘 {course}\n📍 {building} - {room}\n👨‍🏫 {lecturer}"
             )
 
-        # بناء الرسالة
         text_msg = "🗓️ *جدول المحاضرات:*\n\n"
         for day in days_order:
             if day in schedule_by_day:
                 text_msg += f"📅 *{day}:*\n"
                 for entry in schedule_by_day[day]:
                     text_msg += f"{entry}\n\n"
+
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
 
     elif text == "العودة للقروبات":
