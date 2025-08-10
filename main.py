@@ -107,7 +107,7 @@ def handle_menu_buttons(message):
         return
 
     # التعامل مع أوامر القائمة
-    if text == "👤 تسجيل الدخول":
+    if text == "login":
         user_states[chat_id] = {}
         bot.send_message(chat_id, "👤 الرجاء إرسال رقمك الجامعي:")
 
