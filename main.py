@@ -42,24 +42,54 @@ def home():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# معالج الأمر /start
+# معالج الأمر /start مع عرض قائمة أزرار InlineKeyboard
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     chat_id = message.chat.id
     user = get_user(chat_id)
 
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(types.InlineKeyboardButton("👤 تسجيل الدخول", callback_data="login"))
+    markup.add(types.InlineKeyboardButton("📚 عرض القروبات", callback_data="groups"))
+    markup.add(types.InlineKeyboardButton("📖 عرض المقررات والعلامات", callback_data="courses"))
+    markup.add(types.InlineKeyboardButton("🗓️ جدول المحاضرات", callback_data="lectures"))
+
     if user:
-        text = (
-            "👋 مرحباً بك مجددًا!\n"
-            "استخدم الأوامر التالية:\n"
-            "/groups - لــــعرض روابـــط القــروبــات\n"
-            "/courses - لــــعرض المقــررات والعـــلامـــات\n"
-            "/lectures - لعــــرض جــدول المـــحاضــــرات"
-        )
-        bot.send_message(chat_id, text)
+        bot.send_message(chat_id, "👋 مرحباً بك مجددًا! اختر أحد الخيارات:", reply_markup=markup)
     else:
+        bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول:", reply_markup=markup)
+
+# التعامل مع ضغطات أزرار المنيو
+@bot.callback_query_handler(func=lambda call: True)
+def callback_menu_handler(call):
+    chat_id = call.message.chat.id
+    data = call.data
+
+    if data == "login":
+        bot.answer_callback_query(call.id)
         user_states[chat_id] = {}
-        bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد.\n📩 الرجاء إرسال رقمك الجامعي:")
+        bot.send_message(chat_id, "👤 الرجاء إرسال رقمك الجامعي:")
+
+    elif data == "groups":
+        bot.answer_callback_query(call.id)
+        handle_groups_command(call.message)
+
+    elif data == "courses":
+        bot.answer_callback_query(call.id)
+        handle_courses(call.message)
+
+    elif data == "lectures":
+        bot.answer_callback_query(call.id)
+        fetch_lectures_schedule(call.message)
+
+    elif data.startswith("type_"):
+        callback_group_type(call)
+
+    elif data.startswith("group_"):
+        callback_group_link(call)
+
+    else:
+        bot.answer_callback_query(call.id, "زر غير معروف.")
 
 # استقبال رقم الطالب أثناء التسجيل
 @bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'student_id' not in user_states[msg.chat.id])
@@ -200,16 +230,18 @@ def handle_courses(message):
         name = c.get('course_name', '-')
         midterm = c.get('midterm_mark', '-')
         final = c.get('final_mark', '-')
-        final_date = c.get('final_mark_date', '-')
+        final_date = c.get('final_date', '-')
+
         text += (
-            f"🔹 *{code}* - {name}\n"
-            f"    🧪 نصفي: {midterm}\n"
-            f"    🏁 العلامة النهائية: {final}\n"
-            f"    (التاريخ: {final_date})\n\n"
+            f"📘 {code} - {name}\n"
+            f"   📝 الامتحان النصفي: {midterm}\n"
+            f"   🏁 الامتحان النهائي: {final}\n"
+            f"   📅 تاريخ النهائي: {final_date}\n\n"
         )
+
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# أمر /lectures يعرض جدول المحاضرات التفصيلي
+# أمر /lectures يعرض جدول المحاضرات
 @bot.message_handler(commands=['lectures'])
 def fetch_lectures_schedule(message):
     chat_id = message.chat.id
@@ -226,26 +258,23 @@ def fetch_lectures_schedule(message):
         bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
         return
 
-    lectures = scraper.fetch_lectures_schedule()
-    if not lectures:
-        bot.send_message(chat_id, "📭 لم يتم العثور على جدول محاضرات.")
+    schedule = scraper.fetch_lectures_schedule()
+    if not schedule:
+        bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
         return
 
-    text = "📅 *جدول المحاضرات :*\n\n"
-    for lec in lectures:
-        text += (
-            f"🔹 *{lec['course_code']}* - {lec['course_name']}\n"
-            f"   🗓️ اليوم: {lec['day']}\n"
-            f"   ⏰ الوقت: {lec['time']}\n"
-            f"   📍 المبنى: {lec.get('building', '-')}\n"
-            f"   🚪 القاعة: {lec.get('room', '-')}\n"
-            f"   👨‍🏫 المحاضر: {lec.get('lecturer', '-')}\n\n"
-        )
+    text = "🗓️ *جدول المحاضرات:*\n\n"
+    for lec in schedule:
+        day = lec.get('day', '-')
+        start = lec.get('start', '-')
+        end = lec.get('end', '-')
+        course = lec.get('course', '-')
+        location = lec.get('location', '-')
+
+        text += f"📅 {day}: {start} - {end}\n📘 {course}\n📍 {location}\n\n"
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
-    bot.remove_webhook()
     bot.infinity_polling()
