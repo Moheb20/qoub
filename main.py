@@ -2,7 +2,7 @@ import threading
 from flask import Flask
 from telebot import TeleBot, types
 from bot_instance import bot
-from database import init_db, get_all_users, get_user, add_user, update_last_msg
+from database import init_db, get_all_users,get_bot_stats, get_user, add_user, update_last_msg
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
 
