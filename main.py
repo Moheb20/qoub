@@ -228,7 +228,7 @@ def handle_all_messages(message):
             course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-')}"
             building = meeting.get('building', '-')
             room = meeting.get('room', '-')
-    
+
             if not day:
                 continue
 
@@ -236,7 +236,7 @@ def handle_all_messages(message):
                 schedule_by_day[day] = []
 
             schedule_by_day[day].append(
-            f"⏰ {time}\n📘 {course}\n📍 {building} - {room}"
+                f"⏰ {time}\n📘 {course}\n📍 {building} - {room}"
             )
 
         # بناء الرسالة
@@ -244,9 +244,8 @@ def handle_all_messages(message):
         for day in days_order:
             if day in schedule_by_day:
                 text_msg += f"📅 *{day}:*\n"
-                for lecture in schedule_by_day[day]:
-                    text_msg += lecture + "\n\n"
-
+                for entry in schedule_by_day[day]:
+                    text_msg += f"{entry}\n\n"
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
 
     elif text == "العودة للقروبات":
