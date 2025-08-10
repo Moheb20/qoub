@@ -217,4 +217,5 @@ def handle_all_messages(message):
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
+    bot.remove_webhook()
     bot.infinity_polling()
