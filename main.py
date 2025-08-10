@@ -293,13 +293,12 @@ def handle_all_messages(message):
     - إجمالي الأوامر/الطلبات: {stats['total_commands']}
     - أكثر 5 قروبات طلباً:
     """
-        top_groups = get_top_requested_groups(limit=5)
-        stats_text = "📊 أكثر القروبات طلباً:\n"
+        top_groups = stats.get("top_groups", [])  # لو القروبات ضمن get_bot_stats()
+        # أو: top_groups = get_top_requested_groups(limit=5)
+    
         for group in top_groups:
             stats_text += f"  • {group}\n"
-
-    - معدل التفاعل اليومي (رسائل مستلمة في اليوم): {stats['avg_daily_interactions']:.2f}
-    """
+    
         bot.send_message(chat_id, stats_text, parse_mode="Markdown")
         return
 
