@@ -1,5 +1,4 @@
 import threading
-import re
 from flask import Flask
 from telebot import TeleBot, types
 from bot_instance import bot
@@ -7,8 +6,14 @@ from database import init_db, get_all_users, get_user, add_user, update_last_msg
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
 
+# معرف الأدمن (غيره حسب معرفك في تيليجرام)
+ADMIN_CHAT_ID = 123456789
+
 # الحالة المؤقتة لتخزين بيانات الدخول أثناء التسجيل
 user_states = {}
+
+# حالة الإدخال للأدمن عند إرسال رسالة جماعية
+admin_states = {}
 
 # روابط القروبات (مقسمة حسب النوع)
 groups = {
@@ -38,7 +43,7 @@ def home():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# إرسال قائمة رئيسية مع أزرار
+# إرسال قائمة رئيسية مع أزرار (تضيف زر admin فقط للأدمن)
 def send_main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(
@@ -47,6 +52,8 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📖 عرض المقررات والعلامات"),
         types.KeyboardButton("🗓️ جدول المحاضرات")
     )
+    if chat_id == ADMIN_CHAT_ID:
+        markup.add(types.KeyboardButton("admin"))
     bot.send_message(chat_id, "👋 أهلاً! اختر أحد الخيارات:", reply_markup=markup)
 
 # بدء التسجيل: طلب رقم الطالب
@@ -68,6 +75,30 @@ def handle_start(message):
 def handle_all_messages(message):
     chat_id = message.chat.id
     text = message.text.strip()
+
+    # أولاً: تحقق إذا الأدمن في حالة إرسال رسالة جماعية
+    if chat_id == ADMIN_CHAT_ID and chat_id in admin_states and admin_states[chat_id] == "awaiting_broadcast_text":
+        # هذا نص الرسالة التي كتبها الأدمن
+        broadcast_text = text
+        # ترويسة ثابتة
+        header = "📢 رسالة عامة من الإدارة:\n\n"
+        full_message = header + broadcast_text
+
+        users = get_all_users()
+        sent_count = 0
+        failed_count = 0
+        for user in users:
+            try:
+                bot.send_message(user['chat_id'], full_message)
+                sent_count += 1
+            except Exception as e:
+                print(f"Failed to send message to {user['chat_id']}: {e}")
+                failed_count += 1
+
+        bot.send_message(chat_id, f"✅ تم إرسال الرسالة إلى {sent_count} مستخدم.\n❌ فشل الإرسال إلى {failed_count} مستخدم.")
+        admin_states.pop(chat_id)  # انهاء حالة الإدخال
+        send_main_menu(chat_id)
+        return
 
     # حالة التسجيل (طلب رقم الطالب)
     if chat_id in user_states and 'student_id' not in user_states[chat_id]:
@@ -95,7 +126,7 @@ def handle_all_messages(message):
                     f"📧 {latest['subject']}\n"
                     f"📝 {latest['sender']}\n"
                     f"🕒 {latest['date']}\n\n"
-                    f"{latest['body']}"
+                    f"{latest['body']}\n\n"
                     f"📬 وسيـــتم اعلامــــك\ي بأي رســالة جــديــدة \n"
                 )
                 bot.send_message(chat_id, text_msg)
@@ -190,7 +221,7 @@ def handle_all_messages(message):
         text_msg = "🗓️ *جدول المحاضرات:*\n\n"
         printed_days = set()
 
-        for meeting in meetings:
+        for meeting in schedule:
             day = meeting.get('day')
             time = meeting.get('time', '-')
             course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-')}"
@@ -221,6 +252,48 @@ def handle_all_messages(message):
     elif text == "العودة للرئيسية":
         send_main_menu(chat_id)
         return
+
+    # زر الأدمن الخاص
+    elif text == "admin" and chat_id == ADMIN_CHAT_ID:
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        markup.add(types.KeyboardButton("التحليلات"))
+        markup.add(types.KeyboardButton("إرسال رسالة"))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+        bot.send_message(chat_id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
+        return
+
+    elif text == "إرسال رسالة" and chat_id == ADMIN_CHAT_ID:
+        bot.send_message(chat_id, "✍️ الرجاء كتابة نص الرسالة التي تريد إرسالها لجميع المستخدمين:")
+        admin_states[chat_id] = "awaiting_broadcast_text"
+        return
+
+    elif text == "التحليلات" and chat_id == ADMIN_CHAT_ID:
+        stats = get_bot_stats()
+        stats_text = f"""
+    📊 *إحصائيات عامة للبوت:*
+
+    - عدد المستخدمين المسجلين: {stats['total_users']}
+    - عدد المستخدمين الذين سجلوا دخول ناجح: {stats['users_logged_in']}
+    - عدد المستخدمين النشطين (آخر 7 أيام): {stats['active_last_7_days']}
+    - عدد الرسائل المرسلة من البوت: {stats['messages_sent']}
+    - عدد الرسائل المستلمة من المستخدمين: {stats['messages_received']}
+    - المستخدمين الجدد اليوم: {stats['new_today']}
+    - المستخدمين الجدد خلال الأسبوع: {stats['new_last_7_days']}
+    - المستخدمين الجدد خلال الشهر: {stats['new_last_30_days']}
+    - عدد المستخدمين غير النشطين (>7 أيام بدون تفاعل): {stats['inactive_users']}
+    - عدد المستخدمين الذين ألغوا الاشتراك: {stats['unsubscribed']}
+    - إجمالي الأوامر/الطلبات: {stats['total_commands']}
+    - أكثر 5 قروبات طلباً:
+    """
+        for group, count in stats['top_groups']:
+            stats_text += f"  • {group}: {count} مرة\n"
+
+        stats_text += f"""
+    - معدل التفاعل اليومي (رسائل مستلمة في اليوم): {stats['avg_daily_interactions']:.2f}
+    """
+        bot.send_message(chat_id, stats_text, parse_mode="Markdown")
+        return
+
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
