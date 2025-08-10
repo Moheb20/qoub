@@ -110,11 +110,11 @@ def handle_all_messages(message):
         return
 
     # التعامل مع أزرار القائمة الرئيسية
-    if text == "تسجيل الدخول":
+    if text == "👤 تسجيل الدخول":
         start_login(chat_id)
         return
 
-    elif text == "عرض القروبات":
+    elif text == "📚 عرض القروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         for group_type in groups.keys():
             markup.add(types.KeyboardButton(group_type))
@@ -138,7 +138,7 @@ def handle_all_messages(message):
                 break
         return
 
-    elif text == "عرض المقررات والعلامات":
+    elif text == "📖 عرض المقررات والعلامات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
@@ -171,7 +171,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
         return
 
-    elif text == "جدول المحاضرات":
+    elif text == "🗓️ جدول المحاضرات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
