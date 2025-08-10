@@ -11,10 +11,10 @@ from qou_scraper import QOUScraper
 def sanitize_callback_data(text):
     return re.sub(r'[^a-zA-Z0-9_]', '_', text)
 
-# الحالة المؤقتة لتخزين بيانات الدخول أثناء التسجيل
+# حالة مؤقتة لتخزين بيانات الدخول أثناء التسجيل
 user_states = {}
 
-# روابط القروبات (مقسمة حسب النوع)
+# روابط القروبات مقسمة حسب النوع
 groups = {
     "المواد": {
         "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
@@ -42,7 +42,7 @@ def home():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# معالج الأمر /start مع عرض قائمة أزرار InlineKeyboard
+# -- معالج الأمر /start مع عرض قائمة أزرار InlineKeyboard --
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     chat_id = message.chat.id
@@ -59,7 +59,7 @@ def handle_start(message):
     else:
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول:", reply_markup=markup)
 
-# التعامل مع ضغطات أزرار المنيو
+# -- التعامل مع ضغطات أزرار القائمة الرئيسية --
 @bot.callback_query_handler(func=lambda call: True)
 def callback_menu_handler(call):
     chat_id = call.message.chat.id
@@ -91,14 +91,14 @@ def callback_menu_handler(call):
     else:
         bot.answer_callback_query(call.id, "زر غير معروف.")
 
-# استقبال رقم الطالب أثناء التسجيل
+# -- استقبال رقم الطالب أثناء التسجيل --
 @bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'student_id' not in user_states[msg.chat.id])
 def get_student_id(message):
     chat_id = message.chat.id
     user_states[chat_id]['student_id'] = message.text.strip()
     bot.send_message(chat_id, "🔒 الآن، الرجاء إرسال كلمة المرور:")
 
-# استقبال كلمة المرور والتحقق من الدخول
+# -- استقبال كلمة المرور والتحقق من الدخول --
 @bot.message_handler(func=lambda msg: msg.chat.id in user_states and 'password' not in user_states[msg.chat.id])
 def get_password(message):
     chat_id = message.chat.id
@@ -132,7 +132,7 @@ def get_password(message):
 
     user_states.pop(chat_id, None)
 
-# أمر /groups يعرض أزرار لأنواع القروبات
+# -- أمر /groups يعرض أزرار لأنواع القروبات --
 @bot.message_handler(commands=['groups'])
 def handle_groups_command(message):
     chat_id = message.chat.id
@@ -145,7 +145,7 @@ def handle_groups_command(message):
 
     bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
 
-# الرد على اختيار نوع القروب وعرض القروبات التابعة
+# -- الرد على اختيار نوع القروب وعرض القروبات التابعة --
 @bot.callback_query_handler(func=lambda call: call.data.startswith("type_"))
 def callback_group_type(call):
     safe_group_type = call.data[len("type_"):]
@@ -162,7 +162,7 @@ def callback_group_type(call):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for group_name in groups[real_group_type]:
         safe_group_name = sanitize_callback_data(group_name)
-        callback_data = f"group_{safe_group_type}_{safe_group_name}"[:64]  # تأكد من طول البيانات
+        callback_data = f"group_{safe_group_type}_{safe_group_name}"[:64]
         btn = types.InlineKeyboardButton(text=group_name, callback_data=callback_data)
         markup.add(btn)
 
@@ -174,7 +174,7 @@ def callback_group_type(call):
     )
     bot.answer_callback_query(call.id)
 
-# الرد على اختيار القروب وإرسال رابط القروب
+# -- الرد على اختيار القروب وإرسال رابط القروب --
 @bot.callback_query_handler(func=lambda call: call.data.startswith("group_"))
 def callback_group_link(call):
     data = call.data[len("group_"):]
@@ -202,7 +202,7 @@ def callback_group_link(call):
     else:
         bot.answer_callback_query(call.id, "القروب غير موجود.")
 
-# أمر /courses يعرض المقررات والعلامات نصياً
+# -- أمر /courses يعرض المقررات والعلامات نصياً --
 @bot.message_handler(commands=['courses'])
 def handle_courses(message):
     chat_id = message.chat.id
@@ -231,50 +231,33 @@ def handle_courses(message):
         midterm = c.get('midterm_mark', '-')
         final = c.get('final_mark', '-')
         final_date = c.get('final_date', '-')
-
-        text += (
-            f"📘 {code} - {name}\n"
-            f"   📝 الامتحان النصفي: {midterm}\n"
-            f"   🏁 الامتحان النهائي: {final}\n"
-            f"   📅 تاريخ النهائي: {final_date}\n\n"
-        )
+        text += f"📘 {code} - {name}\n📝 منتصف الفصل: {midterm}\n📝 نهاية الفصل: {final} بتاريخ {final_date}\n\n"
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# أمر /lectures يعرض جدول المحاضرات
-@bot.message_handler(commands=['lectures'])
+# -- دالة وهمية كمثال لاسترجاع جدول المحاضرات --
 def fetch_lectures_schedule(message):
     chat_id = message.chat.id
-    user = get_user(chat_id)
+    # مثال: استدعاء من QOUScraper أو قاعدة بيانات
+    text = "📅 جدول المحاضرات:\n- مادة 1: الاثنين 10:00\n- مادة 2: الأربعاء 14:00\n\n(هذه بيانات وهمية للاختبار)"
+    bot.send_message(chat_id, text)
 
-    if not user:
-        bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
-        return
+# -- دالة وهمية لاسترجاع آخر رسالة، مثلاً لإعادة استخدامها --
+def get_latest_message_for_user(chat_id):
+    # هنا يمكن استدعاء قاعدة البيانات أو API لجلب آخر رسالة
+    return {
+        'subject': 'موضوع اختبار',
+        'sender': 'البريد الإلكتروني',
+        'date': '2025-08-10 12:00',
+        'body': 'نص الرسالة هنا...',
+        'msg_id': 123456,
+    }
 
-    student_id, password = user['student_id'], user['password']
-    scraper = QOUScraper(student_id, password)
-
-    if not scraper.login():
-        bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-        return
-
-    schedule = scraper.fetch_lectures_schedule()
-    if not schedule:
-        bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
-        return
-
-    text = "🗓️ *جدول المحاضرات:*\n\n"
-    for lec in schedule:
-        day = lec.get('day', '-')
-        start = lec.get('start', '-')
-        end = lec.get('end', '-')
-        course = lec.get('course', '-')
-        location = lec.get('location', '-')
-
-        text += f"📅 {day}: {start} - {end}\n📘 {course}\n📍 {location}\n\n"
-
-    bot.send_message(chat_id, text, parse_mode="Markdown")
-
+# -- نقطة البداية لتشغيل البوت وفلّاسك معاً --
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
+    # تشغيل Flask في Thread منفصل حتى لا يوقف بوت تيليجرام
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # بدء البوت (Polling)
     bot.infinity_polling()
