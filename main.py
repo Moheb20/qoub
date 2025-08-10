@@ -219,7 +219,7 @@ def handle_all_messages(message):
             return
 
         text_msg = "🗓️ *جدول المحاضرات:*\n\n"
-        printed_days = set()
+        schedule_by_day = {}
 
         for meeting in schedule:
             day = meeting.get('day')
@@ -228,18 +228,22 @@ def handle_all_messages(message):
             building = meeting.get('building', '-')
             room = meeting.get('room', '-')
 
-            if not day or day in printed_days:
+            if not day:
                 continue
 
-            printed_days.add(day)
-            text_msg += (
-                f"📅 {day}: {time}\n"
-                f"📘 {course}\n"
-                f"📍 {building} - {room}\n\n"
+            if day not in schedule_by_day:
+                schedule_by_day[day] = []
+
+            schedule_by_day[day].append(
+                f"⏰ {time}\n📘 {course}\n📍 {building} - {room}"
             )
 
+        for day, lectures in schedule_by_day.items():
+            text_msg += f"📅 {day}:\n"
+            for lecture in lectures:
+                text_msg += lecture + "\n\n"
+
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
-        return
 
     elif text == "العودة للقروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
