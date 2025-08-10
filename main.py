@@ -54,7 +54,7 @@ def send_main_menu(chat_id):
     )
     if chat_id == ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
-    bot.send_message(chat_id, "👋 أهلاً! اختر أحد الخيارات:", reply_markup=markup)
+    bot.send_message(chat_id, "👋 أهلاً!اختر أحد الخيارات:", reply_markup=markup)
 
 # بدء التسجيل: طلب رقم الطالب
 def start_login(chat_id):
@@ -66,7 +66,7 @@ def handle_start(message):
     chat_id = message.chat.id
     user = get_user(chat_id)
     if user:
-        bot.send_message(chat_id, "👋 مرحباً بك مجددًا!")
+        bot.send_message(chat_id, "👋 مرحباً انت قيــد التــــسـجيل!")
     else:
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول.")
     send_main_menu(chat_id)
