@@ -96,12 +96,12 @@ def handle_all_messages(message):
                     f"📝 {latest['sender']}\n"
                     f"🕒 {latest['date']}\n\n"
                     f"{latest['body']}"
+                    f"📬 وسيـــتم اعلامــــك\ي بأي رســالة جــديــدة \n"
                 )
                 bot.send_message(chat_id, text_msg)
             else:
                 bot.send_message(chat_id, "📭 لم يتم العثور على رسائل حالياً.")
 
-            bot.send_message(chat_id, "📡 سيتم تتبع الرسائل الجديدة وإرسالها تلقائيًا.")
         else:
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة البيانات.")
 
@@ -188,14 +188,24 @@ def handle_all_messages(message):
             return
 
         text_msg = "🗓️ *جدول المحاضرات:*\n\n"
-        for lec in schedule:
-            day = lec.get('day', '-')
-            start = lec.get('start', '-')
-            end = lec.get('end', '-')
-            course = lec.get('course', '-')
-            location = lec.get('location', '-')
+        printed_days = set()
 
-            text_msg += f"📅 {day}: {start} - {end}\n📘 {course}\n📍 {location}\n\n"
+        for meeting in meetings:
+            day = meeting.get('day')
+            time = meeting.get('time', '-')
+            course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-')}"
+            building = meeting.get('building', '-')
+            room = meeting.get('room', '-')
+
+            if not day or day in printed_days:
+                continue
+
+            printed_days.add(day)
+            text_msg += (
+                f"📅 {day}: {time}\n"
+                f"📘 {course}\n"
+                f"📍 {building} - {room}\n\n"
+            )
 
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
         return
