@@ -202,7 +202,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
         return
 
-    elif text == "🗓️ جدول المحاضرات":
+   elif text == "🗓️ جدول المحاضرات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
@@ -218,16 +218,17 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
             return
 
-        text_msg = "🗓️ *جدول المحاضرات:*\n\n"
-        schedule_by_day = {}
+        # ترتيب الأيام
+        days_order = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
 
+        schedule_by_day = {}
         for meeting in schedule:
-            day = meeting.get('day')
+            day = meeting.get('day', '').strip()
             time = meeting.get('time', '-')
             course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-')}"
             building = meeting.get('building', '-')
             room = meeting.get('room', '-')
-
+    
             if not day:
                 continue
 
@@ -235,13 +236,16 @@ def handle_all_messages(message):
                 schedule_by_day[day] = []
 
             schedule_by_day[day].append(
-                f"⏰ {time}\n📘 {course}\n📍 {building} - {room}"
+            f"⏰ {time}\n📘 {course}\n📍 {building} - {room}"
             )
 
-        for day, lectures in schedule_by_day.items():
-            text_msg += f"📅 {day}:\n"
-            for lecture in lectures:
-                text_msg += lecture + "\n\n"
+        # بناء الرسالة
+        text_msg = "🗓️ *جدول المحاضرات:*\n\n"
+        for day in days_order:
+            if day in schedule_by_day:
+                text_msg += f"📅 *{day}:*\n"
+                for lecture in schedule_by_day[day]:
+                    text_msg += lecture + "\n\n"
 
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
 
@@ -289,10 +293,11 @@ def handle_all_messages(message):
     - إجمالي الأوامر/الطلبات: {stats['total_commands']}
     - أكثر 5 قروبات طلباً:
     """
-        for group, count in stats['top_groups']:
-            stats_text += f"  • {group}: {count} مرة\n"
+        top_groups = get_top_requested_groups(limit=5)
+        stats_text = "📊 أكثر القروبات طلباً:\n"
+        for group in top_groups:
+            stats_text += f"  • {group}\n"
 
-        stats_text += f"""
     - معدل التفاعل اليومي (رسائل مستلمة في اليوم): {stats['avg_daily_interactions']:.2f}
     """
         bot.send_message(chat_id, stats_text, parse_mode="Markdown")
