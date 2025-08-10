@@ -202,7 +202,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, text_msg, parse_mode="Markdown")
         return
 
-   elif text == "🗓️ جدول المحاضرات":
+    elif text == "🗓️ جدول المحاضرات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
