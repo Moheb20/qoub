@@ -8,14 +8,11 @@ BASE_DIR = os.getcwd()
 KEY_FILE = os.path.join(BASE_DIR, 'secret.key')
 
 def load_or_create_key():
-    print("Current working directory:", BASE_DIR)
     if not os.path.exists(KEY_FILE):
         key = Fernet.generate_key()
         with open(KEY_FILE, 'wb') as f:
             f.write(key)
-        print("New key generated and saved at:", KEY_FILE)
     else:
-        print("Key file exists. Loading it from:", KEY_FILE)
         with open(KEY_FILE, 'rb') as f:
             key = f.read()
     return Fernet(key)
@@ -47,16 +44,19 @@ def init_db():
         cur = conn.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in cur.fetchall()]
 
-        if 'courses_data' not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN courses_data TEXT")
-        if 'last_login' not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
-        if 'last_interaction' not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN last_interaction TEXT")
-        if 'registered_at' not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN registered_at TEXT")
-        if 'status' not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
+        # الأعمدة الإضافية
+        extra_columns = {
+            'courses_data': "TEXT",
+            'last_login': "TEXT",
+            'last_interaction': "TEXT",
+            'registered_at': "TEXT",
+            'status': "TEXT DEFAULT 'active'",
+            'last_gpa': "TEXT"  # المعدل التراكمي
+        }
+
+        for col, col_type in extra_columns.items():
+            if col not in columns:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
 
         # جدول الإحصائيات
         conn.execute('''
@@ -82,13 +82,13 @@ def get_user(chat_id):
         cur = conn.cursor()
         cur.execute('''
             SELECT chat_id, student_id, password, last_msg_id, courses_data,
-                   last_login, last_interaction, registered_at, status
+                   last_login, last_interaction, registered_at, status, last_gpa
             FROM users WHERE chat_id = ?
         ''', (chat_id,))
         row = cur.fetchone()
         if row:
             columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
-                       'last_login', 'last_interaction', 'registered_at', 'status']
+                       'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
             user = dict(zip(columns, row))
             user['student_id'] = decrypt_text(user['student_id'])
             user['password'] = decrypt_text(user['password'])
@@ -120,16 +120,20 @@ def update_status(chat_id, status):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute('UPDATE users SET status = ? WHERE chat_id = ?', (status, chat_id))
 
+def update_user_gpa(chat_id, new_gpa):
+    with sqlite3.connect(DB_NAME) as conn:
+        conn.execute('UPDATE users SET last_gpa = ? WHERE chat_id = ?', (new_gpa, chat_id))
+
 def get_all_users():
     with sqlite3.connect(DB_NAME) as conn:
         cur = conn.cursor()
         cur.execute('''
             SELECT chat_id, student_id, password, last_msg_id, courses_data,
-                   last_login, last_interaction, registered_at, status
+                   last_login, last_interaction, registered_at, status, last_gpa
             FROM users
         ''')
         columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
-                   'last_login', 'last_interaction', 'registered_at', 'status']
+                   'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
         users = []
         for row in cur.fetchall():
             user = dict(zip(columns, row))
@@ -137,6 +141,19 @@ def get_all_users():
             user['password'] = decrypt_text(user['password'])
             users.append(user)
         return users
+
+def get_all_users_with_credentials():
+    users = get_all_users()
+    return [
+        {
+            "chat_id": u["chat_id"],
+            "student_id": u["student_id"],
+            "password": u["password"],
+            "last_gpa": u.get("last_gpa")
+        }
+        for u in users
+        if u["student_id"] and u["password"]
+    ]
 
 # --- تسجيل الأحداث ---
 def log_event(chat_id, event_type, event_value=None):
@@ -146,7 +163,7 @@ def log_event(chat_id, event_type, event_value=None):
             VALUES (?, ?, ?, ?)
         ''', (chat_id, event_type, event_value, datetime.datetime.utcnow().isoformat()))
 
-# --- إحصائيات حقيقية ---
+# --- إحصائيات ---
 def get_total_messages_sent():
     with sqlite3.connect(DB_NAME) as conn:
         cur = conn.cursor()
@@ -187,7 +204,6 @@ def get_bot_start_date():
             return datetime.datetime.fromisoformat(row)
         return datetime.datetime.utcnow()
 
-# --- الإحصائيات النهائية ---
 def get_bot_stats():
     users = get_all_users()
     total_users = len(users)
