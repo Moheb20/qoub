@@ -51,6 +51,7 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📚 عرض القروبات"),
         types.KeyboardButton("📖 عرض المقررات والعلامات"),
         types.KeyboardButton("🗓️ جدول المحاضرات")
+        types.KeyboardButton("📊 عرض بيانات الفصل") 
     )
     if chat_id == ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
@@ -300,7 +301,50 @@ def handle_all_messages(message):
     
         bot.send_message(chat_id, stats_text, parse_mode="Markdown")
         return
+    elif text == "📊 عرض بيانات الفصل":
+        user = get_user(chat_id)
+        if not user:
+            bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+            return
 
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+            return
+
+        stats = scraper.fetch_term_summary_stats()
+        if not stats:
+            bot.send_message(chat_id, "📭 لم يتم العثور على بيانات الفصل.")
+            return
+
+        term = stats['term']
+        cumulative = stats['cumulative']
+
+        msg = (
+            "📊 *بيانات الفصل الحالية:*\n"
+            f"- 🧾 النوع: {term['type']}\n"
+            f"- 🕒 المسجل: {term['registered_hours']} س.\n"
+            f"- ✅ المجتاز: {term['passed_hours']} س.\n"
+            f"- 🧮 المحتسبة: {term['counted_hours']}\n"
+            f"- ❌ الراسب: {term['failed_hours']}\n"
+            f"- 🚪 المنسحب: {term['withdrawn_hours']}\n"
+            f"- 🏅 النقاط: {term['points']}\n"
+            f"- 📈 المعدل: {term['gpa']}\n"
+            f"- 🏆 لوحة الشرف: {term['honor_list']}\n\n"
+            "📘 *البيانات التراكمية:*\n"
+            f"- 🧾 النوع: {cumulative['type']}\n"
+            f"- 🕒 المسجل: {cumulative['registered_hours']} س.\n"
+            f"- ✅ المجتاز: {cumulative['passed_hours']} س.\n"
+            f"- 🧮 المحتسبة: {cumulative['counted_hours']}\n"
+            f"- ❌ الراسب: {cumulative['failed_hours']}\n"
+            f"- 🚪 المنسحب: {cumulative['withdrawn_hours']}\n"
+            f"- 🏅 النقاط: {cumulative['points']}\n"
+            f"- 📈 المعدل: {cumulative['gpa']}\n"
+            f"- 🏆 لوحة الشرف: {cumulative['honor_list']}\n"
+        )
+
+        bot.send_message(chat_id, msg, parse_mode="Markdown")
+        return
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
