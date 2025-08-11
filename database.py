@@ -4,19 +4,20 @@ from cryptography.fernet import Fernet
 import os
 
 DB_NAME = 'users.db'
-KEY_FILE = 'secret.key'
+BASE_DIR = os.getcwd()
+KEY_FILE = os.path.join(BASE_DIR, 'secret.key')
 
-# --- تشفير البيانات ---
 def load_or_create_key():
+    print("Current working directory:", BASE_DIR)
     if not os.path.exists(KEY_FILE):
         key = Fernet.generate_key()
         with open(KEY_FILE, 'wb') as f:
             f.write(key)
+        print("New key generated and saved at:", KEY_FILE)
     else:
+        print("Key file exists. Loading it from:", KEY_FILE)
         with open(KEY_FILE, 'rb') as f:
             key = f.read()
-            print(f"Loaded key: {key}")
-
     return Fernet(key)
 
 fernet = load_or_create_key()
