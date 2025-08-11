@@ -1,6 +1,7 @@
 import time
 import threading
 import json
+from datetime import datetime
 from database import get_all_users, update_last_msg, update_user_courses
 from qou_scraper import QOUScraper
 from bot_instance import bot
@@ -13,7 +14,7 @@ def check_for_new_messages():
             chat_id = user['chat_id']
             student_id = user['student_id']
             password = user['password']
-            last_msg_id = user['last_msg_id']
+            last_msg_id = user.get('last_msg_id', None)
 
             scraper = QOUScraper(student_id, password)
             if scraper.login():
@@ -35,6 +36,9 @@ def check_for_new_messages():
 # ---------------------- متابعة تغييرات العلامات ----------------------
 def check_for_course_updates():
     while True:
+        now = datetime.now()
+        hour = now.hour
+
         users = get_all_users()
         for user in users:
             chat_id = user['chat_id']
@@ -70,10 +74,16 @@ def check_for_course_updates():
                 except Exception as e:
                     print(f"خطأ مع {student_id}: {e}")
 
-        time.sleep(20 * 60)  # كل 20 دقيقة
+        # فترة الذروة: 9 مساءً (21) حتى 12 منتصف الليل (24)
+        if 21 <= hour < 24:
+            time.sleep(10 * 60)  # كل 10 دقائق
+        else:
+            time.sleep(60 * 60)  # كل ساعة
 
 
-# ---------------------- تشغيل المهمتين ----------------------
+# ---------------------- تشغيل المهمتين بشكل متزامن ----------------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
     threading.Thread(target=check_for_course_updates, daemon=True).start()
+
+# يمكنك استدعاء start_scheduler() في ملف main.py أو نقطة بدء البرنامج
