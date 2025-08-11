@@ -50,7 +50,7 @@ def send_main_menu(chat_id):
         types.KeyboardButton("👤 تسجيل الدخول"),
         types.KeyboardButton("📚 عرض القروبات"),
         types.KeyboardButton("📖 عرض المقررات والعلامات"),
-        types.KeyboardButton("🗓️ جدول المحاضرات")
+        types.KeyboardButton("🗓️ جدول المحاضرات"),
         types.KeyboardButton("📊 عرض بيانات الفصل") 
     )
     if chat_id == ADMIN_CHAT_ID:
