@@ -15,6 +15,8 @@ def load_or_create_key():
     else:
         with open(KEY_FILE, 'rb') as f:
             key = f.read()
+            print(f"Loaded key: {key}")
+
     return Fernet(key)
 
 fernet = load_or_create_key()
