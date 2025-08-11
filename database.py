@@ -123,6 +123,7 @@ def get_all_users():
         cur.execute('''
             SELECT chat_id, student_id, password, last_msg_id, courses_data,
                    last_login, last_interaction, registered_at, status
+            FROM users
         ''')
         columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
                    'last_login', 'last_interaction', 'registered_at', 'status']
