@@ -5,9 +5,8 @@ from typing import Optional, List
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
-WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'  # رابط اللقاءات الأسبوعية
+WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
-
 
 
 class QOUScraper:
@@ -142,7 +141,7 @@ class QOUScraper:
         def parse_row(row):
             cols = row.find_all('td')
             return {
-                'type': cols[0].get_text(strip=True),  # فصلي أو تراكمي
+                'type': cols[0].get_text(strip=True),
                 'registered_hours': cols[1].get_text(strip=True),
                 'passed_hours': cols[2].get_text(strip=True),
                 'counted_hours': cols[3].get_text(strip=True),
@@ -158,48 +157,44 @@ class QOUScraper:
             'cumulative': parse_row(rows[1])
         }
 
+    def get_last_two_terms(self) -> List[dict]:
+        resp = self.session.get(EXAMS_SCHEDULE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        select_term = soup.find("select", {"name": "termNo"})
+        options = select_term.find_all("option")
+        last_two = options[:2]  # آخر فصلين
+        return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
 
-def get_last_two_terms():
-    resp = session.get(EXAMS_SCHEDULE_URL)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    select_term = soup.find("select", {"name": "termNo"})
-    options = select_term.find_all("option")
-    last_two = options[-2:]
-    return [opt["value"] for opt in last_two]
-
-def fetch_exam_schedule(term_no, exam_type):
-    payload = {
-        "termNo": term_no,
-        "examType": exam_type
-    }
-    resp = session.post(EXAMS_SCHEDULE_URL, data=payload)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    table = soup.find("table", id="dataTable")
-    if not table:
-        return []
-    exams = []
-    rows = table.find("tbody").find_all("tr")
-    for row in rows:
-        cols = row.find_all("td")
-        if len(cols) < 11:
-            continue
-        exam = {
-            "exam_kind": cols[0].get_text(strip=True),
-            "course_code": cols[1].get_text(strip=True),
-            "course_name": cols[2].get_text(strip=True),
-            "lecturer": cols[3].get_text(strip=True),
-            "section": cols[4].get_text(strip=True),
-            "day": cols[5].get_text(strip=True),
-            "date": cols[6].get_text(strip=True),
-            "session": cols[7].get_text(strip=True),
-            "from_time": cols[8].get_text(strip=True),
-            "to_time": cols[9].get_text(strip=True),
-            "note": cols[10].get_text(strip=True)
+    def fetch_exam_schedule(self, term_no, exam_type) -> List[dict]:
+        payload = {
+            "termNo": term_no,
+            "examType": exam_type
         }
-        exams.append(exam)
-    return exams
-
-
-     
+        resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        table = soup.find("table", id="dataTable")
+        if not table:
+            return []
+        exams = []
+        rows = table.find("tbody").find_all("tr")
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) < 11:
+                continue
+            exam = {
+                "exam_kind": cols[0].get_text(strip=True),
+                "course_code": cols[1].get_text(strip=True),
+                "course_name": cols[2].get_text(strip=True),
+                "lecturer": cols[3].get_text(strip=True),
+                "section": cols[4].get_text(strip=True),
+                "day": cols[5].get_text(strip=True),
+                "date": cols[6].get_text(strip=True),
+                "session": cols[7].get_text(strip=True),
+                "from_time": cols[8].get_text(strip=True),
+                "to_time": cols[9].get_text(strip=True),
+                "note": cols[10].get_text(strip=True)
+            }
+            exams.append(exam)
+        return exams
