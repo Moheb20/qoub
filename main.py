@@ -8,7 +8,7 @@ from qou_scraper import QOUScraper
 
 # معرف الأدمن (غيره حسب معرفك في تيليجرام)
 ADMIN_CHAT_ID = 6292405444
-
+user_sessions = {}
 # الحالة المؤقتة لتخزين بيانات الدخول أثناء التسجيل
 user_states = {}
 
