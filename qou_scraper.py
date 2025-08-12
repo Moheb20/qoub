@@ -6,6 +6,8 @@ LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'  # رابط اللقاءات الأسبوعية
+EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
+
 
 
 class QOUScraper:
@@ -155,3 +157,43 @@ class QOUScraper:
             'term': parse_row(rows[0]),
             'cumulative': parse_row(rows[1])
         }
+
+
+    def fetch_exam_schedule(self, term_no: str, exam_type: str) -> List[dict]:
+        """
+        term_no مثال: 1243
+        exam_type مثال: MT&IM أو FT&IF
+        """
+        payload = {
+            'termNo': term_no,
+            'examType': exam_type
+        }
+        resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        table = soup.find('table', id='dataTable')
+        if not table:
+            return []
+
+        exams = []
+        rows = table.find('tbody').find_all('tr')
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) < 11:
+                continue
+            exam = {
+                'exam_kind': cols[0].get_text(strip=True),
+                'course_code': cols[1].get_text(strip=True),
+                'course_name': cols[2].get_text(strip=True),
+                'lecturer': cols[3].get_text(strip=True),
+                'section': cols[4].get_text(strip=True),
+                'day': cols[5].get_text(strip=True),
+                'date': cols[6].get_text(strip=True),
+                'session': cols[7].get_text(strip=True),
+                'from_time': cols[8].get_text(strip=True),
+                'to_time': cols[9].get_text(strip=True),
+                'note': cols[10].get_text(strip=True)
+            }
+            exams.append(exam)
+        return exams
