@@ -427,7 +427,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
             return
     
-        available_terms = scraper.fetch_available_terms()
+        available_terms = scraper.get_last_two_terms()
         if not available_terms:
             bot.send_message(chat_id, "⚠️ تعذر جلب الفصول المتاحة.")
             return
