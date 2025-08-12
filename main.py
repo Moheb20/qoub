@@ -426,7 +426,7 @@ def handle_all_messages(message):
         if not scraper.login():
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
             return
-        user_sessions[chat_id] = scraper
+
     
         available_terms = scraper.get_last_two_terms()
         if not available_terms:
@@ -462,7 +462,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ حدث خطأ، يرجى اختيار الفصل أولاً.")
             return
     
-        scraper = user_sessions.get(chat_id)
+        scraper = QOUScraper(user['student_id'], user['password'])
         if not scraper:
             bot.send_message(chat_id, "⚠️ انتهت الجلسة. يرجى إعادة اختيار الفصل الدراسي.")
             return
@@ -494,7 +494,7 @@ def handle_all_messages(message):
             )
     
         bot.send_message(chat_id, msg, parse_mode="Markdown")
-        user_states.pop(chat_id, None)
+        
         return
 
 
