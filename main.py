@@ -1,21 +1,34 @@
-import threading
+   import threading
+import logging
 from flask import Flask
-from telebot import TeleBot, types
+from telebot import types
 from bot_instance import bot
-from database import init_db, get_all_users,get_bot_stats, get_user, add_user, update_last_msg
+from database import (
+    init_db,
+    get_all_users,
+    get_bot_stats,
+    get_user,
+    add_user,
+    update_last_msg,
+)
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
 
-# معرف الأدمن (غيره حسب معرفك في تيليجرام)
-ADMIN_CHAT_ID = 6292405444
-user_sessions = {}
-# الحالة المؤقتة لتخزين بيانات الدخول أثناء التسجيل
-user_states = {}
+# ---------- إعداد السجل (logging) ----------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ---------- إعداد المتغيرات العامة ----------
+ADMIN_CHAT_ID = 6292405444  # عدله حسب معرف الأدمن عندك
+
+# فصل حالات التسجيل عن حالات الجلسة (avoid overwriting)
+registration_states = {}  # للحالات المتعلقة بعملية التسجيل (login)
+session_states = {}       # لحالات الجلسة بعد التسجيل (اختيار الفصل، نوع الامتحان...)
 
 # حالة الإدخال للأدمن عند إرسال رسالة جماعية
 admin_states = {}
 
-# روابط القروبات (مقسمة حسب النوع)
+# روابط القروبات (مثل ما كانت)
 groups = {
     "المواد": {
         "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
@@ -60,12 +73,6 @@ groups = {
         "حقوق الانسان في الاسلام": "https://chat.whatsapp.com/ICvsYaRhWEI4GVpKrWV2JK",
         "علم النفس الاجتماعي": "https://chat.whatsapp.com/HEQgklGNHWj47EBvfhUcp5",
         "مبادئ علم النفس": "https://chat.whatsapp.com/HeGAyRUpTdaKbs2KRHTi24?mode=ac_t",
-
-        
-        
-
-        
-        
     },
     "التخصصات": {
         "رياضيات": "https://chat.whatsapp.com/FKCxgfaJNWJ6CBnIB30FYO",
@@ -79,10 +86,6 @@ groups = {
         "انجليزي واداب": "https://chat.whatsapp.com/C55nolZBK8TIAfHA6vLWYl",
         "انجليزي - فرعي تربية": "https://chat.whatsapp.com/Cz6LE95qUgO3AZNnACK8x5",
         "طلاب وطالبات الزراعة": "https://chat.whatsapp.com/IxWar55rbzVB8F2yimbBNt",
-
-        
-        
-        
     },
     "الجامعة": {
         "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e",
@@ -92,12 +95,10 @@ groups = {
         "استفسارات": "https://chat.whatsapp.com/GoCdx1lqaGM7BCWY4ZHTNP",
         "اخــبار الجـامعة": "https://chat.whatsapp.com/ITfbauxdP0ZH1rZ8HbGuOZ",
         "طلاب وطالبات QOU": "https://chat.whatsapp.com/LvfpPDzjUC44MOasxDCoqN",
-
-        
     }
 }
 
-# تهيئة قاعدة البيانات والجدولة
+# ---------- تهيئة قاعدة البيانات والجدولة ----------
 init_db()
 get_all_users()
 start_scheduler()
@@ -108,11 +109,15 @@ app = Flask(__name__)
 def home():
     return "✅ البوت يعمل بنجاح!"
 
+
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# إرسال قائمة رئيسية مع أزرار (تضيف زر admin فقط للأدمن)
+
+# ---------- دوال مساعدة ----------
+
 def send_main_menu(chat_id):
+    """إرسال القائمة الرئيسية مع زر الأدمن للمستخدم المناسب"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(
         types.KeyboardButton("👤 تسجيل الدخول"),
@@ -120,37 +125,45 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📖 عرض المقررات والعلامات"),
         types.KeyboardButton("🗓️ جدول المحاضرات"),
         types.KeyboardButton("📊 عرض بيانات الفصل"),
-        types.KeyboardButton("📅 جدول الامتحانات")
+        types.KeyboardButton("📅 جدول الامتحانات"),
     )
     if chat_id == ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
     bot.send_message(chat_id, "⬇️ القائمة الرئيسية:", reply_markup=markup)
 
-# بدء التسجيل: طلب رقم الطالب
+
 def start_login(chat_id):
-    user_states[chat_id] = {}
+    """ابدأ مسار تسجيل الدخول للمستخدم: نحفظه في registration_states"""
+    registration_states[chat_id] = {"stage": "awaiting_student_id"}
     bot.send_message(chat_id, "👤 الرجاء إرسال رقمك الجامعي:")
 
-@bot.message_handler(commands=['start'])
+
+def clear_states_for_home(chat_id):
+    """نمسح حالات الجلسة والتسجيل للمستخدم عند العودة للرئيسية"""
+    registration_states.pop(chat_id, None)
+    session_states.pop(chat_id, None)
+
+
+# ---------- معالج الأوامر والرسائل ----------
+@bot.message_handler(commands=["start"])
 def handle_start(message):
     chat_id = message.chat.id
     user = get_user(chat_id)
     if user:
-        bot.send_message(chat_id, "👋 مرحباً انت قيــد التــــسـجيل!")
+        bot.send_message(chat_id, "👋 مرحباً! أنت قيد التسجيل بالفعل.")
     else:
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول.")
     send_main_menu(chat_id)
 
+
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     chat_id = message.chat.id
-    text = message.text.strip()
+    text = (message.text or "").strip()
 
-    # أولاً: تحقق إذا الأدمن في حالة إرسال رسالة جماعية
-    if chat_id == ADMIN_CHAT_ID and chat_id in admin_states and admin_states[chat_id] == "awaiting_broadcast_text":
-        # هذا نص الرسالة التي كتبها الأدمن
+    # --- حالة إرسال رسالة جماعية من الأدمن ---
+    if chat_id == ADMIN_CHAT_ID and admin_states.get(chat_id) == "awaiting_broadcast_text":
         broadcast_text = text
-        # ترويسة ثابتة
         header = "📢 رسالة عامة من الإدارة:\n\n"
         full_message = header + broadcast_text
 
@@ -159,62 +172,72 @@ def handle_all_messages(message):
         failed_count = 0
         for user in users:
             try:
-                bot.send_message(user['chat_id'], full_message)
+                bot.send_message(user["chat_id"], full_message)
                 sent_count += 1
             except Exception as e:
-                print(f"Failed to send message to {user['chat_id']}: {e}")
+                logger.exception(f"Failed to send message to {user['chat_id']}: {e}")
                 failed_count += 1
 
-        bot.send_message(chat_id, f"✅ تم إرسال الرسالة إلى {sent_count} مستخدم.\n❌ فشل الإرسال إلى {failed_count} مستخدم.")
-        admin_states.pop(chat_id)  # انهاء حالة الإدخال
+        bot.send_message(
+            chat_id, f"✅ تم إرسال الرسالة إلى {sent_count} مستخدم.\n❌ فشل الإرسال إلى {failed_count} مستخدم.")
+        admin_states.pop(chat_id, None)
         send_main_menu(chat_id)
         return
 
-    # حالة التسجيل (طلب رقم الطالب)
-    if chat_id in user_states and 'student_id' not in user_states[chat_id]:
-        user_states[chat_id]['student_id'] = text
-        bot.send_message(chat_id, "🔒 الآن، الرجاء إرسال كلمة المرور:")
-        return
+    # --- مسار التسجيل (مفصول) ---
+    if chat_id in registration_states:
+        stage = registration_states[chat_id].get("stage")
 
-    # حالة التسجيل (طلب كلمة المرور)
-    if chat_id in user_states and 'student_id' in user_states[chat_id] and 'password' not in user_states[chat_id]:
-        user_states[chat_id]['password'] = text
+        # استقبال رقم الطالب
+        if stage == "awaiting_student_id":
+            registration_states[chat_id]["student_id"] = text
+            registration_states[chat_id]["stage"] = "awaiting_password"
+            bot.send_message(chat_id, "🔒 الآن، الرجاء إرسال كلمة المرور:")
+            return
 
-        student_id = user_states[chat_id]['student_id']
-        password = user_states[chat_id]['password']
+        # استقبال كلمة المرور ومحاولة تسجيل الدخول
+        if stage == "awaiting_password":
+            registration_states[chat_id]["password"] = text
+            student_id = registration_states[chat_id].get("student_id")
+            password = registration_states[chat_id].get("password")
 
-        scraper = QOUScraper(student_id, password)
-        if scraper.login():
-            add_user(chat_id, student_id, password)
-            bot.send_message(chat_id, "✅ تم تسجيلك بنجاح!\n🔍 جاري البحث عن آخر رسالة...")
+            try:
+                scraper = QOUScraper(student_id, password)
+                if scraper.login():
+                    add_user(chat_id, student_id, password)
+                    bot.send_message(chat_id, "✅ تم تسجيلك بنجاح!\n🔍 جاري البحث عن آخر رسالة...")
 
-            latest = scraper.fetch_latest_message()
-            if latest:
-                update_last_msg(chat_id, latest['msg_id'])
-                text_msg = (
-                    f"📬 آخر رسالة في البريد:\n"
-                    f"📧 {latest['subject']}\n"
-                    f"📝 {latest['sender']}\n"
-                    f"🕒 {latest['date']}\n\n"
-                    f"{latest['body']}\n\n"
-                    f"📬 وسيـــتم اعلامــــك\ي بأي رســالة جــديــدة \n"
-                )
-                bot.send_message(chat_id, text_msg)
-            else:
-                bot.send_message(chat_id, "📭 لم يتم العثور على رسائل حالياً.")
+                    latest = scraper.fetch_latest_message()
+                    if latest:
+                        update_last_msg(chat_id, latest["msg_id"])
+                        text_msg = (
+                            f"📬 آخر رسالة في البريد:\n"
+                            f"📧 {latest['subject']}\n"
+                            f"📝 {latest['sender']}\n"
+                            f"🕒 {latest['date']}\n\n"
+                            f"{latest['body']}\n\n"
+                            f"📬 وسيـــتم اعلامــــك\ي بأي رســالة جــديــدة \n"
+                        )
+                        bot.send_message(chat_id, text_msg)
+                    else:
+                        bot.send_message(chat_id, "📭 لم يتم العثور على رسائل حالياً.")
+                else:
+                    bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة البيانات.")
+            except Exception as e:
+                logger.exception(f"Error during login for {chat_id}: {e}")
+                bot.send_message(chat_id, "❌ حدث خطأ أثناء محاولة تسجيل الدخول. حاول مرة أخرى لاحقاً.")
+            finally:
+                registration_states.pop(chat_id, None)
+                send_main_menu(chat_id)
+            return
 
-        else:
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة البيانات.")
-
-        user_states.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return
-
-    # التعامل مع أزرار القائمة الرئيسية
+    # --- التعامل مع أزرار القائمة الرئيسية ---
+    # تسجيل الدخول
     if text == "👤 تسجيل الدخول":
         start_login(chat_id)
         return
 
+    # عرض القروبات
     elif text == "📚 عرض القروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         for group_type in groups.keys():
@@ -239,84 +262,92 @@ def handle_all_messages(message):
                 break
         return
 
+    # عرض المقررات والعلامات
     elif text == "📖 عرض المقررات والعلامات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
 
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-            return
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+                return
 
-        courses = scraper.fetch_term_summary_courses()
-        if not courses:
-            bot.send_message(chat_id, "📭 لم يتم العثور على مقررات أو علامات.")
-            return
+            courses = scraper.fetch_term_summary_courses()
+            if not courses:
+                bot.send_message(chat_id, "📭 لم يتم العثور على مقررات أو علامات.")
+                return
 
-        text_msg = "📚 *ملخص علامات المقررات الفصلية:*\n\n"
-        for c in courses:
-            code = c.get('course_code', '-')
-            name = c.get('course_name', '-')
-            midterm = c.get('midterm_mark', '-')
-            final = c.get('final_mark', '-')
-            final_date = c.get('final_date', '-')
+            text_msg = "📚 *ملخص علامات المقررات الفصلية:*\n\n"
+            for c in courses:
+                code = c.get('course_code', '-')
+                name = c.get('course_name', '-')
+                midterm = c.get('midterm_mark', '-')
+                final = c.get('final_mark', '-')
+                final_date = c.get('final_date', '-')
 
-            text_msg += (
-                f"📘 {code} - {name}\n"
-                f"   📝 الامتحان النصفي: {midterm}\n"
-                f"   🏁 الامتحان النهائي: {final}\n"
-                f"   📅 تاريخ النهائي: {final_date}\n\n"
-            )
-        bot.send_message(chat_id, text_msg, parse_mode="Markdown")
+                text_msg += (
+                    f"📘 {code} - {name}\n"
+                    f"   📝 الامتحان النصفي: {midterm}\n"
+                    f"   🏁 الامتحان النهائي: {final}\n"
+                    f"   📅 تاريخ النهائي: {final_date}\n\n"
+                )
+            bot.send_message(chat_id, text_msg, parse_mode="Markdown")
+        except Exception as e:
+            logger.exception(f"Error fetching courses for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب البيانات. حاول مرة أخرى لاحقاً.")
         return
 
+    # جدول المحاضرات
     elif text == "🗓️ جدول المحاضرات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-    
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-            return
 
-        schedule = scraper.fetch_lectures_schedule()
-        if not schedule:
-            bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
-            return
-    
-        days_order = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
-        schedule_by_day = {}
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+                return
 
-        for meeting in schedule:
-            day = meeting.get('day', '').strip()
-            if not day:
-                continue
+            schedule = scraper.fetch_lectures_schedule()
+            if not schedule:
+                bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
+                return
 
-            time = meeting.get('time', '-')
-            course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-')}"
-            building = meeting.get('building', '-')
-            room = meeting.get('room', '-')
-            lecturer = meeting.get('lecturer', '-')
+            days_order = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+            schedule_by_day = {}
 
-            if day not in schedule_by_day:
-                schedule_by_day[day] = []
+            for meeting in schedule:
+                day = meeting.get('day', '').strip()
+                if not day:
+                    continue
 
-            schedule_by_day[day].append(
-                f"⏰ {time}\n📘 {course}\n📍 {building} - {room}\n👨‍🏫 {lecturer}"
-            )
+                time = meeting.get('time', '-')
+                course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-') }"
+                building = meeting.get('building', '-')
+                room = meeting.get('room', '-')
+                lecturer = meeting.get('lecturer', '-')
 
-        text_msg = "🗓️ *جدول المحاضرات:*\n\n"
-        for day in days_order:
-            if day in schedule_by_day:
-                text_msg += f"📅 *{day}:*\n"
-                for entry in schedule_by_day[day]:
-                    text_msg += f"{entry}\n\n"
+                schedule_by_day.setdefault(day, []).append(
+                    f"⏰ {time}\n📘 {course}\n📍 {building} - {room}\n👨‍🏫 {lecturer}"
+                )
 
-        bot.send_message(chat_id, text_msg, parse_mode="Markdown")
+            text_msg = "🗓️ *جدول المحاضرات:*\n\n"
+            for day in days_order:
+                if day in schedule_by_day:
+                    text_msg += f"📅 *{day}:*\n"
+                    for entry in schedule_by_day[day]:
+                        text_msg += f"{entry}\n\n"
+
+            bot.send_message(chat_id, text_msg, parse_mode="Markdown")
+        except Exception as e:
+            logger.exception(f"Error fetching schedule for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب جدول المحاضرات. حاول مرة أخرى لاحقاً.")
+        return
 
     elif text == "العودة للقروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
@@ -327,10 +358,11 @@ def handle_all_messages(message):
         return
 
     elif text == "العودة للرئيسية":
+        clear_states_for_home(chat_id)
         send_main_menu(chat_id)
         return
 
-    # زر الأدمن الخاص
+    # زر الأدمن
     elif text == "admin" and chat_id == ADMIN_CHAT_ID:
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton("التحليلات"))
@@ -346,163 +378,220 @@ def handle_all_messages(message):
 
     elif text == "التحليلات" and chat_id == ADMIN_CHAT_ID:
         stats = get_bot_stats()
-        stats_text = f"""
-    📊 *إحصائيات عامة للبوت:*
-
-    - عدد المستخدمين المسجلين: {stats['total_users']}
-    - عدد المستخدمين الذين سجلوا دخول ناجح: {stats['users_logged_in']}
-    - عدد المستخدمين النشطين (آخر 7 أيام): {stats['active_last_7_days']}
-    - عدد الرسائل المرسلة من البوت: {stats['messages_sent']}
-    - عدد الرسائل المستلمة من المستخدمين: {stats['messages_received']}
-    - المستخدمين الجدد اليوم: {stats['new_today']}
-    - المستخدمين الجدد خلال الأسبوع: {stats['new_last_7_days']}
-    - المستخدمين الجدد خلال الشهر: {stats['new_last_30_days']}
-    - عدد المستخدمين غير النشطين (>7 أيام بدون تفاعل): {stats['inactive_users']}
-    - عدد المستخدمين الذين ألغوا الاشتراك: {stats['unsubscribed']}
-    - إجمالي الأوامر/الطلبات: {stats['total_commands']}
-    - أكثر 5 قروبات طلباً:
-    """
-        top_groups = stats.get("top_groups", [])  # لو القروبات ضمن get_bot_stats()
-        # أو: top_groups = get_top_requested_groups(limit=5)
-    
+        stats_text = (
+            "📊 *إحصائيات عامة للبوت:*\n\n"
+            f"- عدد المستخدمين المسجلين: {stats['total_users']}\n"
+            f"- عدد المستخدمين الذين سجلوا دخول ناجح: {stats['users_logged_in']}\n"
+            f"- عدد المستخدمين النشطين (آخر 7 أيام): {stats['active_last_7_days']}\n"
+            f"- عدد الرسائل المرسلة من البوت: {stats['messages_sent']}\n"
+            f"- عدد الرسائل المستلمة من المستخدمين: {stats['messages_received']}\n"
+            f"- المستخدمين الجدد اليوم: {stats['new_today']}\n"
+            f"- المستخدمين الجدد خلال الأسبوع: {stats['new_last_7_days']}\n"
+            f"- المستخدمين الجدد خلال الشهر: {stats['new_last_30_days']}\n"
+            f"- عدد المستخدمين غير النشطين (>7 أيام بدون تفاعل): {stats['inactive_users']}\n"
+            f"- عدد المستخدمين الذين ألغوا الاشتراك: {stats['unsubscribed']}\n"
+            f"- إجمالي الأوامر/الطلبات: {stats['total_commands']}\n"
+            "- أكثر 5 قروبات طلباً:\n"
+        )
+        top_groups = stats.get("top_groups", [])
         for group in top_groups:
             stats_text += f"  • {group}\n"
-    
         bot.send_message(chat_id, stats_text, parse_mode="Markdown")
         return
+
+    # عرض بيانات الفصل
     elif text == "📊 عرض بيانات الفصل":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
 
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-            return
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+                return
 
-        stats = scraper.fetch_term_summary_stats()
-        if not stats:
-            bot.send_message(chat_id, "📭 لم يتم العثور على بيانات الفصل.")
-            return
+            stats = scraper.fetch_term_summary_stats()
+            if not stats:
+                bot.send_message(chat_id, "📭 لم يتم العثور على بيانات الفصل.")
+                return
 
-        term = stats['term']
-        cumulative = stats['cumulative']
+            term = stats['term']
+            cumulative = stats['cumulative']
 
-        msg = (
-            "📊 *بيانات الفصل الحالية:*\n"
-            f"- 🧾 النوع: {term['type']}\n"
-            f"- 🕒 المسجل: {term['registered_hours']} س.\n"
-            f"- ✅ المجتاز: {term['passed_hours']} س.\n"
-            f"- 🧮 المحتسبة: {term['counted_hours']}\n"
-            f"- ❌ الراسب: {term['failed_hours']}\n"
-            f"- 🚪 المنسحب: {term['withdrawn_hours']}\n"
-            f"- 🏅 النقاط: {term['points']}\n"
-            f"- 📈 المعدل: {term['gpa']}\n"
-            f"- 🏆 لوحة الشرف: {term['honor_list']}\n\n"
-            "📘 *البيانات التراكمية:*\n"
-            f"- 🧾 النوع: {cumulative['type']}\n"
-            f"- 🕒 المسجل: {cumulative['registered_hours']} س.\n"
-            f"- ✅ المجتاز: {cumulative['passed_hours']} س.\n"
-            f"- 🧮 المحتسبة: {cumulative['counted_hours']}\n"
-            f"- ❌ الراسب: {cumulative['failed_hours']}\n"
-            f"- 🚪 المنسحب: {cumulative['withdrawn_hours']}\n"
-            f"- 🏅 النقاط: {cumulative['points']}\n"
-            f"- 📈 المعدل: {cumulative['gpa']}\n"
-            f"- 🏆 لوحة الشرف: {cumulative['honor_list']}\n"
-        )
+            msg = (
+                "📊 *بيانات الفصل الحالية:*\n"
+                f"- 🧾 النوع: {term['type']}\n"
+                f"- 🕒 المسجل: {term['registered_hours']} س.\n"
+                f"- ✅ المجتاز: {term['passed_hours']} س.\n"
+                f"- 🧮 المحتسبة: {term['counted_hours']}\n"
+                f"- ❌ الراسب: {term['failed_hours']}\n"
+                f"- 🚪 المنسحب: {term['withdrawn_hours']}\n"
+                f"- 🏅 النقاط: {term['points']}\n"
+                f"- 📈 المعدل: {term['gpa']}\n"
+                f"- 🏆 لوحة الشرف: {term['honor_list']}\n\n"
+                "📘 *البيانات التراكمية:*\n"
+                f"- 🧾 النوع: {cumulative['type']}\n"
+                f"- 🕒 المسجل: {cumulative['registered_hours']} س.\n"
+                f"- ✅ المجتاز: {cumulative['passed_hours']} س.\n"
+                f"- 🧮 المحتسبة: {cumulative['counted_hours']}\n"
+                f"- ❌ الراسب: {cumulative['failed_hours']}\n"
+                f"- 🚪 المنسحب: {cumulative['withdrawn_hours']}\n"
+                f"- 🏅 النقاط: {cumulative['points']}\n"
+                f"- 📈 المعدل: {cumulative['gpa']}\n"
+                f"- 🏆 لوحة الشرف: {cumulative['honor_list']}\n"
+            )
 
-        bot.send_message(chat_id, msg, parse_mode="Markdown")
+            bot.send_message(chat_id, msg, parse_mode="Markdown")
+        except Exception as e:
+            logger.exception(f"Error fetching term stats for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب بيانات الفصل. حاول مرة أخرى لاحقاً.")
         return
 
-    # عند الضغط على زر جدول الامتحانات
+    # زر جدول الامتحانات - اختيار الفصل
     elif text == "📅 جدول الامتحانات":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-    
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+                return
+
+            available_terms = scraper.get_last_two_terms()
+            if not available_terms:
+                bot.send_message(chat_id, "⚠️ تعذر جلب الفصول المتاحة.")
+                return
+
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+            for term in available_terms:
+                # نص الزر يحتوي الملصق والقيمة مفصولة بـ |
+                markup.add(types.KeyboardButton(f"📅 {term['label']}|{term['value']}"))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+            bot.send_message(chat_id, "📌 اختر الفصل الدراسي:", reply_markup=markup)
+        except Exception as e:
+            logger.exception(f"Error fetching terms for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب الفصول. حاول مرة أخرى لاحقاً.")
+        return
+
+    # استقبال اختيار الفصل الدراسي (زر يحتوي |)
+    elif "|" in text and len(text.split("|")) == 2:
+        try:
+            label, term_no = text.replace("📅", "").strip().split("|")
+        except Exception:
+            bot.send_message(chat_id, "⚠️ تنسيق الاختيار غير صحيح. الرجاء اختيار الفصل من الأزرار.")
             return
 
-    
-        available_terms = scraper.get_last_two_terms()
-        if not available_terms:
-            bot.send_message(chat_id, "⚠️ تعذر جلب الفصول المتاحة.")
-            return
-    
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        for term in available_terms:
-            markup.add(types.KeyboardButton(f"📅 {term['label']}|{term['value']}"))
-        markup.add(types.KeyboardButton("العودة للرئيسية"))
-        bot.send_message(chat_id, "📌 اختر الفصل الدراسي:", reply_markup=markup)
-        return
-    
-    # استقبال اختيار الفصل الدراسي
-    elif "|" in text and len(text.split("|")) == 2:
-        # استقبال اختيار الفصل الدراسي
-        label, term_no = text.replace("📅", "").strip().split("|")
-        user_states[chat_id] = {'term_no': term_no.strip()}
-    
+        # خزّن فقط term_no داخل session_states (بدون مسح حالات التسجيل)
+        session_states.setdefault(chat_id, {})["term_no"] = term_no.strip()
+        session_states[chat_id]["term_label"] = label.strip()
+
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add(
             types.KeyboardButton("📝 النصفي"),
             types.KeyboardButton("🏁 النهائي النظري"),
             types.KeyboardButton("🧪 النهائي العملي"),
             types.KeyboardButton("📈 امتحان المستوى"),
-            types.KeyboardButton("العودة للرئيسية")
+            types.KeyboardButton("العودة للرئيسية"),
         )
         bot.send_message(chat_id, f"📌 اختر نوع الامتحان لـ: {label.strip()}", reply_markup=markup)
         return
+
+    # اختيار نوع الامتحان - نتأكد من وجود term_no في session_states
     elif text in ["📝 النصفي", "🏁 النهائي النظري", "🧪 النهائي العملي", "📈 امتحان المستوى"]:
         user = get_user(chat_id)
-        if not user or chat_id not in user_states or 'term_no' not in user_states[chat_id]:
+        if not user:
+            bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+            return
+
+        if chat_id not in session_states or 'term_no' not in session_states[chat_id]:
             bot.send_message(chat_id, "❌ حدث خطأ، يرجى اختيار الفصل أولاً.")
             return
-    
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper:
-            bot.send_message(chat_id, "⚠️ انتهت الجلسة. يرجى إعادة اختيار الفصل الدراسي.")
+
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. يرجى إعادة اختيار الفصل الدراسي.")
+                return
+        except Exception as e:
+            logger.exception(f"Error creating scraper for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء الاتصال بموقع الجامعة. حاول مرة أخرى لاحقاً.")
             return
-    
-    
-        term_no = user_states[chat_id]['term_no']
+
+        term_no = session_states[chat_id]['term_no']
         exam_type_map = {
             "📝 النصفي": "MT&IM",
             "🏁 النهائي النظري": "FT&IF",
             "🧪 النهائي العملي": "FP&FP",
-            "📈 امتحان المستوى": "LE&LE"
+            "📈 امتحان المستوى": "LE&LE",
         }
         exam_type = exam_type_map[text]
-    
-        exams = scraper.fetch_exam_schedule(term_no, exam_type)
-        if not exams:
-            bot.send_message(chat_id, "📭 لا يوجد جدول لهذا النوع.")
-            return
-    
-        msg = f"📅 *جدول {text}:*\n\n"
-        for ex in exams:
-            msg += (
-                f"📘 {ex['course_code']} - {ex['course_name']}\n"
-                f"📆 {ex['date']} ({ex['day']})\n"
-                f"⏰ {ex['from_time']} - {ex['to_time']}\n"
-                f"👨‍🏫 {ex['lecturer']}\n"
-                f"📝 {ex['note']}\n"
-                f"───────────────\n"
-            )
-    
-        bot.send_message(chat_id, msg, parse_mode="Markdown")
-        
+
+        try:
+            exams = scraper.fetch_exam_schedule(term_no, exam_type)
+            if not exams:
+                bot.send_message(chat_id, "📭 لا يوجد جدول لهذا النوع.")
+                return
+
+            msg = f"📅 *جدول {text}:*\n\n"
+            for ex in exams:
+                msg += (
+                    f"📘 {ex.get('course_code', '-')} - {ex.get('course_name', '-')}\n"
+                    f"📆 {ex.get('date', '-') } ({ex.get('day', '-')})\n"
+                    f"⏰ {ex.get('from_time', '-')} - {ex.get('to_time', '-')}\n"
+                    f"👨‍🏫 {ex.get('lecturer', '-')}\n"
+                    f"📝 {ex.get('note', '-')}\n"
+                    f"───────────────\n"
+                )
+
+            bot.send_message(chat_id, msg, parse_mode="Markdown")
+        except Exception as e:
+            logger.exception(f"Error fetching exams for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب جدول الامتحانات. حاول مرة أخرى لاحقاً.")
         return
-
-
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 
+
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
-    bot.remove_webhook()
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
     bot.infinity_polling()
+
+
+تمام — رفعت لك الكود كامل ومُصلح في الملف "Qou Bot Fixed" (ملف qou_bot_fixed.py) قدّامك الآن. 🎉
+
+أهم التغييرات اللي عملتها من الجذور:
+
+فصلت حالات التسجيل عن حالات الجلسة (registration_states vs session_states) علشان ما تمسح حالة واحدة حالة التانية — هذا اللي كان يسبب طلب كلمة السر بعد اختيار نوع الامتحان.
+
+ما عدلت على قاعدة تخزين المستخدمين (إنت عندك add_user و get_user) — لكن صرت أستخدمها دائماً للتحقق من وجود بيانات المستخدم.
+
+استخدمت setdefault و pop بدل إعادة تعيين كاملة (عشان ما نكتب على dict كانت تحتوي بيانات مهمة).
+
+ضفت تحققات وطلبات scraper.login() عند الحاجة بدل الاعتماد على كائن الـ scraper نفسه فقط.
+
+أضفت try/except و logging حتى يطلع لك سجل أخطاء واضح بدل سلوكات صامتة.
+
+مسحت الحالات عند الضغط على «العودة للرئيسية» لتفادي بقايا session تسبب التعارض لاحقًا.
+
+
+قبل تشغّل:
+
+غيّر ADMIN_CHAT_ID لو لازم.
+
+تأكد إن ملفات bot_instance, database, scheduler, و qou_scraper موجودين وشغّالين كما في المشروع عندك.
+
+إذا بدك حالة الجلسة تبقى عبر إعادة تشغيل السيرفر (persistence)، أقدر أعدّل الكود ليخزن session_states في قاعدة بيانات أو Redis — خبرني لو بدك.
+
+
+لو بدك أي تعديل إضافي (مثلاً: تنظيف تلقائي للحالات بعد X دقيقة، حفظ جلسات في DB، أو تحسين رسائل الخطأ للمستخدم)، قلّي أضبطه لك فوراً.
+
