@@ -119,7 +119,8 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📚 عرض القروبات"),
         types.KeyboardButton("📖 عرض المقررات والعلامات"),
         types.KeyboardButton("🗓️ جدول المحاضرات"),
-        types.KeyboardButton("📊 عرض بيانات الفصل") 
+        types.KeyboardButton("📊 عرض بيانات الفصل"),
+        types.KeyboardButton("📅 جدول الامتحانات")
     )
     if chat_id == ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
@@ -413,6 +414,89 @@ def handle_all_messages(message):
 
         bot.send_message(chat_id, msg, parse_mode="Markdown")
         return
+
+    # عند الضغط على زر جدول الامتحانات
+    elif text == "📅 جدول الامتحانات":
+        user = get_user(chat_id)
+        if not user:
+            bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+            return
+    
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+            return
+    
+        available_terms = scraper.fetch_available_terms()
+        if not available_terms:
+            bot.send_message(chat_id, "⚠️ تعذر جلب الفصول المتاحة.")
+            return
+    
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        for term in available_terms:
+            markup.add(types.KeyboardButton(f"📅 {term['label']}|{term['value']}"))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+        bot.send_message(chat_id, "📌 اختر الفصل الدراسي:", reply_markup=markup)
+        return
+    
+    # استقبال اختيار الفصل الدراسي
+    elif text.startswith("📅") and "|" in text:
+        label, term_no = text.replace("📅", "").strip().split("|")
+        user_states[chat_id] = {'term_no': term_no}
+    
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        markup.add(
+            types.KeyboardButton("📝 النصفي"),
+            types.KeyboardButton("🏁 النهائي النظري"),
+            types.KeyboardButton("🧪 النهائي العملي"),
+            types.KeyboardButton("📈 امتحان المستوى"),
+            types.KeyboardButton("العودة للرئيسية")
+        )
+        bot.send_message(chat_id, f"📌 اختر نوع الامتحان لـ: {label}", reply_markup=markup)
+        return
+    
+    # استقبال اختيار نوع الامتحان وجلب وعرض الجدول
+    elif text in ["📝 النصفي", "🏁 النهائي النظري", "🧪 النهائي العملي", "📈 امتحان المستوى"]:
+        user = get_user(chat_id)
+        if not user or chat_id not in user_states or 'term_no' not in user_states[chat_id]:
+            bot.send_message(chat_id, "❌ حدث خطأ، يرجى اختيار الفصل أولاً.")
+            return
+    
+        term_no = user_states[chat_id]['term_no']
+        exam_type_map = {
+            "📝 النصفي": "MT&IM",
+            "🏁 النهائي النظري": "FT&IF",
+            "🧪 النهائي العملي": "FP&FP",
+            "📈 امتحان المستوى": "LE&LE"
+        }
+        exam_type = exam_type_map[text]
+    
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+            return
+    
+        exams = scraper.fetch_exam_schedule(term_no, exam_type)
+        if not exams:
+            bot.send_message(chat_id, "📭 لا يوجد جدول لهذا النوع.")
+            return
+    
+        msg = f"📅 *جدول {text}:*\n\n"
+        for ex in exams:
+            msg += (
+                f"📘 {ex['course_code']} - {ex['course_name']}\n"
+                f"📆 {ex['date']} ({ex['day']})\n"
+                f"⏰ {ex['from_time']} - {ex['to_time']}\n"
+                f"👨‍🏫 {ex['lecturer']}\n"
+                f"📝 {ex['note']}\n"
+                f"───────────────\n"
+            )
+    
+        bot.send_message(chat_id, msg, parse_mode="Markdown")
+        user_states.pop(chat_id, None)
+        return
+
+
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
