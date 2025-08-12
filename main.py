@@ -441,7 +441,21 @@ def handle_all_messages(message):
         return
     
     # استقبال اختيار الفصل الدراسي
-
+    elif "|" in text and len(text.split("|")) == 2:
+        # استقبال اختيار الفصل الدراسي
+        label, term_no = text.replace("📅", "").strip().split("|")
+        user_states[chat_id] = {'term_no': term_no.strip()}
+    
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        markup.add(
+            types.KeyboardButton("📝 النصفي"),
+            types.KeyboardButton("🏁 النهائي النظري"),
+            types.KeyboardButton("🧪 النهائي العملي"),
+            types.KeyboardButton("📈 امتحان المستوى"),
+            types.KeyboardButton("العودة للرئيسية")
+        )
+        bot.send_message(chat_id, f"📌 اختر نوع الامتحان لـ: {label.strip()}", reply_markup=markup)
+        return
     elif text in ["📝 النصفي", "🏁 النهائي النظري", "🧪 النهائي العملي", "📈 امتحان المستوى"]:
         user = get_user(chat_id)
         if not user or chat_id not in user_states or 'term_no' not in user_states[chat_id]:
