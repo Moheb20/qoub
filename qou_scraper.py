@@ -159,11 +159,31 @@ class QOUScraper:
         }
 
 
+    def fetch_term_and_exam_type(self) -> Tuple[Optional[str], Optional[str]]:
+        resp = self.session.get(TERM_SUMMARY_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        term_no = None
+        exam_type = None
+
+        # استخراج رقم الفصل
+        term_select = soup.find('select', {'name': 'termNo'})
+        if term_select:
+            option = term_select.find('option')
+            if option:
+                term_no = option['value']
+
+        # استخراج نوع الامتحان
+        exam_type_select = soup.find('select', {'name': 'examType'})
+        if exam_type_select:
+            option = exam_type_select.find('option')
+            if option:
+                exam_type = option['value']
+
+        return term_no, exam_type
+
     def fetch_exam_schedule(self, term_no: str, exam_type: str) -> List[dict]:
-        """
-        term_no مثال: 1243
-        exam_type مثال: MT&IM أو FT&IF
-        """
         payload = {
             'termNo': term_no,
             'examType': exam_type
@@ -197,6 +217,5 @@ class QOUScraper:
             }
             exams.append(exam)
         return exams
-
 
      
