@@ -464,11 +464,11 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ حدث خطأ، يرجى اختيار الفصل أولاً.")
             return
 
-            scraper = user_sessions.get(chat_id)  # ✅ استخدام الجلسة السابقة
-            if not scraper:
-                bot.send_message(chat_id, "❌ انتهت الجلسة، أعد المحاولة من جديد.")
-                return
-    
+        scraper = user_sessions.get(chat_id)  # ✅ استخدام الجلسة السابقة
+        if not scraper:
+            bot.send_message(chat_id, "❌ انتهت الجلسة، أعد المحاولة من جديد.")
+            return
+
         term_no = user_states[chat_id]['term_no']
         exam_type_map = {
             "📝 النصفي": "MT&IM",
@@ -477,17 +477,12 @@ def handle_all_messages(message):
             "📈 امتحان المستوى": "LE&LE"
         }
         exam_type = exam_type_map[text]
-    
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
-            return
-    
+
         exams = scraper.fetch_exam_schedule(term_no, exam_type)
         if not exams:
             bot.send_message(chat_id, "📭 لا يوجد جدول لهذا النوع.")
             return
-    
+
         msg = f"📅 *جدول {text}:*\n\n"
         for ex in exams:
             msg += (
@@ -498,7 +493,7 @@ def handle_all_messages(message):
                 f"📝 {ex['note']}\n"
                 f"───────────────\n"
             )
-    
+
         bot.send_message(chat_id, msg, parse_mode="Markdown")
         user_states.pop(chat_id, None)
         return
