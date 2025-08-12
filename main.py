@@ -462,10 +462,11 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ حدث خطأ، يرجى اختيار الفصل أولاً.")
             return
     
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+        scraper = user_sessions.get(chat_id)
+        if not scraper:
+            bot.send_message(chat_id, "⚠️ انتهت الجلسة. يرجى إعادة اختيار الفصل الدراسي.")
             return
+    
     
         term_no = user_states[chat_id]['term_no']
         exam_type_map = {
