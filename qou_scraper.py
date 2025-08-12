@@ -159,63 +159,47 @@ class QOUScraper:
         }
 
 
-    def fetch_term_and_exam_type(self) -> Tuple[Optional[str], Optional[str]]:
-        resp = self.session.get(TERM_SUMMARY_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+def get_last_two_terms():
+    resp = session.get(EXAMS_SCHEDULE_URL)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    select_term = soup.find("select", {"name": "termNo"})
+    options = select_term.find_all("option")
+    last_two = options[-2:]
+    return [opt["value"] for opt in last_two]
 
-        term_no = None
-        exam_type = None
-
-        # استخراج رقم الفصل
-        term_select = soup.find('select', {'name': 'termNo'})
-        if term_select:
-            option = term_select.find('option')
-            if option:
-                term_no = option['value']
-
-        # استخراج نوع الامتحان
-        exam_type_select = soup.find('select', {'name': 'examType'})
-        if exam_type_select:
-            option = exam_type_select.find('option')
-            if option:
-                exam_type = option['value']
-
-        return term_no, exam_type
-
-    def fetch_exam_schedule(self, term_no: str, exam_type: str) -> List[dict]:
-        payload = {
-            'termNo': term_no,
-            'examType': exam_type
+def fetch_exam_schedule(term_no, exam_type):
+    payload = {
+        "termNo": term_no,
+        "examType": exam_type
+    }
+    resp = session.post(EXAMS_SCHEDULE_URL, data=payload)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    table = soup.find("table", id="dataTable")
+    if not table:
+        return []
+    exams = []
+    rows = table.find("tbody").find_all("tr")
+    for row in rows:
+        cols = row.find_all("td")
+        if len(cols) < 11:
+            continue
+        exam = {
+            "exam_kind": cols[0].get_text(strip=True),
+            "course_code": cols[1].get_text(strip=True),
+            "course_name": cols[2].get_text(strip=True),
+            "lecturer": cols[3].get_text(strip=True),
+            "section": cols[4].get_text(strip=True),
+            "day": cols[5].get_text(strip=True),
+            "date": cols[6].get_text(strip=True),
+            "session": cols[7].get_text(strip=True),
+            "from_time": cols[8].get_text(strip=True),
+            "to_time": cols[9].get_text(strip=True),
+            "note": cols[10].get_text(strip=True)
         }
-        resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        exams.append(exam)
+    return exams
 
-        table = soup.find('table', id='dataTable')
-        if not table:
-            return []
-
-        exams = []
-        rows = table.find('tbody').find_all('tr')
-        for row in rows:
-            cols = row.find_all('td')
-            if len(cols) < 11:
-                continue
-            exam = {
-                'exam_kind': cols[0].get_text(strip=True),
-                'course_code': cols[1].get_text(strip=True),
-                'course_name': cols[2].get_text(strip=True),
-                'lecturer': cols[3].get_text(strip=True),
-                'section': cols[4].get_text(strip=True),
-                'day': cols[5].get_text(strip=True),
-                'date': cols[6].get_text(strip=True),
-                'session': cols[7].get_text(strip=True),
-                'from_time': cols[8].get_text(strip=True),
-                'to_time': cols[9].get_text(strip=True),
-                'note': cols[10].get_text(strip=True)
-            }
-            exams.append(exam)
-        return exams
 
      
