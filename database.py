@@ -33,14 +33,7 @@ def decrypt_text(token):
         return None
     return fernet.decrypt(token.encode()).decode()
 
-chat_id = 6292405444  # استبدل برقم chat_id حقيقي من جدولك
-now_str = datetime.utcnow().isoformat()
 
-print(f"Updating last_login for chat_id={chat_id} to {now_str}")
-update_last_login(chat_id, now_str)
-
-user = get_user(chat_id)
-print(user)
 
 # ---------- إنشاء الجداول ----------
 def init_db():
