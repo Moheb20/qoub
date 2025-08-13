@@ -285,3 +285,10 @@ def get_bot_stats():
         "top_groups": top_groups,
         "avg_daily_interactions": avg_daily_interactions,
     }
+
+def get_all_chat_ids_from_logs():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT chat_id FROM logs WHERE chat_id IS NOT NULL")
+            return [row[0] for row in cur.fetchall()]
+
