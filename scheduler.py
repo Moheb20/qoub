@@ -175,7 +175,7 @@ def check_for_gpa_changes():
                 except Exception as e:
                     print(f"❌ خطأ أثناء التحقق من GPA للطالب {student_id}: {e}")
 
-        time.sleep(10 * 60)
+        time.sleep(24 * 60 * 60)
 
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
