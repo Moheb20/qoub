@@ -7,3 +7,4 @@ pyTelegramBotAPI
 aiohttp
 telebot
 cryptography
+psycopg2-binary
