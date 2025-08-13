@@ -3,8 +3,7 @@ import os
 import datetime
 from cryptography.fernet import Fernet
 
-key = Fernet.generate_key()
-print(key.decode())
+
 
 # الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -16,14 +15,11 @@ def get_conn():
 KEY_FILE = 'secret.key'
 
 def load_or_create_key():
-    if not os.path.exists(KEY_FILE):
-        key = Fernet.generate_key()
-        with open(KEY_FILE, 'wb') as f:
-            f.write(key)
-    else:
-        with open(KEY_FILE, 'rb') as f:
-            key = f.read()
-    return Fernet(key)
+    key = os.getenv("FERNET_KEY")
+    if not key:
+        raise Exception("FERNET_KEY not found in environment variables")
+    return Fernet(key.encode())
+
 
 fernet = load_or_create_key()
 
