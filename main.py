@@ -155,11 +155,18 @@ def clear_states_for_home(chat_id):
 @bot.message_handler(commands=["start"])
 def handle_start(message):
     chat_id = message.chat.id
+    username = message.from_user.username or "بدون اسم مستخدم"
     user = get_user(chat_id)
     if user:
         bot.send_message(chat_id, "👋 مرحباً! أنت قيد التسجيل بالفعل.")
     else:
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول.")
+        admin_message = (
+            f"🚨 مستخدم جديد بدأ استخدام البوت!\n\n"
+            f"chat_id: {chat_id}\n"
+            f"Username: @{username}"
+        )
+        bot.send_message(ADMIN_CHAT_ID, admin_message)
     send_main_menu(chat_id)
 
 
