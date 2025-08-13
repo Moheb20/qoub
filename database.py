@@ -1,11 +1,16 @@
-import sqlite3
+import psycopg2
+import os
 import datetime
 from cryptography.fernet import Fernet
-import os
 
-DB_NAME = 'users.db'
-BASE_DIR = os.getcwd()
-KEY_FILE = os.path.join(BASE_DIR, 'secret.key')
+# الاتصال بقاعدة البيانات
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
+
+# مفتاح التشفير
+KEY_FILE = 'secret.key'
 
 def load_or_create_key():
     if not os.path.exists(KEY_FILE):
@@ -29,118 +34,128 @@ def decrypt_text(token):
         return None
     return fernet.decrypt(token.encode()).decode()
 
-# --- إنشاء قاعدة البيانات ---
+# ---------- إنشاء الجداول ----------
 def init_db():
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                chat_id INTEGER PRIMARY KEY,
-                student_id TEXT NOT NULL,
-                password TEXT NOT NULL,
-                last_msg_id TEXT
-            )
-        ''')
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    chat_id BIGINT PRIMARY KEY,
+                    student_id TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    last_msg_id TEXT,
+                    courses_data TEXT,
+                    last_login TEXT,
+                    last_interaction TEXT,
+                    registered_at TEXT,
+                    status TEXT DEFAULT 'active',
+                    last_gpa TEXT
+                )
+            ''')
 
-        cur = conn.execute("PRAGMA table_info(users)")
-        columns = [col[1] for col in cur.fetchall()]
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS logs (
+                    id SERIAL PRIMARY KEY,
+                    chat_id BIGINT,
+                    event_type TEXT,
+                    event_value TEXT,
+                    created_at TEXT
+                )
+            ''')
+        conn.commit()
 
-        # الأعمدة الإضافية
-        extra_columns = {
-            'courses_data': "TEXT",
-            'last_login': "TEXT",
-            'last_interaction': "TEXT",
-            'registered_at': "TEXT",
-            'status': "TEXT DEFAULT 'active'",
-            'last_gpa': "TEXT"  # المعدل التراكمي
-        }
-
-        for col, col_type in extra_columns.items():
-            if col not in columns:
-                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-
-        # جدول الإحصائيات
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id INTEGER,
-                event_type TEXT,
-                event_value TEXT,
-                created_at TEXT
-            )
-        ''')
-
-# --- إدارة المستخدمين ---
+# ---------- إدارة المستخدمين ----------
 def add_user(chat_id, student_id, password, registered_at=None):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('''
-            INSERT OR REPLACE INTO users (chat_id, student_id, password, registered_at)
-            VALUES (?, ?, ?, ?)
-        ''', (chat_id, encrypt_text(student_id), encrypt_text(password), registered_at))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO users (chat_id, student_id, password, registered_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (chat_id) DO UPDATE SET
+                    student_id = EXCLUDED.student_id,
+                    password = EXCLUDED.password,
+                    registered_at = EXCLUDED.registered_at
+            ''', (chat_id, encrypt_text(student_id), encrypt_text(password), registered_at))
+        conn.commit()
 
 def get_user(chat_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT chat_id, student_id, password, last_msg_id, courses_data,
-                   last_login, last_interaction, registered_at, status, last_gpa
-            FROM users WHERE chat_id = ?
-        ''', (chat_id,))
-        row = cur.fetchone()
-        if row:
-            columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
-                       'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
-            user = dict(zip(columns, row))
-            user['student_id'] = decrypt_text(user['student_id'])
-            user['password'] = decrypt_text(user['password'])
-            return user
-        else:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT chat_id, student_id, password, last_msg_id, courses_data,
+                       last_login, last_interaction, registered_at, status, last_gpa
+                FROM users WHERE chat_id = %s
+            ''', (chat_id,))
+            row = cur.fetchone()
+            if row:
+                columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
+                           'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
+                user = dict(zip(columns, row))
+                user['student_id'] = decrypt_text(user['student_id'])
+                user['password'] = decrypt_text(user['password'])
+                return user
             return None
 
 def remove_user(chat_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('DELETE FROM users WHERE chat_id = ?', (chat_id,))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM users WHERE chat_id = %s', (chat_id,))
+        conn.commit()
 
 def update_last_msg(chat_id, msg_id):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('UPDATE users SET last_msg_id = ? WHERE chat_id = ?', (msg_id, chat_id))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET last_msg_id = %s WHERE chat_id = %s', (msg_id, chat_id))
+        conn.commit()
 
 def update_user_courses(chat_id, courses_json):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('UPDATE users SET courses_data = ? WHERE chat_id = ?', (courses_json, chat_id))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET courses_data = %s WHERE chat_id = %s', (courses_json, chat_id))
+        conn.commit()
 
 def update_last_login(chat_id, last_login):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('UPDATE users SET last_login = ? WHERE chat_id = ?', (last_login, chat_id))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET last_login = %s WHERE chat_id = %s', (last_login, chat_id))
+        conn.commit()
 
 def update_last_interaction(chat_id, last_interaction):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('UPDATE users SET last_interaction = ? WHERE chat_id = ?', (last_interaction, chat_id))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET last_interaction = %s WHERE chat_id = %s', (last_interaction, chat_id))
+        conn.commit()
 
 def update_status(chat_id, status):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('UPDATE users SET status = ? WHERE chat_id = ?', (status, chat_id))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET status = %s WHERE chat_id = %s', (status, chat_id))
+        conn.commit()
 
 def update_user_gpa(chat_id, new_gpa):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('UPDATE users SET last_gpa = ? WHERE chat_id = ?', (new_gpa, chat_id))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('UPDATE users SET last_gpa = %s WHERE chat_id = %s', (new_gpa, chat_id))
+        conn.commit()
 
 def get_all_users():
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute('''
-            SELECT chat_id, student_id, password, last_msg_id, courses_data,
-                   last_login, last_interaction, registered_at, status, last_gpa
-            FROM users
-        ''')
-        columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
-                   'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
-        users = []
-        for row in cur.fetchall():
-            user = dict(zip(columns, row))
-            user['student_id'] = decrypt_text(user['student_id'])
-            user['password'] = decrypt_text(user['password'])
-            users.append(user)
-        return users
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT chat_id, student_id, password, last_msg_id, courses_data,
+                       last_login, last_interaction, registered_at, status, last_gpa
+                FROM users
+            ''')
+            rows = cur.fetchall()
+            columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
+                       'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
+            users = []
+            for row in rows:
+                user = dict(zip(columns, row))
+                user['student_id'] = decrypt_text(user['student_id'])
+                user['password'] = decrypt_text(user['password'])
+                users.append(user)
+            return users
 
 def get_all_users_with_credentials():
     users = get_all_users()
@@ -155,66 +170,65 @@ def get_all_users_with_credentials():
         if u["student_id"] and u["password"]
     ]
 
-# --- تسجيل الأحداث ---
+# ---------- تسجيل الأحداث ----------
 def log_event(chat_id, event_type, event_value=None):
-    with sqlite3.connect(DB_NAME) as conn:
-        conn.execute('''
-            INSERT INTO logs (chat_id, event_type, event_value, created_at)
-            VALUES (?, ?, ?, ?)
-        ''', (chat_id, event_type, event_value, datetime.datetime.utcnow().isoformat()))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO logs (chat_id, event_type, event_value, created_at)
+                VALUES (%s, %s, %s, %s)
+            ''', (chat_id, event_type, event_value, datetime.datetime.utcnow().isoformat()))
+        conn.commit()
 
-# --- إحصائيات ---
+# ---------- الإحصائيات ----------
 def get_total_messages_sent():
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM logs WHERE event_type = 'sent_message'")
-        return cur.fetchone()[0]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM logs WHERE event_type = 'sent_message'")
+            return cur.fetchone()[0]
 
 def get_total_messages_received():
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM logs WHERE event_type = 'received_message'")
-        return cur.fetchone()[0]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM logs WHERE event_type = 'received_message'")
+            return cur.fetchone()[0]
 
 def get_total_commands_count():
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM logs WHERE event_type = 'command'")
-        return cur.fetchone()[0]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM logs WHERE event_type = 'command'")
+            return cur.fetchone()[0]
 
 def get_top_requested_groups(limit=5):
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT event_value, COUNT(*) as cnt
-            FROM logs
-            WHERE event_type = 'group_request'
-            GROUP BY event_value
-            ORDER BY cnt DESC
-            LIMIT ?
-        """, (limit,))
-        return [row[0] for row in cur.fetchall()]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT event_value, COUNT(*) as cnt
+                FROM logs
+                WHERE event_type = 'group_request'
+                GROUP BY event_value
+                ORDER BY cnt DESC
+                LIMIT %s
+            """, (limit,))
+            return [row[0] for row in cur.fetchall()]
 
 def get_bot_start_date():
-    with sqlite3.connect(DB_NAME) as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT MIN(created_at) FROM logs")
-        row = cur.fetchone()[0]
-        if row:
-            return datetime.datetime.fromisoformat(row)
-        return datetime.datetime.utcnow()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MIN(created_at) FROM logs")
+            row = cur.fetchone()[0]
+            if row:
+                return datetime.datetime.fromisoformat(row)
+            return datetime.datetime.utcnow()
 
 def get_bot_stats():
     users = get_all_users()
     total_users = len(users)
-
     now = datetime.datetime.utcnow()
 
     def parse_date(val):
         if val is None:
             return None
-        if isinstance(val, datetime.datetime):
-            return val
         try:
             return datetime.datetime.fromisoformat(val)
         except:
@@ -251,8 +265,7 @@ def get_bot_stats():
     messages_sent = get_total_messages_sent()
     messages_received = get_total_messages_received()
     total_commands = get_total_commands_count()
-    top_groups = get_top_requested_groups(limit=5)
-
+    top_groups = get_top_requested_groups()
     days_active = max((now - get_bot_start_date()).days, 1)
     avg_daily_interactions = messages_received / days_active
 
