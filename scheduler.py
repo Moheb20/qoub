@@ -157,7 +157,7 @@ def check_for_gpa_changes():
             student_id = user['student_id']
             password = user['password']
             old_gpa = user.get('last_gpa')
-            old_gpa = json.loads(old_gpa_json) if old_gpa_json else None
+            old_gpa = json.loads(old_gpa) if old_gpa else None
 
             
 
