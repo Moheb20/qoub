@@ -203,6 +203,7 @@ class QOUScraper:
         if not stats:
             return None
         return {
-            term_gpa = stats.get('term', {}).get('gpa', 'غير متوفر')
-            cumulative_gpa = stats.get('cumulative', {}).get('gpa', 'غير متوفر')
+            "term_gpa": stats.get('term', {}).get('gpa', 'غير متوفر'),
+            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر')
+
         }
