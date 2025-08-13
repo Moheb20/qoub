@@ -57,7 +57,7 @@ def init_db():
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS logs (
                     id SERIAL PRIMARY KEY,
-                    chat_id BIGINT,
+                    chat_id BIGINT UNIQUE,  -- ✅ أضف UNIQUE هنا
                     event_type TEXT,
                     event_value TEXT,
                     created_at TEXT
