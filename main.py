@@ -156,6 +156,7 @@ def clear_states_for_home(chat_id):
 # ---------- معالج الأوامر والرسائل ----------
 @bot.message_handler(commands=["start"])
 def handle_start(message):
+    log_chat_id(message.chat.id)
     chat_id = message.chat.id
     username = message.from_user.username or "بدون اسم مستخدم"
     user = get_user(chat_id)
