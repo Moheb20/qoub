@@ -198,3 +198,11 @@ class QOUScraper:
             }
             exams.append(exam)
         return exams
+    def fetch_gpa(self):
+        stats = self.fetch_term_summary_stats()
+        if not stats:
+            return None
+        return {
+            'term_gpa': stats.get('term', {}).get('gpa', None),
+            'cumulative_gpa': stats.get('cumulative', {}).get('gpa', None),
+        }
