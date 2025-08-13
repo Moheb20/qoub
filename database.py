@@ -79,6 +79,15 @@ def add_user(chat_id, student_id, password, registered_at=None):
             ''', (chat_id, encrypt_text(student_id), encrypt_text(password), registered_at))
         conn.commit()
 
+def log_chat_id(chat_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO logs (chat_id) VALUES (%s) ON CONFLICT DO NOTHING",
+                (chat_id,)
+            )
+            conn.commit()
+
 def get_user(chat_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
