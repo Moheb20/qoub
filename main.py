@@ -180,7 +180,7 @@ def handle_start(message):
 
 
 
-import time  # تأكد أنه موجود
+
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
