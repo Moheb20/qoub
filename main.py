@@ -160,6 +160,9 @@ def handle_start(message):
     if user:
         bot.send_message(chat_id, "👋 مرحباً! أنت قيد التسجيل بالفعل.")
     else:
+        # أضف المستخدم إلى قاعدة البيانات (يمكن ترك student_id و password فارغين مؤقتًا)
+        add_user(chat_id, student_id="", password="", registered_at=datetime.utcnow().isoformat())
+        
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول.")
         admin_message = (
             f"🚨 مستخدم جديد بدأ استخدام البوت!\n\n"
@@ -168,6 +171,7 @@ def handle_start(message):
         )
         bot.send_message(ADMIN_CHAT_ID, admin_message)
     send_main_menu(chat_id)
+
 
 
 @bot.message_handler(func=lambda message: True)
