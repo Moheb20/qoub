@@ -183,15 +183,15 @@ def handle_all_messages(message):
         header = "📢 رسالة عامة من الإدارة:\n\n"
         full_message = header + broadcast_text
 
-        users = get_all_users()
+        chat_ids = get_all_chat_ids_from_logs()
         sent_count = 0
         failed_count = 0
-        for user in users:
+        for target_chat_id in chat_ids:
             try:
-                bot.send_message(user["chat_id"], full_message)
+                bot.send_message(target_chat_id, full_message)
                 sent_count += 1
             except Exception as e:
-                logger.exception(f"Failed to send message to {user['chat_id']}: {e}")
+                logger.exception(f"Failed to send message to {target_chat_id}: {e}")
                 failed_count += 1
 
         bot.send_message(
