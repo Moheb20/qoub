@@ -157,6 +157,9 @@ def check_for_gpa_changes():
             student_id = user['student_id']
             password = user['password']
             old_gpa = user.get('last_gpa')
+            old_gpa = json.loads(old_gpa_json) if old_gpa_json else None
+
+            
 
             scraper = QOUScraper(student_id, password)
             if scraper.login():
@@ -171,7 +174,8 @@ def check_for_gpa_changes():
                             "#بوابة_القدس_المفتوحة"
                         )
                         bot.send_message(chat_id, message, parse_mode="Markdown")
-                        update_user_gpa(chat_id, new_gpa)
+                        update_user_gpa(chat_id, json.dumps(new_gpa))
+
                 except Exception as e:
                     print(f"❌ خطأ أثناء التحقق من GPA للطالب {student_id}: {e}")
 
