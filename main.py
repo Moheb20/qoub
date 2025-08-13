@@ -180,12 +180,13 @@ def handle_start(message):
 
 
 
+import time  # تأكد أنه موجود
+
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     chat_id = message.chat.id
     text = (message.text or "").strip()
 
-    # --- حالة إرسال رسالة جماعية من الأدمن ---
     if chat_id == ADMIN_CHAT_ID and admin_states.get(chat_id) == "awaiting_broadcast_text":
         broadcast_text = text
         header = "📢 رسالة عامة من الإدارة:\n\n"
@@ -194,20 +195,54 @@ def handle_all_messages(message):
         chat_ids = get_all_chat_ids_from_logs()
         sent_count = 0
         failed_count = 0
+        successful_users = []  # لتجميع بيانات المستخدمين الناجحين
+
         for target_chat_id in chat_ids:
             try:
                 bot.send_message(target_chat_id, full_message)
                 sent_count += 1
-                time.sleep(0.1)  # تأخير 0.1 ثانية بين الرسائل
+
+                # جلب معلومات المستخدم
+                user_info = bot.get_chat(target_chat_id)
+                user_id = target_chat_id
+                username = f"@{user_info.username}" if user_info.username else "—"
+                full_name = user_info.first_name or ""
+                if user_info.last_name:
+                    full_name += f" {user_info.last_name}"
+
+                successful_users.append((str(user_id), username, full_name))
+
+                time.sleep(0.1)
+
             except Exception as e:
                 logger.exception(f"Failed to send message to {target_chat_id}: {e}")
                 failed_count += 1
 
-        bot.send_message(
-            chat_id, f"✅ تم إرسال الرسالة إلى {sent_count} مستخدم.\n❌ فشل الإرسال إلى {failed_count} مستخدم.")
+        # إعداد الجدول
+        header_text = "تم ارسال الرسالة بنجاح إلى:\n"
+        table_header = f"{'Chat ID':<15} | {'Username':<15} | {'Name'}\n"
+        separator = "-" * 50 + "\n"
+        table_rows = ""
+
+        for user_id, username, full_name in successful_users:
+            table_rows += f"{user_id:<15} | {username:<15} | {full_name}\n"
+
+        report_text = header_text + table_header + separator + table_rows
+        report_text += f"\n❌ فشل الإرسال إلى {failed_count} مستخدم." if failed_count else ""
+
+        # إذا طول الرسالة كبير، قسمها أو أرسلها كملف
+        if len(report_text) > 4000:
+            with open("broadcast_report.txt", "w", encoding="utf-8") as f:
+                f.write(report_text)
+            with open("broadcast_report.txt", "rb") as f:
+                bot.send_document(chat_id, f)
+        else:
+            bot.send_message(chat_id, f"```{report_text}```", parse_mode="Markdown")
+
         admin_states.pop(chat_id, None)
         send_main_menu(chat_id)
         return
+
 
     # --- مسار التسجيل (مفصول) ---
     if chat_id in registration_states:
