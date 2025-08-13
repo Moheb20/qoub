@@ -3,6 +3,9 @@ import os
 import datetime
 from cryptography.fernet import Fernet
 
+key = Fernet.generate_key()
+print(key.decode())
+
 # الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL")
 
