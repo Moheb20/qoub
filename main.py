@@ -15,6 +15,7 @@ from database import (
     add_user,
     update_last_msg,
     get_all_chat_ids_from_logs,
+    log_chat_id,
 )
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
