@@ -212,7 +212,6 @@ def handle_all_messages(message):
 
                 successful_users.append((str(user_id), username, full_name))
 
-                time.sleep(0.1)
 
             except Exception as e:
                 logger.exception(f"Failed to send message to {target_chat_id}: {e}")
