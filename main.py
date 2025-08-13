@@ -181,6 +181,7 @@ def handle_all_messages(message):
             try:
                 bot.send_message(target_chat_id, full_message)
                 sent_count += 1
+                time.sleep(0.1)  # تأخير 0.1 ثانية بين الرسائل
             except Exception as e:
                 logger.exception(f"Failed to send message to {target_chat_id}: {e}")
                 failed_count += 1
