@@ -17,6 +17,18 @@ from database import (
 )
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
+from datetime import datetime
+from database import update_last_login, get_user  # أو حسب اسم ملفك ودوالك
+
+chat_id = 6292405444  # رقم chat_id موجود في قاعدة بياناتك
+now_str = datetime.utcnow().isoformat()
+
+print(f"Updating last_login for chat_id={chat_id} to {now_str}")
+update_last_login(chat_id, now_str)
+
+user = get_user(chat_id)
+print(user)
+
 
 # ---------- إعداد السجل (logging) ----------
 logging.basicConfig(level=logging.INFO)
