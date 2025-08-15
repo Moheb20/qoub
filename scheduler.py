@@ -227,5 +227,4 @@ def start_scheduler():
     threading.Thread(target=check_for_course_updates, daemon=True).start()
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
-    threading.Thread(target=send_latest_due_date_reminder, daemon=True).start()  # إضافة التذكير
     threading.Thread(target=send_daily_deadline_reminders, daemon=True).start()
