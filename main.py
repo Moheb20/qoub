@@ -429,6 +429,7 @@ def handle_all_messages(message):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton("التحليلات"))
         markup.add(types.KeyboardButton("إرسال رسالة"))
+        markup.add(types.KeyboardButton("دارة المواعيد"))        
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
         return
