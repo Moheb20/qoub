@@ -516,6 +516,97 @@ def handle_all_messages(message):
             msg += f"ID:{d[0]} - {d[1]} - {d[2].strftime('%d/%m/%Y')}\n"
         bot.send_message(chat_id, msg)
         return
+
+    elif text == "❌ حذف موعد" and chat_id == ADMIN_CHAT_ID:
+        deadlines = get_all_deadlines()
+        if not deadlines:
+            bot.send_message(chat_id, "📭 لا توجد مواعيد للحذف حالياً.")
+            return
+        msg = "⚠️ اختر ID الموعد للحذف:\n\n"
+        for d in deadlines:
+            msg += f"ID:{d[0]} - {d[1]} - {d[2].strftime('%d/%m/%Y')}\n"
+        bot.send_message(chat_id, msg)
+        admin_deadline_states[chat_id] = {"stage": "awaiting_delete_id"}
+        return
+    
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_delete_id":
+        if not text.isdigit():
+            bot.send_message(chat_id, "⚠️ الرجاء إدخال رقم ID صحيح.")
+            return
+        deadline_id = int(text)
+        if delete_deadline(deadline_id):
+            bot.send_message(chat_id, f"✅ تم حذف الموعد رقم {deadline_id} بنجاح.")
+        else:
+            bot.send_message(chat_id, "⚠️ لم يتم العثور على الموعد المطلوب.")
+        admin_deadline_states.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return
+    
+    # ===================== تعديل موعد =====================
+    elif text == "✏️ تعديل موعد" and chat_id == ADMIN_CHAT_ID:
+        deadlines = get_all_deadlines()
+        if not deadlines:
+            bot.send_message(chat_id, "📭 لا توجد مواعيد للتعديل حالياً.")
+            return
+        msg = "⚙️ اختر ID الموعد للتعديل:\n\n"
+        for d in deadlines:
+            msg += f"ID:{d[0]} - {d[1]} - {d[2].strftime('%d/%m/%Y')}\n"
+        bot.send_message(chat_id, msg)
+        admin_deadline_states[chat_id] = {"stage": "awaiting_edit_id"}
+        return
+    
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_edit_id":
+        if not text.isdigit():
+            bot.send_message(chat_id, "⚠️ الرجاء إدخال رقم ID صحيح.")
+            return
+        deadline_id = int(text)
+        deadline = get_deadline_by_id(deadline_id)
+        if not deadline:
+            bot.send_message(chat_id, "⚠️ لم يتم العثور على الموعد المطلوب.")
+            admin_deadline_states.pop(chat_id, None)
+            return
+        admin_deadline_states[chat_id] = {
+            "stage": "awaiting_edit_name",
+            "id": deadline_id
+        }
+        bot.send_message(chat_id, f"✏️ اكتب الاسم الجديد للموعد (القديم: {deadline[1]}):")
+        return
+    
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_edit_name":
+        admin_deadline_states[chat_id]["name"] = text
+        admin_deadline_states[chat_id]["stage"] = "awaiting_edit_month"
+        bot.send_message(chat_id, "📅 اكتب رقم الشهر الجديد (1-12):")
+        return
+    
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_edit_month":
+        if not text.isdigit() or not 1 <= int(text) <= 12:
+            bot.send_message(chat_id, "⚠️ الرجاء إدخال رقم شهر صحيح بين 1 و 12.")
+            return
+        admin_deadline_states[chat_id]["month"] = int(text)
+        admin_deadline_states[chat_id]["stage"] = "awaiting_edit_day"
+        bot.send_message(chat_id, "📅 اكتب رقم اليوم الجديد (1-31):")
+        return
+    
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_edit_day":
+        if not text.isdigit() or not 1 <= int(text) <= 31:
+            bot.send_message(chat_id, "⚠️ الرجاء إدخال رقم يوم صحيح بين 1 و 31.")
+            return
+        day = int(text)
+        month = admin_deadline_states[chat_id]["month"]
+        year = datetime.utcnow().year
+        try:
+            new_date = date(year, month, day)
+        except ValueError:
+            bot.send_message(chat_id, "⚠️ التاريخ غير صالح، حاول مرة أخرى.")
+            return
+    
+        deadline_id = admin_deadline_states[chat_id]["id"]
+        new_name = admin_deadline_states[chat_id]["name"]
+        edit_deadline(deadline_id, new_name, new_date)
+        bot.send_message(chat_id, f"✅ تم تعديل الموعد بنجاح: '{new_name}' بتاريخ {new_date.strftime('%d/%m/%Y')}")
+        admin_deadline_states.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return    
     
     # العودة للقائمة
     elif text == "العودة للقائمة" and chat_id == ADMIN_CHAT_ID:
