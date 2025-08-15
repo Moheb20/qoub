@@ -1,7 +1,7 @@
 import time
 import threading
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from database import (
     get_all_users,
     update_last_msg,
