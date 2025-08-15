@@ -221,7 +221,7 @@ class QOUScraper:
     
         # إرسال بيانات تسجيل الدخول
         payload = {
-            "username": self.username,
+            "username": self.student_id,
             "password": self.password,
             "logintoken": logintoken,
             "anchor": ""
