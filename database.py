@@ -338,3 +338,18 @@ def delete_deadline(deadline_id):
         with conn.cursor() as cur:
             cur.execute('DELETE FROM deadlines WHERE id = %s', (deadline_id,))
         conn.commit()
+
+def get_deadline_by_id(deadline_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name, date FROM deadlines WHERE id = %s", (deadline_id,))
+            return cur.fetchone()
+
+def edit_deadline(deadline_id, new_name, new_date):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE deadlines SET name = %s, date = %s WHERE id = %s",
+                (new_name, new_date, deadline_id)
+            )
+        conn.commit()
