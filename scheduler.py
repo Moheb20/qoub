@@ -159,8 +159,6 @@ def check_for_gpa_changes():
             old_gpa = user.get('last_gpa')
             old_gpa = json.loads(old_gpa) if old_gpa else None
 
-            
-
             scraper = QOUScraper(student_id, password)
             if scraper.login():
                 try:
@@ -182,9 +180,27 @@ def check_for_gpa_changes():
 
         time.sleep(24 * 60 * 60)
 
+# ---------------------- تذكير أوتوماتيكي كل 12 ساعة ----------------------
+def send_due_date_reminder():
+    while True:
+        users = get_all_users()
+        for user in users:
+            chat_id = user['chat_id']
+            student_id = user['student_id']
+            password = user['password']
+
+            scraper = QOUScraper(student_id, password)
+            if scraper.login():
+                due_date = scraper.fetch_last_activity_due_date()
+                if due_date:
+                    message = f"📅 تذكير: آخر موعد لتسليم الأنشطة هو {due_date}"
+                    bot.send_message(chat_id, message)
+        time.sleep(12 * 60 * 60)  # كل 12 ساعة
+
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
     threading.Thread(target=check_for_course_updates, daemon=True).start()
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
+    threading.Thread(target=send_due_date_reminder, daemon=True).start()  # إضافة التذكير
