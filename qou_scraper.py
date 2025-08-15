@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
+import logging
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
