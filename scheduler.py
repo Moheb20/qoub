@@ -7,6 +7,7 @@ from database import (
     update_last_msg,
     update_user_courses,
     update_user_gpa,
+    get_all_deadlines,
 )
 from qou_scraper import QOUScraper
 import logging
