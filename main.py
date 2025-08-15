@@ -26,9 +26,12 @@ import time
 
 
 
+
 # ---------- إعداد السجل (logging) ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+admin_deadline_states = {}
+
 
 # ---------- إعداد المتغيرات العامة ----------
 ADMIN_CHAT_ID = 6292405444  # عدله حسب معرف الأدمن عندك
@@ -434,6 +437,84 @@ def handle_all_messages(message):
         bot.send_message(chat_id, "✍️ الرجاء كتابة نص الرسالة التي تريد إرسالها لجميع المستخدمين:")
         admin_states[chat_id] = "awaiting_broadcast_text"
         return
+
+
+
+
+# زر إدارة المواعيد
+    elif text == "إدارة المواعيد" and chat_id == ADMIN_CHAT_ID:
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        markup.add(
+            types.KeyboardButton("➕ إضافة موعد"),
+            types.KeyboardButton("✏️ تعديل موعد"),
+            types.KeyboardButton("❌ حذف موعد"),
+            types.KeyboardButton("📋 عرض كل المواعيد"),
+            types.KeyboardButton("العودة للقائمة")
+        )
+        bot.send_message(chat_id, "⚙️ إدارة المواعيد: اختر خياراً", reply_markup=markup)
+        return
+    
+    # إضافة موعد
+    elif text == "➕ إضافة موعد" and chat_id == ADMIN_CHAT_ID:
+        admin_deadline_states[chat_id] = {"stage": "awaiting_name"}
+        bot.send_message(chat_id, "✍️ اكتب اسم الموعد:")
+        return
+    
+    # استقبال اسم الموعد
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_name":
+        admin_deadline_states[chat_id]["name"] = text
+        admin_deadline_states[chat_id]["stage"] = "awaiting_month"
+        bot.send_message(chat_id, "📅 اكتب رقم الشهر (1-12):")
+        return
+    
+    # استقبال الشهر
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_month":
+        if not text.isdigit() or not 1 <= int(text) <= 12:
+            bot.send_message(chat_id, "⚠️ الرجاء إدخال رقم شهر صحيح بين 1 و 12.")
+            return
+        admin_deadline_states[chat_id]["month"] = int(text)
+        admin_deadline_states[chat_id]["stage"] = "awaiting_day"
+        bot.send_message(chat_id, "📅 اكتب رقم اليوم (1-31):")
+        return
+    
+    # استقبال اليوم
+    elif chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_day":
+        if not text.isdigit() or not 1 <= int(text) <= 31:
+            bot.send_message(chat_id, "⚠️ الرجاء إدخال رقم يوم صحيح بين 1 و 31.")
+            return
+        day = int(text)
+        month = admin_deadline_states[chat_id]["month"]
+        year = datetime.datetime.utcnow().year  # السنة الحالية
+        try:
+            deadline_date = date(year, month, day)
+        except ValueError:
+            bot.send_message(chat_id, "⚠️ التاريخ غير صالح، حاول مرة أخرى.")
+            return
+    
+        name = admin_deadline_states[chat_id]["name"]
+        add_deadline(name, deadline_date)
+        bot.send_message(chat_id, f"✅ تم إضافة الموعد '{name}' بتاريخ {deadline_date.strftime('%d/%m/%Y')}")
+        admin_deadline_states.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return
+    
+    # عرض المواعيد
+    elif text == "📋 عرض كل المواعيد" and chat_id == ADMIN_CHAT_ID:
+        deadlines = get_all_deadlines()
+        if not deadlines:
+            bot.send_message(chat_id, "📭 لا توجد مواعيد حالياً.")
+            return
+        msg = "📌 المواعيد الحالية:\n\n"
+        for d in deadlines:
+            msg += f"ID:{d[0]} - {d[1]} - {d[2].strftime('%d/%m/%Y')}\n"
+        bot.send_message(chat_id, msg)
+        return
+    
+    # العودة للقائمة
+    elif text == "العودة للقائمة" and chat_id == ADMIN_CHAT_ID:
+        send_main_menu(chat_id)
+        return
+
 
     elif text == "التحليلات" and chat_id == ADMIN_CHAT_ID:
         stats = get_bot_stats()
