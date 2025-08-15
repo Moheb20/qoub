@@ -181,10 +181,9 @@ def check_for_gpa_changes():
 
         time.sleep(24 * 60 * 60)
 
-def send_due_date_reminder():
-    notified_12h = {}
-    notified_1h = {}
-    notified_due = {}
+
+def send_latest_due_date_reminder():
+    notified_users = {}  # chat_id -> {'due': datetime, 'status': 'reminded' | 'hour_left' | 'done'}
 
     while True:
         now = datetime.now()
@@ -198,32 +197,38 @@ def send_due_date_reminder():
             scraper = QOUScraper(student_id, password)
             if scraper.login():
                 try:
-                    tasks = scraper.fetch_due_dates()  # يفترض أن ترجع قائمة المهام/المواعيد
-                    for task in tasks:
-                        task_name = task['name']
-                        due_dt = datetime.strptime(task['due'], "%Y-%m-%d %H:%M")
+                    activity = scraper.get_last_activity_due_date()  # {'date': datetime, 'link': '...'}
+                    if not activity:
+                        continue
+                    
+                    due_dt = activity['date']
+                    link = activity['link']
+                    diff_minutes = (due_dt - now).total_seconds() / 60
+                    last_notified = notified_users.get(chat_id)
 
-                        diff_minutes = (due_dt - now).total_seconds() / 60
+                    # حالة جديدة أو الموعد تغير
+                    if not last_notified or due_dt != last_notified['due']:
+                        bot.send_message(chat_id, f"📌 تم تحديد موعد تسليم جديد أو تم تحديثه:\n"
+                                                  f"📅 {due_dt.strftime('%Y-%m-%d %H:%M')}\n"
+                                                  f"🔗 {link}")
+                        notified_users[chat_id] = {'due': due_dt, 'status': 'new'}
+                        continue
 
-                        key_12h = f"{chat_id}_{task_name}_12h"
-                        if 0 < diff_minutes <= 12 * 60 and key_12h not in notified_12h:
-                            bot.send_message(chat_id, f"⏰ تذكير: لديك مهمة '{task_name}' خلال 12 ساعة!")
-                            notified_12h[key_12h] = True
+                    # باقي ساعة
+                    if 0 < diff_minutes <= 60 and last_notified['status'] != 'hour_left':
+                        bot.send_message(chat_id, f"⚠️ تبقى ساعة واحدة فقط على آخر موعد تسليم!\n📅 {due_dt.strftime('%Y-%m-%d %H:%M')}")
+                        notified_users[chat_id]['status'] = 'hour_left'
 
-                        key_1h = f"{chat_id}_{task_name}_1h"
-                        if 0 < diff_minutes <= 60 and key_1h not in notified_1h:
-                            bot.send_message(chat_id, f"⚠️ تبقى ساعة واحدة فقط على انتهاء المهمة '{task_name}'!")
-                            notified_1h[key_1h] = True
-
-                        key_due = f"{chat_id}_{task_name}_due"
-                        if now >= due_dt and key_due not in notified_due:
-                            bot.send_message(chat_id, f"✅ انتهت المهمة '{task_name}'!")
-                            notified_due[key_due] = True
+                    # انتهى الموعد
+                    elif now >= due_dt and last_notified['status'] != 'done':
+                        bot.send_message(chat_id, f"✅ انتهى آخر موعد تسليم.\n📅 {due_dt.strftime('%Y-%m-%d %H:%M')}")
+                        notified_users[chat_id]['status'] = 'done'
 
                 except Exception as e:
-                    print(f"❌ خطأ أثناء التحقق من مواعيد الطالب {student_id}: {e}")
+                    print(f"❌ خطأ أثناء التحقق من موعد تسليم الأنشطة للطالب {student_id}: {e}")
 
-        time.sleep(5 * 60)  # كل 5 دقائق
+        time.sleep(5 * 60)  # 
+
 
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
