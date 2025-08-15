@@ -346,8 +346,11 @@ def update_deadline(deadline_id, name=None, date=None):
 def delete_deadline(deadline_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute('DELETE FROM deadlines WHERE id = %s', (deadline_id,))
+            cur.execute('DELETE FROM deadlines WHERE id = %s RETURNING id', (deadline_id,))
+            deleted = cur.fetchone()
         conn.commit()
+    return deleted is not None
+
 
 def get_deadline_by_id(deadline_id):
     with get_conn() as conn:
