@@ -8,6 +8,8 @@ from database import (
     update_user_courses,
     update_user_gpa,
     get_all_deadlines,
+    get_deadline_by_id,
+
 )
 from qou_scraper import QOUScraper
 import logging
