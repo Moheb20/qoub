@@ -2,6 +2,8 @@ import psycopg2
 import os
 import datetime
 from cryptography.fernet import Fernet
+from scheduler import send_reminder_for_new_deadline
+
 
 
 
