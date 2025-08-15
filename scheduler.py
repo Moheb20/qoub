@@ -184,24 +184,27 @@ def check_for_gpa_changes():
 def send_due_date_reminder():
     users = get_all_users()
     for user in users:
-        try:
-            chat_id = user['chat_id']
-            student_id = user['student_id']
-            password = user['password']
+        chat_id = user.get('chat_id')
+        student_id = user.get('student_id')
+        password = user.get('password')
 
+        if not all([chat_id, student_id, password]):
+            continue  # تخطي أي مستخدم ناقص بياناته
+
+        try:
             scraper = QOUScraper(student_id, password)
             if scraper.login():
                 due_date = scraper.get_last_activity_due_date()
                 if due_date:
                     message = f"📅 تذكير: آخر موعد لتسليم الأنشطة هو {due_date}"
-                    bot.send_message(chat_id, message)
                 else:
-                    bot.send_message(chat_id, "لا توجد أنشطة حالية.")
+                    message = "ℹ️ لم يتم العثور على موعد تسليم الأنشطة."
             else:
-                bot.send_message(chat_id, "فشل تسجيل الدخول.")
+                message = "⚠️ فشل تسجيل الدخول. تحقق من اسم المستخدم وكلمة المرور."
         except Exception as e:
-            bot.send_message(chat_id, f"حدث خطأ: {e}")
+            message = f"❌ حدث خطأ أثناء جلب موعد تسليم الأنشطة: {e}"
 
+        bot.send_message(chat_id, message)
 
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
