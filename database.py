@@ -312,8 +312,18 @@ def get_all_chat_ids_from_logs():
 def add_deadline(name, date):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute('INSERT INTO deadlines (name, date) VALUES (%s, %s)', (name, date))
+            cur.execute(
+                'INSERT INTO deadlines (name, date) VALUES (%s, %s) RETURNING id',
+                (name, date)
+            )
+            deadline_id = cur.fetchone()[0]  # احصل على ID الموعد الجديد
         conn.commit()
+
+    # أرسل تذكير فورًا للمستخدمين عن الموعد الجديد
+    send_reminder_for_new_deadline(deadline_id)
+
+    return deadline_id
+
 
 # جلب كل المواعيد
 def get_all_deadlines():
