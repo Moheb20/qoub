@@ -320,8 +320,6 @@ def add_deadline(name, date):
             deadline_id = cur.fetchone()[0]  # احصل على ID الموعد الجديد
         conn.commit()
 
-    # أرسل تذكير فورًا للمستخدمين عن الموعد الجديد
-    send_reminder_for_new_deadline(deadline_id)
 
     return deadline_id
 
