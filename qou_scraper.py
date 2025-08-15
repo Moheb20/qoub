@@ -211,7 +211,7 @@ class QOUScraper:
 
     def get_last_activity_due_date(session):
         url = "https://activity.qou.edu/calendar/view.php?view=month"
-        res = session.get(url)
+        res = self.session.get(url)
         if res.status_code != 200:
             return None
     
