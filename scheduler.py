@@ -191,7 +191,7 @@ def send_due_date_reminder():
 
             scraper = QOUScraper(student_id, password)
             if scraper.login():
-                due_date = scraper.fetch_last_activity_due_date()
+                due_date = scraper.get_last_activity_due_date()
                 if due_date:
                     message = f"📅 تذكير: آخر موعد لتسليم الأنشطة هو {due_date}"
                     bot.send_message(chat_id, message)
