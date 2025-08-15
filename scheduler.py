@@ -9,8 +9,12 @@ from database import (
     update_user_gpa,
 )
 from qou_scraper import QOUScraper
+import logging
 from bot_instance import bot
 send_lock = threading.Lock()  # لقفل الإرسال الآمن داخل الثريد
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ---------------------- متابعة الرسائل الجديدة ----------------------
 def check_for_new_messages():
