@@ -22,6 +22,7 @@ from database import (
     delete_deadline,
 )
 from scheduler import start_scheduler
+from scheduler import send_reminder_for_new_deadline
 from qou_scraper import QOUScraper
 from datetime import datetime
 from datetime import date
@@ -501,6 +502,7 @@ def handle_all_messages(message):
         name = admin_deadline_states[chat_id]["name"]
         add_deadline(name, deadline_date)
         bot.send_message(chat_id, f"✅ تم إضافة الموعد '{name}' بتاريخ {deadline_date.strftime('%d/%m/%Y')}")
+        send_reminder_for_new_deadline(deadline_id)
         admin_deadline_states.pop(chat_id, None)
         send_main_menu(chat_id)
         return
