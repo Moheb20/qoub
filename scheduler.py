@@ -10,6 +10,7 @@ from database import (
 )
 from qou_scraper import QOUScraper
 from bot_instance import bot
+send_lock = threading.Lock()  # لقفل الإرسال الآمن داخل الثريد
 
 # ---------------------- متابعة الرسائل الجديدة ----------------------
 def check_for_new_messages():
@@ -204,8 +205,12 @@ def send_due_date_reminder():
         except Exception as e:
             message = f"❌ حدث خطأ أثناء جلب موعد تسليم الأنشطة: {e}"
 
-        bot.send_message(chat_id, message)
-
+        # إرسال الرسالة بطريقة آمنة داخل الثريد
+        with send_lock:
+            try:
+                bot.send_message(chat_id, message)
+            except Exception as send_err:
+                print(f"فشل إرسال الرسالة إلى {chat_id}: {send_err}")
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
