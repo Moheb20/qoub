@@ -183,7 +183,7 @@ def check_for_gpa_changes():
 
 
 def send_latest_due_date_reminder():
-    notified_users = {}  # chat_id -> {'due': datetime, 'status': 'reminded' | 'hour_left' | 'done'}
+    notified_users = {}  # chat_id -> dict of tracking data
 
     while True:
         now = datetime.now()
@@ -200,34 +200,68 @@ def send_latest_due_date_reminder():
                     activity = scraper.get_last_activity_due_date()  # {'date': datetime, 'link': '...'}
                     if not activity:
                         continue
-                    
+
                     due_dt = activity['date']
                     link = activity['link']
-                    diff_minutes = (due_dt - now).total_seconds() / 60
-                    last_notified = notified_users.get(chat_id)
 
-                    # حالة جديدة أو الموعد تغير
-                    if not last_notified or due_dt != last_notified['due']:
-                        bot.send_message(chat_id, f"📌 تم تحديد موعد تسليم جديد أو تم تحديثه:\n"
+                    # اجلب الحالة السابقة للمستخدم
+                    user_state = notified_users.get(chat_id, {})
+
+                    # -------------------- التحديث أو التمديد --------------------
+                    if 'due' in user_state and due_dt != user_state['due']:
+                        # تم تغيير أو تمديد الموعد
+                        bot.send_message(chat_id, f"🔁 تم تمديد أو تغيير آخر موعد تسليم!\n"
+                                                  f"📅 الموعد الجديد: {due_dt.strftime('%Y-%m-%d %H:%M')}\n"
+                                                  f"🔗 {link}")
+                        user_state = {
+                            'due': due_dt,
+                            'last_12h_notify': None,
+                            'sent_hour_left': False,
+                            'sent_due': False
+                        }
+                        notified_users[chat_id] = user_state
+                    elif 'due' not in user_state:
+                        # أول مرة نرسل الموعد
+                        bot.send_message(chat_id, f"📌 تم تحديد آخر موعد تسليم:\n"
                                                   f"📅 {due_dt.strftime('%Y-%m-%d %H:%M')}\n"
                                                   f"🔗 {link}")
-                        notified_users[chat_id] = {'due': due_dt, 'status': 'new'}
-                        continue
+                        user_state = {
+                            'due': due_dt,
+                            'last_12h_notify': None,
+                            'sent_hour_left': False,
+                            'sent_due': False
+                        }
+                        notified_users[chat_id] = user_state
 
-                    # باقي ساعة
-                    if 0 < diff_minutes <= 60 and last_notified['status'] != 'hour_left':
-                        bot.send_message(chat_id, f"⚠️ تبقى ساعة واحدة فقط على آخر موعد تسليم!\n📅 {due_dt.strftime('%Y-%m-%d %H:%M')}")
-                        notified_users[chat_id]['status'] = 'hour_left'
+                    diff_minutes = (due_dt - now).total_seconds() / 60
 
-                    # انتهى الموعد
-                    elif now >= due_dt and last_notified['status'] != 'done':
-                        bot.send_message(chat_id, f"✅ انتهى آخر موعد تسليم.\n📅 {due_dt.strftime('%Y-%m-%d %H:%M')}")
-                        notified_users[chat_id]['status'] = 'done'
+                    # -------------------- تذكير كل 12 ساعة --------------------
+                    last_notify = user_state.get('last_12h_notify')
+                    if diff_minutes > 0:  # فقط قبل الموعد
+                        if not last_notify or (now - last_notify).total_seconds() >= 12 * 3600:
+                            bot.send_message(chat_id, f"⏰ تذكير: لا تنسى تسليم النشاط!\n"
+                                                      f"📅 الموعد: {due_dt.strftime('%Y-%m-%d %H:%M')}\n"
+                                                      f"🔗 {link}")
+                            user_state['last_12h_notify'] = now
+
+                    # -------------------- قبل ساعة --------------------
+                    if 0 < diff_minutes <= 60 and not user_state.get('sent_hour_left', False):
+                        bot.send_message(chat_id, f"⚠️ تبقى ساعة واحدة فقط على آخر موعد تسليم!\n"
+                                                  f"📅 {due_dt.strftime('%Y-%m-%d %H:%M')}\n"
+                                                  f"🔗 {link}")
+                        user_state['sent_hour_left'] = True
+
+                    # -------------------- بعد انتهاء الموعد --------------------
+                    if now >= due_dt and not user_state.get('sent_due', False):
+                        bot.send_message(chat_id, f"✅ انتهى موعد تسليم النشاط.\n"
+                                                  f"📅 الموعد: {due_dt.strftime('%Y-%m-%d %H:%M')}")
+                        user_state['sent_due'] = True
 
                 except Exception as e:
                     print(f"❌ خطأ أثناء التحقق من موعد تسليم الأنشطة للطالب {student_id}: {e}")
 
-        time.sleep(5 * 60)  # 
+        time.sleep(5 * 60)  # التحقق كل 5 دقائق لتغطية تنبيه الساعة وتجديد الموعد
+
 
 
 # ---------------------- تشغيل كل المهام ----------------------
