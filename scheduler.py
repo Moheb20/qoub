@@ -181,10 +181,10 @@ def check_for_gpa_changes():
         time.sleep(24 * 60 * 60)
 
 # ---------------------- تذكير أوتوماتيكي كل 12 ساعة ----------------------
-def send_due_date_reminder():
-    while True:
-        users = get_all_users()
-        for user in users:
+def send_due_date_reminder_test():
+    users = get_all_users()
+    for user in users:
+        try:
             chat_id = user['chat_id']
             student_id = user['student_id']
             password = user['password']
@@ -195,7 +195,13 @@ def send_due_date_reminder():
                 if due_date:
                     message = f"📅 تذكير: آخر موعد لتسليم الأنشطة هو {due_date}"
                     bot.send_message(chat_id, message)
-        time.sleep(12 * 60 * 60)  # كل 12 ساعة
+                else:
+                    bot.send_message(chat_id, "لا توجد أنشطة حالية.")
+            else:
+                bot.send_message(chat_id, "فشل تسجيل الدخول.")
+        except Exception as e:
+            bot.send_message(chat_id, f"حدث خطأ: {e}")
+
 
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
