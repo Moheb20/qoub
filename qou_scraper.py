@@ -211,7 +211,7 @@ class QOUScraper:
 
 
 
-    
+        
     def get_last_activity_due_date(self):
         login_page = self.session.get("https://activity.qou.edu/login/index.php", timeout=10)
         if login_page.status_code != 200:
@@ -251,7 +251,9 @@ class QOUScraper:
         else:
             logger.info(f"🔍 تم العثور على {len(due_cells)} موعد/مواعيد تسليم")
     
-        last_due = None
+        now = datetime.now(timezone.utc).astimezone()  # الوقت الحالي مع التوقيت المحلي
+    
+        nearest_due = None
     
         for cell in due_cells:
             timestamp = cell.get("data-day-timestamp")
@@ -259,7 +261,8 @@ class QOUScraper:
                 continue
     
             try:
-                date = datetime.fromtimestamp(int(timestamp))
+                # تحويل الطابع الزمني إلى datetime محلي
+                date = datetime.fromtimestamp(int(timestamp)).astimezone()
             except Exception as e:
                 logger.warning(f"⚠️ خطأ في تحويل التاريخ: {e}")
                 continue
@@ -269,16 +272,18 @@ class QOUScraper:
     
             logger.info(f"📅 تم العثور على موعد: {date.strftime('%Y-%m-%d %H:%M')}")
     
-            # نبحث عن أكبر تاريخ (آخر موعد)
-            if not last_due or date > last_due['date']:
-                last_due = {
-                    "date": date,
-                    "link": link
-                }
+            if date > now:
+                logger.info("✅ هذا الموعد قادم وسيتم استخدامه")
+                if not nearest_due or date < nearest_due['date']:
+                    nearest_due = {
+                        "date": date,
+                        "link": link
+                    }
+            else:
+                logger.info("⛔ هذا الموعد منتهي وسيتم تجاهله")
     
-        if last_due:
-            return last_due
+        if nearest_due:
+            return nearest_due
     
-        logger.error("❌ لم يتم العثور على موعد تسليم")
+        logger.error("❌ لم يتم العثور على موعد تسليم قادم")
         return None
-
