@@ -2,7 +2,6 @@ import psycopg2
 import os
 import datetime
 from cryptography.fernet import Fernet
-from scheduler import send_reminder_for_new_deadline
 
 
 
@@ -329,6 +328,8 @@ def add_deadline(name, date):
 
 # جلب كل المواعيد
 def get_all_deadlines():
+    from scheduler import send_reminder_for_new_deadline  # استيراد داخل الدالة لتجنب الاستيراد الدائري
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute('SELECT id, name, date FROM deadlines ORDER BY date')
