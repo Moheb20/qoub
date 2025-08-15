@@ -17,6 +17,9 @@ from database import (
     get_all_chat_ids_from_logs,
     log_chat_id,
     get_all_deadlines,
+    add_deadline,
+    update_deadline,
+    delete_deadline,
 )
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
