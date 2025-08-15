@@ -207,3 +207,25 @@ class QOUScraper:
             "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر')
 
         }
+
+    def get_last_activity_due_date(session):
+        url = "https://activity.qou.edu/calendar/view.php?view=month"
+        res = session.get(url)
+        if res.status_code != 200:
+            return None
+    
+        soup = BeautifulSoup(res.text, "html.parser")
+        due_cells = soup.select('td.duration_finish')
+        if not due_cells:
+            return None
+    
+        # ناخد أول تاريخ أو أقرب تاريخ
+        cell = due_cells[0]
+        timestamp = cell.get("data-day-timestamp")
+        if not timestamp:
+            return None
+    
+        from datetime import datetime
+        date = datetime.fromtimestamp(int(timestamp))
+        return date.strftime("%d/%m/%Y")
+
