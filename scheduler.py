@@ -181,36 +181,50 @@ def check_for_gpa_changes():
 
         time.sleep(24 * 60 * 60)
 
-# ---------------------- تذكير أوتوماتيكي كل 12 ساعة ----------------------
 def send_due_date_reminder():
-    users = get_all_users()
-    for user in users:
-        chat_id = user.get('chat_id')
-        student_id = user.get('student_id')
-        password = user.get('password')
+    notified_12h = {}
+    notified_1h = {}
+    notified_due = {}
 
-        if not all([chat_id, student_id, password]):
-            continue  # تخطي أي مستخدم ناقص بياناته
+    while True:
+        now = datetime.now()
+        users = get_all_users()
 
-        try:
+        for user in users:
+            chat_id = user['chat_id']
+            student_id = user['student_id']
+            password = user['password']
+
             scraper = QOUScraper(student_id, password)
             if scraper.login():
-                due_date = scraper.get_last_activity_due_date()
-                if due_date:
-                    message = f"📅 تذكير: آخر موعد لتسليم الأنشطة هو {due_date}"
-                else:
-                    message = "ℹ️ لم يتم العثور على موعد تسليم الأنشطة."
-            else:
-                message = "⚠️ فشل تسجيل الدخول. تحقق من اسم المستخدم وكلمة المرور."
-        except Exception as e:
-            message = f"❌ حدث خطأ أثناء جلب موعد تسليم الأنشطة: {e}"
+                try:
+                    tasks = scraper.fetch_due_dates()  # يفترض أن ترجع قائمة المهام/المواعيد
+                    for task in tasks:
+                        task_name = task['name']
+                        due_dt = datetime.strptime(task['due'], "%Y-%m-%d %H:%M")
 
-        # إرسال الرسالة بطريقة آمنة داخل الثريد
-        with send_lock:
-            try:
-                bot.send_message(chat_id, message)
-            except Exception as send_err:
-                print(f"فشل إرسال الرسالة إلى {chat_id}: {send_err}")
+                        diff_minutes = (due_dt - now).total_seconds() / 60
+
+                        key_12h = f"{chat_id}_{task_name}_12h"
+                        if 0 < diff_minutes <= 12 * 60 and key_12h not in notified_12h:
+                            bot.send_message(chat_id, f"⏰ تذكير: لديك مهمة '{task_name}' خلال 12 ساعة!")
+                            notified_12h[key_12h] = True
+
+                        key_1h = f"{chat_id}_{task_name}_1h"
+                        if 0 < diff_minutes <= 60 and key_1h not in notified_1h:
+                            bot.send_message(chat_id, f"⚠️ تبقى ساعة واحدة فقط على انتهاء المهمة '{task_name}'!")
+                            notified_1h[key_1h] = True
+
+                        key_due = f"{chat_id}_{task_name}_due"
+                        if now >= due_dt and key_due not in notified_due:
+                            bot.send_message(chat_id, f"✅ انتهت المهمة '{task_name}'!")
+                            notified_due[key_due] = True
+
+                except Exception as e:
+                    print(f"❌ خطأ أثناء التحقق من مواعيد الطالب {student_id}: {e}")
+
+        time.sleep(5 * 60)  # كل 5 دقائق
+
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
