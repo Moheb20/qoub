@@ -21,6 +21,7 @@ from database import (
 from scheduler import start_scheduler
 from qou_scraper import QOUScraper
 from datetime import datetime
+from datetime import date
 import time
 
 
@@ -488,7 +489,8 @@ def handle_all_messages(message):
         month = admin_deadline_states[chat_id]["month"]
         year = datetime.utcnow().year
         try:
-            deadline_date = datetime.date(year, month, day)
+            deadline_date = date(year, month, day)
+
         except ValueError:
             bot.send_message(chat_id, "⚠️ التاريخ غير صالح، حاول مرة أخرى.")
             return
