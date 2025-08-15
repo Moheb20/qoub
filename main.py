@@ -147,7 +147,7 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📊 عرض بيانات الفصل"),
         types.KeyboardButton("📅 جدول الامتحانات"),
     )
-    if chat_id == ADMIN_CHAT_ID:
+    if chat_id in ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
     bot.send_message(chat_id, "⬇️ القائمة الرئيسية:", reply_markup=markup)
 
@@ -195,7 +195,7 @@ def handle_all_messages(message):
     chat_id = message.chat.id
     text = (message.text or "").strip()
 
-    if chat_id == ADMIN_CHAT_ID and admin_states.get(chat_id) == "awaiting_broadcast_text":
+    if chat_id in ADMIN_CHAT_ID and admin_states.get(chat_id) == "awaiting_broadcast_text":
         broadcast_text = text
         header = "📢 رسالة عامة من الإدارة:\n\n"
         full_message = header + broadcast_text
@@ -430,7 +430,7 @@ def handle_all_messages(message):
         return
 
     # زر الأدمن
-    elif text == "admin" and chat_id == ADMIN_CHAT_ID:
+    elif text == "admin" and chat_id in ADMIN_CHAT_ID:
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton("التحليلات"))
         markup.add(types.KeyboardButton("إرسال رسالة"))
@@ -439,7 +439,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
         return
 
-    elif text == "إرسال رسالة" and chat_id == ADMIN_CHAT_ID:
+    elif text == "إرسال رسالة" and chat_id in ADMIN_CHAT_ID:
         bot.send_message(chat_id, "✍️ الرجاء كتابة نص الرسالة التي تريد إرسالها لجميع المستخدمين:")
         admin_states[chat_id] = "awaiting_broadcast_text"
         return
@@ -448,7 +448,7 @@ def handle_all_messages(message):
 
 
 # زر إدارة المواعيد
-    elif text == "إدارة المواعيد" and chat_id == ADMIN_CHAT_ID:
+    elif text == "إدارة المواعيد" and chat_id in ADMIN_CHAT_ID:
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         markup.add(
             types.KeyboardButton("➕ إضافة موعد"),
@@ -461,7 +461,7 @@ def handle_all_messages(message):
         return
     
     # إضافة موعد
-    elif text == "➕ إضافة موعد" and chat_id == ADMIN_CHAT_ID:
+    elif text == "➕ إضافة موعد" and chat_id in ADMIN_CHAT_ID:
         admin_deadline_states[chat_id] = {"stage": "awaiting_name"}
         bot.send_message(chat_id, "✍️ اكتب اسم الموعد:")
         return
@@ -508,7 +508,7 @@ def handle_all_messages(message):
         return
     
     # عرض المواعيد
-    elif text == "📋 عرض كل المواعيد" and chat_id == ADMIN_CHAT_ID:
+    elif text == "📋 عرض كل المواعيد" and chat_id in ADMIN_CHAT_ID:
         deadlines = get_all_deadlines()
         if not deadlines:
             bot.send_message(chat_id, "📭 لا توجد مواعيد حالياً.")
@@ -519,7 +519,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, msg)
         return
 
-    elif text == "❌ حذف موعد" and chat_id == ADMIN_CHAT_ID:
+    elif text == "❌ حذف موعد" and chat_id in ADMIN_CHAT_ID:
         deadlines = get_all_deadlines()
         if not deadlines:
             bot.send_message(chat_id, "📭 لا توجد مواعيد للحذف حالياً.")
@@ -545,7 +545,7 @@ def handle_all_messages(message):
         return
     
     # ===================== تعديل موعد =====================
-    elif text == "✏️ تعديل موعد" and chat_id == ADMIN_CHAT_ID:
+    elif text == "✏️ تعديل موعد" and chat_id in ADMIN_CHAT_ID:
         deadlines = get_all_deadlines()
         if not deadlines:
             bot.send_message(chat_id, "📭 لا توجد مواعيد للتعديل حالياً.")
@@ -611,12 +611,12 @@ def handle_all_messages(message):
         return    
     
     # العودة للقائمة
-    elif text == "العودة للقائمة" and chat_id == ADMIN_CHAT_ID:
+    elif text == "العودة للقائمة" and chat_id in ADMIN_CHAT_ID:
         send_main_menu(chat_id)
         return
 
 
-    elif text == "التحليلات" and chat_id == ADMIN_CHAT_ID:
+    elif text == "التحليلات" and chat_id in ADMIN_CHAT_ID:
         stats = get_bot_stats()
         stats_text = (
             "📊 *إحصائيات عامة للبوت:*\n\n"
