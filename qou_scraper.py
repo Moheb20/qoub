@@ -210,6 +210,28 @@ class QOUScraper:
         }
 
     def get_last_activity_due_date(self):
+        # أولاً، جلب صفحة تسجيل الدخول للحصول على logintoken
+        login_page = self.session.get("https://activity.qou.edu/login/index.php")
+        if login_page.status_code != 200:
+            return None
+    
+        soup_login = BeautifulSoup(login_page.text, "html.parser")
+        logintoken_input = soup_login.find("input", {"name": "logintoken"})
+        logintoken = logintoken_input['value'] if logintoken_input else ""
+    
+        # إرسال بيانات تسجيل الدخول
+        payload = {
+            "username": self.username,
+            "password": self.password,
+            "logintoken": logintoken,
+            "anchor": ""
+        }
+        login_response = self.session.post("https://activity.qou.edu/login/index.php", data=payload)
+        if login_response.status_code != 200 or "login" in login_response.url:
+            # فشل تسجيل الدخول
+            return None
+    
+        # بعد تسجيل الدخول، نذهب للصفحة الخاصة بالتقويم
         url = "https://activity.qou.edu/calendar/view.php?view=month"
         res = self.session.get(url)
         if res.status_code != 200:
@@ -220,7 +242,7 @@ class QOUScraper:
         if not due_cells:
             return None
     
-        # ناخد أول تاريخ أو أقرب تاريخ
+        # ناخذ أول تاريخ أو أقرب تاريخ
         cell = due_cells[0]
         timestamp = cell.get("data-day-timestamp")
         if not timestamp:
