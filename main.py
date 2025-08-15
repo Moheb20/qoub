@@ -485,7 +485,7 @@ def handle_all_messages(message):
             return
         day = int(text)
         month = admin_deadline_states[chat_id]["month"]
-        year = datetime.datetime.utcnow().year  # السنة الحالية
+        year = datetime.utcnow().year
         try:
             deadline_date = date(year, month, day)
         except ValueError:
