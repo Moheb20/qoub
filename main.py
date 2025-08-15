@@ -499,11 +499,12 @@ def handle_all_messages(message):
             return
     
         name = admin_deadline_states[chat_id]["name"]
-        add_deadline(name, deadline_date)
+        deadline_id = add_deadline(name, deadline_date)  # نخزن ID الموعد الجديد
         bot.send_message(chat_id, f"✅ تم إضافة الموعد '{name}' بتاريخ {deadline_date.strftime('%d/%m/%Y')}")
-        send_reminder_for_new_deadline(deadline_id)
+        send_reminder_for_new_deadline(deadline_id)  # نمرر ID صحيح
         admin_deadline_states.pop(chat_id, None)
         send_main_menu(chat_id)
+            
         return
     
     # عرض المواعيد
