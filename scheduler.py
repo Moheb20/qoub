@@ -219,23 +219,22 @@ def send_daily_deadline_reminders():
         # تحقق كل 30 ثانية من الوقت
         time.sleep(30)
 
-def notify_users_about_deadline(name, deadline_date):
-    """
-    إرسال رسالة فورية لجميع المستخدمين عند إضافة موعد جديد
-    """
-    try:
-        users = get_all_users()
-        for user in users:
-            chat_id = user['chat_id']
-            days_left = (deadline_date - date.today()).days
-            if days_left >= 0:
-                msg = f"🆕 تم إضافة موعد جديد:\n⏰ {name} ({deadline_date.strftime('%d/%m/%Y')})\nباقي {days_left} يوم."
-                try:
-                    bot.send_message(chat_id, msg)
-                except Exception as e:
-                    logger.exception(f"Failed to notify user {chat_id} about new deadline: {e}")
-    except Exception as e:
-        logger.exception(f"Error notifying users about new deadline: {e}")
+def send_reminder_for_new_deadline(deadline_id):
+    deadline = get_deadline_by_id(deadline_id)
+    if not deadline:
+        return
+    users = get_all_users()
+    d_id, d_name, d_date = deadline
+    for user in users:
+        chat_id = user['chat_id']
+        days_left = (d_date - datetime.utcnow().date()).days
+        if days_left >= 0:
+            msg = f"⏰ تم إضافة موعد جديد: {d_name} بتاريخ {d_date.strftime('%d/%m/%Y')} (باقي {days_left} يوم)"
+            try:
+                bot.send_message(chat_id, msg)
+            except Exception as e:
+                logger.exception(f"Failed to send new deadline reminder to {chat_id}: {e}")
+
 
 
 # ---------------------- تشغيل كل المهام ----------------------
@@ -245,5 +244,5 @@ def start_scheduler():
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_daily_deadline_reminders, daemon=True).start()
-    threading.Thread(target=notify_users_about_deadline, daemon=True).start()
+    threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
 
