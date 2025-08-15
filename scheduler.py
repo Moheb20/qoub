@@ -182,59 +182,60 @@ def check_for_gpa_changes():
         time.sleep(24 * 60 * 60)
 
 
-def send_daily_deadline_reminders():
+def send_deadline_reminders_loop():
     """
-    هذه الدالة تعمل في خلفية البوت، كل يوم الساعة 08:00 صباحًا
-    سترسل تذكيرًا للمستخدمين بعدد الأيام المتبقية لكل موعد.
+    ترسل تذكيرات للمستخدمين بكل المواعيد كل 12 ساعة.
     """
     while True:
-        now = datetime.utcnow()
-        # تحقق من الوقت - إرسال الرسائل عند الساعة 08:00 UTC
-        if now.hour == 8 and now.minute == 0:
-            try:
-                deadlines = get_all_deadlines()  # [(id, name, date)]
-                users = get_all_users()          # [{'chat_id': ...}, ...]
+        try:
+            deadlines = get_all_deadlines()  # [(id, name, date)]
+            users = get_all_users()          # [{'chat_id': ...}, ...]
+            today = date.today()
 
-                for user in users:
-                    chat_id = user['chat_id']
-                    msg_lines = []
-                    for d_id, d_name, d_date in deadlines:
-                        days_left = (d_date - date.today()).days
-                        if days_left >= 0:
-                            msg_lines.append(f"⏰ باقي {days_left} يوم للموعد: {d_name} ({d_date.strftime('%d/%m/%Y')})")
+            for user in users:
+                chat_id = user['chat_id']
+                msg_lines = []
 
-                    if msg_lines:
-                        full_msg = "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines)
-                        try:
-                            bot.send_message(chat_id, full_msg)
-                        except Exception as e:
-                            logger.exception(f"Failed to send deadline reminder to {chat_id}: {e}")
+                for d_id, d_name, d_date in deadlines:
+                    days_left = (d_date - today).days
+                    if days_left >= 0:
+                        msg_lines.append(f"⏰ باقي {days_left} يوم للموعد: {d_name} ({d_date.strftime('%d/%m/%Y')})")
 
-            except Exception as e:
-                logger.exception(f"Error in daily deadline reminders: {e}")
+                if msg_lines:
+                    full_msg = "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines)
+                    try:
+                        bot.send_message(chat_id, full_msg)
+                    except Exception as e:
+                        logger.exception(f"Failed to send deadline reminder to {chat_id}: {e}")
 
-            # انتظر 60 ثانية لتجنب الإرسال المكرر في نفس الدقيقة
-            time.sleep(60)
+        except Exception as e:
+            logger.exception(f"Error in deadline reminders loop: {e}")
 
-        # تحقق كل 30 ثانية من الوقت
-        time.sleep(30)
+        # انتظر 12 ساعة قبل التكرار
+        time.sleep(12 * 60 * 60)
 
+
+# دالة لإرسال تذكير فوري عند إضافة موعد جديد
 def send_reminder_for_new_deadline(deadline_id):
     deadline = get_deadline_by_id(deadline_id)
     if not deadline:
         return
+
     users = get_all_users()
     d_id, d_name, d_date = deadline
+    today = date.today()
+    days_left = (d_date - today).days
+
+    if days_left < 0:
+        return
+
     for user in users:
         chat_id = user['chat_id']
-        days_left = (d_date - datetime.utcnow().date()).days
-        if days_left >= 0:
-            msg = f"⏰ تم إضافة موعد جديد: {d_name} بتاريخ {d_date.strftime('%d/%m/%Y')} (باقي {days_left} يوم)"
-            try:
-                bot.send_message(chat_id, msg)
-            except Exception as e:
-                logger.exception(f"Failed to send new deadline reminder to {chat_id}: {e}")
-
+        msg = f"⏰ تم إضافة موعد جديد: {d_name} بتاريخ {d_date.strftime('%d/%m/%Y')} (باقي {days_left} يوم)"
+        try:
+            bot.send_message(chat_id, msg)
+        except Exception as e:
+            logger.exception(f"Failed to send new deadline reminder to {chat_id}: {e}")
 
 
 # ---------------------- تشغيل كل المهام ----------------------
@@ -243,6 +244,6 @@ def start_scheduler():
     threading.Thread(target=check_for_course_updates, daemon=True).start()
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
-    threading.Thread(target=send_daily_deadline_reminders, daemon=True).start()
+    threading.Thread(target=send_deadline_reminders_loop, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
 
