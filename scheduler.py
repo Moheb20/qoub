@@ -181,7 +181,7 @@ def check_for_gpa_changes():
         time.sleep(24 * 60 * 60)
 
 # ---------------------- تذكير أوتوماتيكي كل 12 ساعة ----------------------
-def send_due_date_reminder_test():
+def send_due_date_reminder():
     users = get_all_users()
     for user in users:
         try:
