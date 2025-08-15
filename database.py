@@ -63,6 +63,13 @@ def init_db():
                     created_at TEXT
                 )
             ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS deadlines (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    date DATE NOT NULL
+                )
+            ''')
         conn.commit()
 
 # ---------- إدارة المستخدمين ----------
