@@ -219,6 +219,23 @@ def send_daily_deadline_reminders():
         # تحقق كل 30 ثانية من الوقت
         time.sleep(30)
 
+def notify_users_about_deadline(name, deadline_date):
+    """
+    إرسال رسالة فورية لجميع المستخدمين عند إضافة موعد جديد
+    """
+    try:
+        users = get_all_users()
+        for user in users:
+            chat_id = user['chat_id']
+            days_left = (deadline_date - date.today()).days
+            if days_left >= 0:
+                msg = f"🆕 تم إضافة موعد جديد:\n⏰ {name} ({deadline_date.strftime('%d/%m/%Y')})\nباقي {days_left} يوم."
+                try:
+                    bot.send_message(chat_id, msg)
+                except Exception as e:
+                    logger.exception(f"Failed to notify user {chat_id} about new deadline: {e}")
+    except Exception as e:
+        logger.exception(f"Error notifying users about new deadline: {e}")
 
 
 # ---------------------- تشغيل كل المهام ----------------------
@@ -228,3 +245,5 @@ def start_scheduler():
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_daily_deadline_reminders, daemon=True).start()
+    threading.Thread(target=send_deadline_reminders, daemon=True).start()
+
