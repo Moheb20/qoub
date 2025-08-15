@@ -8,8 +8,7 @@ INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
-
-
+logger = logging.getLogger(__name__)
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
@@ -211,11 +210,11 @@ class QOUScraper:
 
 
 
+    
     def get_last_activity_due_date(self):
-        # تسجيل الدخول
-        login_page = self.session.get("https://activity.qou.edu/login/index.php")
+        login_page = self.session.get("https://activity.qou.edu/login/index.php", timeout=10)
         if login_page.status_code != 200:
-            print("❌ فشل في تحميل صفحة تسجيل الدخول")
+            logger.error("❌ فشل في تحميل صفحة تسجيل الدخول")
             return None
     
         soup_login = BeautifulSoup(login_page.text, "html.parser")
@@ -230,27 +229,29 @@ class QOUScraper:
         }
     
         login_response = self.session.post(
-            "https://activity.qou.edu/login/index.php", data=payload
+            "https://activity.qou.edu/login/index.php", data=payload, timeout=10
         )
         if login_response.status_code != 200 or "login" in login_response.url:
-            print(f"❌ فشل تسجيل الدخول للطالب {self.student_id}")
+            logger.error(f"❌ فشل تسجيل الدخول للطالب {self.student_id}")
             return None
     
-        # صفحة التقويم
         url = "https://activity.qou.edu/calendar/view.php?view=month"
-        res = self.session.get(url)
+        res = self.session.get(url, timeout=10)
         if res.status_code != 200:
-            print("❌ فشل في تحميل صفحة التقويم")
+            logger.error("❌ فشل في تحميل صفحة التقويم")
             return None
     
         soup = BeautifulSoup(res.text, "html.parser")
         due_cells = soup.select('td.duration_finish')
     
         if not due_cells:
-            print("⚠️ لم يتم العثور على أي مواعيد تسليم (duration_finish)")
+            logger.warning("⚠️ لم يتم العثور على أي مواعيد تسليم (duration_finish)")
             return None
         else:
-            print(f"🔍 تم العثور على {len(due_cells)} موعد/مواعيد تسليم")
+            logger.info(f"🔍 تم العثور على {len(due_cells)} موعد/مواعيد تسليم")
+    
+        now = datetime.now()
+        nearest_due = None
     
         for cell in due_cells:
             timestamp = cell.get("data-day-timestamp")
@@ -260,23 +261,27 @@ class QOUScraper:
             try:
                 date = datetime.fromtimestamp(int(timestamp))
             except Exception as e:
-                print(f"⚠️ خطأ في تحويل التاريخ: {e}")
+                logger.warning(f"⚠️ خطأ في تحويل التاريخ: {e}")
                 continue
     
             a_tag = cell.find("a")
             link = a_tag.get("href") if a_tag else url
     
-            print(f"📅 تم العثور على موعد: {date.strftime('%Y-%m-%d %H:%M')}")
+            logger.info(f"📅 تم العثور على موعد: {date.strftime('%Y-%m-%d %H:%M')}")
     
-            if date > datetime.now():
-                print("✅ هذا الموعد قادم وسيتم استخدامه")
-                return {
-                    "date": date,
-                    "link": link
-                }
+            if date > now:
+                logger.info("✅ هذا الموعد قادم وسيتم استخدامه")
+                if not nearest_due or date < nearest_due['date']:
+                    nearest_due = {
+                        "date": date,
+                        "link": link
+                    }
             else:
-                print("⛔ هذا الموعد منتهي وسيتم تجاهله")
+                logger.info("⛔ هذا الموعد منتهي وسيتم تجاهله")
     
-        print("❌ لم يتم العثور على موعد تسليم قادم")
+        if nearest_due:
+            return nearest_due
+    
+        logger.error("❌ لم يتم العثور على موعد تسليم قادم")
         return None
 
