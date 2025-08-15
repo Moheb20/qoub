@@ -308,3 +308,33 @@ def get_all_chat_ids_from_logs():
             cur.execute("SELECT DISTINCT chat_id FROM logs WHERE chat_id IS NOT NULL")
             return [row[0] for row in cur.fetchall()]
 
+# إضافة موعد جديد
+def add_deadline(name, date):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('INSERT INTO deadlines (name, date) VALUES (%s, %s)', (name, date))
+        conn.commit()
+
+# جلب كل المواعيد
+def get_all_deadlines():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, name, date FROM deadlines ORDER BY date')
+            return cur.fetchall()
+
+# تعديل موعد
+def update_deadline(deadline_id, name=None, date=None):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if name:
+                cur.execute('UPDATE deadlines SET name = %s WHERE id = %s', (name, deadline_id))
+            if date:
+                cur.execute('UPDATE deadlines SET date = %s WHERE id = %s', (date, deadline_id))
+        conn.commit()
+
+# حذف موعد
+def delete_deadline(deadline_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM deadlines WHERE id = %s', (deadline_id,))
+        conn.commit()
