@@ -251,8 +251,7 @@ class QOUScraper:
         else:
             logger.info(f"🔍 تم العثور على {len(due_cells)} موعد/مواعيد تسليم")
     
-        now = datetime.now()
-        nearest_due = None
+        last_due = None
     
         for cell in due_cells:
             timestamp = cell.get("data-day-timestamp")
@@ -270,19 +269,16 @@ class QOUScraper:
     
             logger.info(f"📅 تم العثور على موعد: {date.strftime('%Y-%m-%d %H:%M')}")
     
-            if date > now:
-                logger.info("✅ هذا الموعد قادم وسيتم استخدامه")
-                if not nearest_due or date < nearest_due['date']:
-                    nearest_due = {
-                        "date": date,
-                        "link": link
-                    }
-            else:
-                logger.info("⛔ هذا الموعد منتهي وسيتم تجاهله")
+            # نبحث عن أكبر تاريخ (آخر موعد)
+            if not last_due or date > last_due['date']:
+                last_due = {
+                    "date": date,
+                    "link": link
+                }
     
-        if nearest_due:
-            return nearest_due
+        if last_due:
+            return last_due
     
-        logger.error("❌ لم يتم العثور على موعد تسليم قادم")
+        logger.error("❌ لم يتم العثور على موعد تسليم")
         return None
 
