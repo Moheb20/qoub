@@ -211,74 +211,72 @@ class QOUScraper:
 
 
 
-    def send_latest_due_date_reminder():
-        print("🚀 [STARTED] send_latest_due_date_reminder")
-        notified_users = {}
+    def get_last_activity_due_date(self):
+        # تسجيل الدخول
+        login_page = self.session.get("https://activity.qou.edu/login/index.php")
+        if login_page.status_code != 200:
+            print("❌ فشل في تحميل صفحة تسجيل الدخول")
+            return None
     
-        while True:
-            now = datetime.now()
-            users = get_all_users()
+        soup_login = BeautifulSoup(login_page.text, "html.parser")
+        logintoken_input = soup_login.find("input", {"name": "logintoken"})
+        logintoken = logintoken_input['value'] if logintoken_input else ""
     
-            for user in users:
-                chat_id = user['chat_id']
-                student_id = user['student_id']
-                password = user['password']
+        payload = {
+            "username": self.student_id,
+            "password": self.password,
+            "logintoken": logintoken,
+            "anchor": ""
+        }
     
-                scraper = QOUScraper(student_id, password)
-                if scraper.login():
-                    try:
-                        activity = scraper.get_last_activity_due_date()
-                        print(f"👤 [{chat_id}] Checked activity: {activity}")
+        login_response = self.session.post(
+            "https://activity.qou.edu/login/index.php", data=payload
+        )
+        if login_response.status_code != 200 or "login" in login_response.url:
+            print(f"❌ فشل تسجيل الدخول للطالب {self.student_id}")
+            return None
     
-                        if not activity:
-                            print(f"⚠️ [{chat_id}] لا يوجد موعد تسليم قادم حالياً")
-                            continue
+        # صفحة التقويم
+        url = "https://activity.qou.edu/calendar/view.php?view=month"
+        res = self.session.get(url)
+        if res.status_code != 200:
+            print("❌ فشل في تحميل صفحة التقويم")
+            return None
     
-                        due_dt = activity['date']
-                        link = activity['link']
+        soup = BeautifulSoup(res.text, "html.parser")
+        due_cells = soup.select('td.duration_finish')
     
-                        user_state = notified_users.get(chat_id, {})
+        if not due_cells:
+            print("⚠️ لم يتم العثور على أي مواعيد تسليم (duration_finish)")
+            return None
+        else:
+            print(f"🔍 تم العثور على {len(due_cells)} موعد/مواعيد تسليم")
     
-                        # تم تغيير الموعد أو أول مرة
-                        if 'due' not in user_state:
-                            print(f"📌 [{chat_id}] تم تحديد موعد تسليم جديد: {due_dt} | {link}")
-                            user_state = {
-                                'due': due_dt,
-                                'last_12h_notify': None,
-                                'sent_hour_left': False,
-                                'sent_due': False
-                            }
-                            notified_users[chat_id] = user_state
-                        elif due_dt != user_state['due']:
-                            print(f"🔁 [{chat_id}] تم تمديد أو تغيير موعد التسليم: {due_dt} | {link}")
-                            user_state = {
-                                'due': due_dt,
-                                'last_12h_notify': None,
-                                'sent_hour_left': False,
-                                'sent_due': False
-                            }
-                            notified_users[chat_id] = user_state
+        for cell in due_cells:
+            timestamp = cell.get("data-day-timestamp")
+            if not timestamp:
+                continue
     
-                        diff_minutes = (due_dt - now).total_seconds() / 60
+            try:
+                date = datetime.fromtimestamp(int(timestamp))
+            except Exception as e:
+                print(f"⚠️ خطأ في تحويل التاريخ: {e}")
+                continue
     
-                        # تذكير كل 12 ساعة
-                        last_notify = user_state.get('last_12h_notify')
-                        if diff_minutes > 0:
-                            if not last_notify or (now - last_notify).total_seconds() >= 12 * 3600:
-                                print(f"⏰ [{chat_id}] تذكير: لا تنسى تسليم النشاط! (كل 12 ساعة)")
-                                user_state['last_12h_notify'] = now
+            a_tag = cell.find("a")
+            link = a_tag.get("href") if a_tag else url
     
-                        # تبقى ساعة
-                        if 0 < diff_minutes <= 60 and not user_state.get('sent_hour_left', False):
-                            print(f"⚠️ [{chat_id}] تبقى ساعة واحدة فقط على التسليم")
-                            user_state['sent_hour_left'] = True
+            print(f"📅 تم العثور على موعد: {date.strftime('%Y-%m-%d %H:%M')}")
     
-                        # الموعد انتهى
-                        if now >= due_dt and not user_state.get('sent_due', False):
-                            print(f"✅ [{chat_id}] انتهى موعد التسليم: {due_dt}")
-                            user_state['sent_due'] = True
+            if date > datetime.now():
+                print("✅ هذا الموعد قادم وسيتم استخدامه")
+                return {
+                    "date": date,
+                    "link": link
+                }
+            else:
+                print("⛔ هذا الموعد منتهي وسيتم تجاهله")
     
-                    except Exception as e:
-                        print(f"❌ [{chat_id}] خطأ أثناء التحقق من موعد التسليم: {e}")
-    
-            time.sleep(5 * 60)  # التحقق كل 5 دقائق
+        print("❌ لم يتم العثور على موعد تسليم قادم")
+        return None
+
