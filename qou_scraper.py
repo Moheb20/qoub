@@ -210,45 +210,52 @@ class QOUScraper:
         }
 
     def get_last_activity_due_date(self):
-        # أولاً، جلب صفحة تسجيل الدخول للحصول على logintoken
+        # صفحة تسجيل الدخول
         login_page = self.session.get("https://activity.qou.edu/login/index.php")
         if login_page.status_code != 200:
             return None
-    
+
         soup_login = BeautifulSoup(login_page.text, "html.parser")
         logintoken_input = soup_login.find("input", {"name": "logintoken"})
         logintoken = logintoken_input['value'] if logintoken_input else ""
-    
-        # إرسال بيانات تسجيل الدخول
+
         payload = {
             "username": self.student_id,
             "password": self.password,
             "logintoken": logintoken,
             "anchor": ""
         }
-        login_response = self.session.post("https://activity.qou.edu/login/index.php", data=payload)
+
+        login_response = self.session.post(
+            "https://activity.qou.edu/login/index.php", data=payload
+        )
         if login_response.status_code != 200 or "login" in login_response.url:
-            # فشل تسجيل الدخول
             return None
-    
-        # بعد تسجيل الدخول، نذهب للصفحة الخاصة بالتقويم
+
+        # صفحة التقويم
         url = "https://activity.qou.edu/calendar/view.php?view=month"
         res = self.session.get(url)
         if res.status_code != 200:
             return None
-    
+
         soup = BeautifulSoup(res.text, "html.parser")
         due_cells = soup.select('td.duration_finish')
-        if not due_cells:
-            return None
-    
-        # ناخذ أول تاريخ أو أقرب تاريخ
-        cell = due_cells[0]
-        timestamp = cell.get("data-day-timestamp")
-        if not timestamp:
-            return None
-    
-        from datetime import datetime
-        date = datetime.fromtimestamp(int(timestamp))
-        return date.strftime("%d/%m/%Y")
+
+        next_activity = None
+        for cell in due_cells:
+            timestamp = cell.get("data-day-timestamp")
+            if not timestamp:
+                continue
+            date = datetime.fromtimestamp(int(timestamp))
+            a_tag = cell.find("a")
+            link = a_tag.get("href") if a_tag else url
+
+            if date > datetime.now():
+                next_activity = {
+                    "date": date,
+                    "link": link
+                }
+                break
+
+        return next_activity  # {'date': datetime_obj, 'link': 'URL'} أو None
 
