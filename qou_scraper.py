@@ -210,5 +210,29 @@ class QOUScraper:
         }
 
 
+    def fetch_discussion_sessions(self) -> List[dict]:
+        resp = self.session.get(WEEKLY_MEETINGS_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+    
+        discussions = []
+    
+        tables = soup.find_all('table', class_='table table-hover table-condensed table-striped table-curved')
+        for table in tables:
+            rows = table.find('tbody').find_all('tr')
+            for row in rows:
+                cols = row.find_all('td')
+                if len(cols) == 5:
+                    session = {
+                        'course_code': cols[0].get_text(strip=True),
+                        'course_name': cols[1].get_text(strip=True),
+                        'section': cols[2].get_text(strip=True),
+                        'date': cols[3].get_text(strip=True),
+                        'time': cols[4].get_text(strip=True)
+                    }
+                    discussions.append(session)
+    
+        return discussions
+
 
         
