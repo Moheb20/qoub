@@ -420,3 +420,10 @@ def get_group_link(name):
             row = cur.fetchone()
             return row[0] if row else None
 
+def get_all_groups():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT category, name, link FROM groups ORDER BY category, name")
+            return cur.fetchall()
+
+
