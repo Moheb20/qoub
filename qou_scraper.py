@@ -215,24 +215,24 @@ class QOUScraper:
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
     
-        discussions = []
+        sessions = []
+        table = soup.find("table", {"id": "dataTable"})
+        if not table:
+            return sessions
     
-        tables = soup.find_all('table', class_='table table-hover table-condensed table-striped table-curved')
-        for table in tables:
-            rows = table.find('tbody').find_all('tr')
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) == 5:
-                    session = {
-                        'course_code': cols[0].get_text(strip=True),
-                        'course_name': cols[1].get_text(strip=True),
-                        'section': cols[2].get_text(strip=True),
-                        'date': cols[3].get_text(strip=True),
-                        'time': cols[4].get_text(strip=True)
-                    }
-                    discussions.append(session)
-    
-        return discussions
-
+        rows = table.find("tbody").find_all("tr")
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) < 5:
+                continue
+            session = {
+                "course_code": cols[0].get_text(strip=True),
+                "course_name": cols[1].get_text(strip=True),
+                "section": cols[2].get_text(strip=True),
+                "date": cols[3].get_text(strip=True),  # 17/08/2025
+                "time": cols[4].get_text(strip=True)   # 11:00 - 12:00
+            }
+            sessions.append(session)
+        return sessions
 
         
