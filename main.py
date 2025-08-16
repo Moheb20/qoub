@@ -936,13 +936,6 @@ def handle_all_messages(message):
 
 
 if __name__ == "__main__":
-    for category, group_dict in groups.items():
-        for name, link in group_dict.items():
-            try:
-                add_group(category, name, link)
-            except Exception as e:
-                print(f"⚠️ لم يتم إضافة المجموعة {name}: {e}")
-                
     threading.Thread(target=run_flask).start()
     try:
         bot.remove_webhook()
