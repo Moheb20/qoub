@@ -862,10 +862,10 @@ def handle_all_messages(message):
         categories = get_categories()
         msg = "📌 القروبات الحالية:\n\n"
         for cat in categories:
-            for name, link in get_groups_by_category(cat):
-                msg += f"{cat} - {name} - {link}\n"
+            for id, name, link in get_groups_by_category(cat):
+                msg += f"ID:{id} | {cat} | {name} | {link}\n"
         bot.send_message(chat_id, msg)
-        return
+        return    
     
     # حذف قروب
     elif text == "❌ حذف قروب" and chat_id in ADMIN_CHAT_ID:
