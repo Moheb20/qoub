@@ -28,7 +28,7 @@ from database import (
     get_group_link,
     get_categories,
     get_groups_by_category,
-    
+    clear_all_groups   # ✅ أضفنا هذه الدالة لمسح القروبات قبل الإضافة
 )
 from scheduler import start_scheduler
 from scheduler import send_reminder_for_new_deadline
