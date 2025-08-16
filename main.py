@@ -795,40 +795,40 @@ def handle_all_messages(message):
         return
 
     # ===================== إدارة القروبات =====================
-    elif text == "إدارة القروبات" and chat_id in ADMIN_CHAT_ID:
-        markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
-        markup.add(types.KeyboardButton("➕ إضافة قروب"))
-        markup.add(types.KeyboardButton("العودة للقائمة"))
-        bot.send_message(chat_id, "⚙️ إدارة القروبات: اختر خياراً", reply_markup=markup)
+elif text == "➕ إضافة قروب" and chat_id in ADMIN_CHAT_ID:
+    # المرحلة الأولى: اختيار نوع القروب (مواد، تخصصات، جامعة)
+    admin_group_states[chat_id] = {"stage": "awaiting_type"}
+    bot.send_message(chat_id, "📂 اختر نوع القروب:\n1️⃣ مواد\n2️⃣ تخصصات\n3️⃣ جامعة")
+    return
+
+elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_type":
+    # تحديد النوع بناءً على الرقم المدخل
+    choice = text.strip()
+    type_dict = {"1": "المواد", "2": "التخصصات", "3": "الجامعة"}
+    if choice not in type_dict:
+        bot.send_message(chat_id, "⚠️ الرقم غير صحيح. اختر 1 أو 2 أو 3.")
         return
-    
-    # إضافة قروب
-    elif text == "➕ إضافة قروب" and chat_id in ADMIN_CHAT_ID:
-        admin_group_states[chat_id] = {"stage": "awaiting_category"}
-        bot.send_message(chat_id, "📂 اكتب تصنيف القروب:")
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_category":
-        admin_group_states[chat_id]["category"] = text
-        admin_group_states[chat_id]["stage"] = "awaiting_name"
-        bot.send_message(chat_id, "✍️ اكتب اسم القروب:")
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_name":
-        admin_group_states[chat_id]["name"] = text
-        admin_group_states[chat_id]["stage"] = "awaiting_link"
-        bot.send_message(chat_id, "🔗 ارسل رابط القروب:")
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_link":
-        category = admin_group_states[chat_id]["category"]
-        name = admin_group_states[chat_id]["name"]
-        link = text
-        add_group(category, name, link)
-        bot.send_message(chat_id, f"✅ تم إضافة القروب '{name}' ضمن '{category}' بالرابط: {link}")
-        admin_group_states.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return
+    admin_group_states[chat_id]["category"] = type_dict[choice]
+    admin_group_states[chat_id]["stage"] = "awaiting_name"
+    bot.send_message(chat_id, f"✍️ اكتب اسم القروب ضمن '{type_dict[choice]}':")
+    return
+
+elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_name":
+    admin_group_states[chat_id]["name"] = text
+    admin_group_states[chat_id]["stage"] = "awaiting_link"
+    bot.send_message(chat_id, "🔗 ارسل رابط القروب:")
+    return
+
+elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_link":
+    category = admin_group_states[chat_id]["category"]
+    name = admin_group_states[chat_id]["name"]
+    link = text
+    add_group(category, name, link)
+    bot.send_message(chat_id, f"✅ تم إضافة القروب '{name}' ضمن '{category}' بالرابط: {link}")
+    admin_group_states.pop(chat_id, None)
+    send_main_menu(chat_id)
+    return
+
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
