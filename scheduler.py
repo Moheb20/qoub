@@ -244,6 +244,81 @@ def send_reminder_for_new_deadline(deadline_id):
         except Exception as e:
             logger.exception(f"Failed to send new deadline reminder to {chat_id}: {e}")
 
+def check_discussion_sessions():
+    notified_today = {}
+    notified_half_hour = {}
+    last_known_sessions = {}
+
+    while True:
+        now = datetime.now()
+        today_str = now.strftime("%d/%m/%Y")
+        users = get_all_users()
+
+        for user in users:
+            chat_id = user['chat_id']
+            student_id = user['student_id']
+            password = user['password']
+
+            scraper = QOUScraper(student_id, password)
+            if scraper.login():
+                try:
+                    sessions = scraper.fetch_discussion_sessions()
+                    today_sessions = [s for s in sessions if s['date'] == today_str]
+
+                    # 📌 1. تنبيه بوجود حلقة نقاش اليوم
+                    if today_sessions and chat_id not in notified_today:
+                        msg = "📅 *حلقات النقاش اليوم:*\n\n"
+                        for s in today_sessions:
+                            msg += (
+                                f"📘 {s['course_name']} ({s['course_code']})\n"
+                                f"📅 التاريخ: {s['date']} 🕒 الوقت: {s['time']}\n\n"
+                            )
+                        bot.send_message(chat_id, msg, parse_mode="Markdown")
+                        notified_today[chat_id] = now.date()
+
+                    # 📌 2. تنبيه عند إضافة حلقة نقاش جديدة
+                    current_ids = set(f"{s['course_code']}_{s['date']}_{s['time']}" for s in sessions)
+                    previous_ids = last_known_sessions.get(chat_id, set())
+                    new_ids = current_ids - previous_ids
+                    if new_ids:
+                        for new_id in new_ids:
+                            for s in sessions:
+                                id_check = f"{s['course_code']}_{s['date']}_{s['time']}"
+                                if id_check == new_id:
+                                    msg = (
+                                        "🆕 *تمت إضافة حلقة نقاش جديدة:*\n\n"
+                                        f"📘 {s['course_name']} ({s['course_code']})\n"
+                                        f"📅 التاريخ: {s['date']} 🕒 الوقت: {s['time']}"
+                                    )
+                                    bot.send_message(chat_id, msg, parse_mode="Markdown")
+                        last_known_sessions[chat_id] = current_ids
+
+                    # 📌 3. تذكير قبل الموعد بـ 30 دقيقة
+                    for s in today_sessions:
+                        start_str = s['time'].split('-')[0].strip()  # 11:00
+                        session_time = datetime.strptime(f"{s['date']} {start_str}", "%d/%m/%Y %H:%M")
+                        diff = (session_time - now).total_seconds() / 60
+                        key = f"{chat_id}_{s['course_code']}_{s['date']}_{start_str}"
+                        if 0 < diff <= 30 and key not in notified_half_hour:
+                            msg = (
+                                f"⏰ *تذكير:*\n"
+                                f"📘 لديك حلقة نقاش بعد أقل من نصف ساعة\n"
+                                f"{s['course_name']} - {s['time']}"
+                            )
+                            bot.send_message(chat_id, msg, parse_mode="Markdown")
+                            notified_half_hour[key] = True
+
+                    # إعادة التهيئة يومياً
+                    if now.hour == 0 and now.minute == 0:
+                        notified_today.clear()
+                        notified_half_hour.clear()
+
+                except Exception as e:
+                    logger.error(f"❌ خطأ أثناء التحقق من حلقات النقاش للطالب {student_id}: {e}")
+
+        time.sleep(30 * 60)  # كل نصف ساعة
+
+
 
 # ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
@@ -253,4 +328,6 @@ def start_scheduler():
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_deadline_reminders_loop, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
+    threading.Thread(target=check_discussion_sessions, daemon=True).start()  # ⬅️ تمت إضافتها
+
 
