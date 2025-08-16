@@ -82,7 +82,7 @@ def send_main_menu(chat_id):
         types.KeyboardButton("🗓️ جدول المحاضرات"),
         types.KeyboardButton("📊 عرض بيانات الفصل"),
         types.KeyboardButton("📅 جدول الامتحانات"),
-        types.KeyboardButton("📅 عرض حلقات النقاش"),
+        types.KeyboardButton("🎙️ حلقات النقاش"),
     )
     if chat_id in ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
@@ -830,36 +830,29 @@ def handle_all_messages(message):
         send_main_menu(chat_id)
         return
 
-    elif text == "📅 عرض حلقات النقاش":
+    elif text == "🎙️ حلقات النقاش":
         user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
     
-        try:
-            scraper = QOUScraper(user['student_id'], user['password'])
-            if not scraper.login():
-                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-                return
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+            return
     
-            discussions = scraper.fetch_discussion_sessions()
-            if not discussions:
-                bot.send_message(chat_id, "📭 لا توجد حلقات نقاش حالياً.")
-                return
+        sessions = scraper.fetch_discussion_sessions()
+        if not sessions:
+            bot.send_message(chat_id, "📭 لا يوجد حلقات نقاش حالياً.")
+            return
     
-            text_msg = "📅 *حلقات النقاش المتاحة:*\n\n"
-            for d in discussions:
-                course = d.get("course_name", "-")
-                date = d.get("date", "-")
-                time = d.get("time", "-")
-                text_msg += f"📘 {course}\n📅 {date} 🕐 {time}\n\n"
-    
-            bot.send_message(chat_id, text_msg, parse_mode="Markdown")
-    
-        except Exception as e:
-            logger.exception(f"Error fetching discussions for {chat_id}: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب البيانات. حاول مرة أخرى لاحقاً.")
-        return
+        msg = "🎙️ *جميع حلقات النقاش:*\n\n"
+        for s in sessions:
+            msg += (
+                f"📘 {s['course_name']} ({s['course_code']})\n"
+                f"📅 {s['date']} 🕒 {s['time']}\n\n"
+            )
+        bot.send_message(chat_id, msg, parse_mode="Markdown")
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
