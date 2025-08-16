@@ -163,7 +163,6 @@ def clear_states_for_home(chat_id):
     registration_states.pop(chat_id, None)
     session_states.pop(chat_id, None)
 
-
 # ---------- معالج الأوامر والرسائل ----------
 @bot.message_handler(commands=["start"])
 def handle_start(message):
@@ -171,6 +170,7 @@ def handle_start(message):
     chat_id = message.chat.id
     username = message.from_user.username or "بدون اسم مستخدم"
     user = get_user(chat_id)
+
     if user:
         bot.send_message(chat_id, "👋 مرحباً! أنت قيد التسجيل بالفعل.")
     else:
@@ -178,13 +178,18 @@ def handle_start(message):
         add_user(chat_id, student_id="", password="", registered_at=datetime.utcnow().isoformat())
         
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول.")
+        
         admin_message = (
             f"🚨 مستخدم جديد بدأ استخدام البوت!\n\n"
             f"chat_id: {chat_id}\n"
             f"Username: @{username}"
         )
+
+        # إرسال رسالة لكل أدمن
         for admin_id in ADMIN_CHAT_ID:
-        bot.send_message(admin_id, admin_message)
+            bot.send_message(admin_id, admin_message)
+
+    # إرسال القائمة الرئيسية للمستخدم
     send_main_menu(chat_id)
 
 
