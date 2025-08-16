@@ -434,7 +434,7 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("التحليلات"))
         markup.add(types.KeyboardButton("إرسال رسالة"))
         markup.add(types.KeyboardButton("إدارة المواعيد"))
-        markup.add(types.KeyboardButton("إدارة القروبات"))       
+        markup.add(types.KeyboardButton("إضافة قروب"))       
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
         return
@@ -795,7 +795,7 @@ def handle_all_messages(message):
         return
 
     # ===================== إدارة القروبات =====================
-    elif text == "➕ إضافة قروب" and chat_id in ADMIN_CHAT_ID:
+    elif text == "إضافة قروب" and chat_id in ADMIN_CHAT_ID:
         # المرحلة الأولى: اختيار نوع القروب (مواد، تخصصات، جامعة)
         admin_group_states[chat_id] = {"stage": "awaiting_type"}
         bot.send_message(chat_id, "📂 اختر نوع القروب:\n1️⃣ مواد\n2️⃣ تخصصات\n3️⃣ جامعة")
