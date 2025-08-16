@@ -187,8 +187,8 @@ def handle_start(message):
         for admin_id in ADMIN_CHAT_ID:
             try:
                 bot.send_message(admin_id, admin_message)
-                except Exception as e:
-                    print(f"خطأ في إرسال الرسالة للأدمن {admin_id}: {e}")
+            except Exception as e:
+                print(f"خطأ في إرسال الرسالة للأدمن {admin_id}: {e}")
     # إرسال القائمة الرئيسية للمستخدم
     send_main_menu(chat_id)
 
