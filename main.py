@@ -338,7 +338,7 @@ def handle_all_messages(message):
     elif text in get_categories():
         markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
         groups_in_category = get_groups_by_category(text)  # جلب كل القروبات ضمن التصنيف
-        for group_name, _ in groups_in_category:
+        for group_id, group_name, link in groups_in_category:
             markup.add(types.KeyboardButton(group_name))
         markup.add(types.KeyboardButton("العودة للقروبات"))
         bot.send_message(chat_id, f"📂 القروبات ضمن '{text}': اختر قروب:", reply_markup=markup)
