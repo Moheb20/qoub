@@ -321,29 +321,31 @@ def handle_all_messages(message):
         return
 
     # عرض القروبات
+    # عرض التصنيفات
     elif text == "📚 عرض القروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
-        for group_type in categories:
-            markup.add(types.KeyboardButton(group_type))
+        for category in categories:
+            markup.add(types.KeyboardButton(category))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
         return
-
-    elif text in groups.keys():
+    
+    # عرض القروبات ضمن تصنيف معين
+    elif text in get_categories():
         markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
-        for group_name in groups[text].keys():
+        groups_in_category = get_groups_by_category(text)  # جلب كل القروبات ضمن التصنيف
+        for group_name, _ in groups_in_category:
             markup.add(types.KeyboardButton(group_name))
         markup.add(types.KeyboardButton("العودة للقروبات"))
         bot.send_message(chat_id, f"📂 القروبات ضمن '{text}': اختر قروب:", reply_markup=markup)
         return
-
-    elif any(text in group_dict for group_dict in groups.values()):
-        for group_type, group_dict in groups.items():
-            if text in group_dict:
-                link = group_dict[text]
-                bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
-                break
+    
+    # عرض رابط القروب عند اختيار اسمه
+    else:
+        link = get_group_link(text)
+        if link:
+            bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
         return
 
     # عرض المقررات والعلامات
