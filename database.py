@@ -419,7 +419,13 @@ def get_group_link(name):
             cur.execute("SELECT link FROM groups WHERE name = %s", (name,))
             row = cur.fetchone()
             return row[0] if row else None
-
+            
+def get_group_by_id(group_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, category, name, link FROM groups WHERE id = %s", (group_id,))
+            return cur.fetchone()
+            
 def get_all_groups():
     with get_conn() as conn:
         with conn.cursor() as cur:
