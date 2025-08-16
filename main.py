@@ -323,7 +323,8 @@ def handle_all_messages(message):
     # عرض القروبات
     elif text == "📚 عرض القروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-        for group_type in groups.keys():
+        categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
+        for group_type in categories:
             markup.add(types.KeyboardButton(group_type))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
