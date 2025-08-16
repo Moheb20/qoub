@@ -322,10 +322,9 @@ def handle_all_messages(message):
         return
     
     # عرض رابط القروب عند اختيار اسمه
-    else:
+    if get_group_link(text):
         link = get_group_link(text)
-        if link:
-            bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
+        bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
         return
 
     
