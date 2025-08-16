@@ -24,14 +24,10 @@ from database import (
     update_deadline,
     delete_deadline,
     add_group,
-    get_all_groups,
-    get_group_by_id,
-    update_group,
-    delete_group,
     get_group_link,
     get_categories,
     get_groups_by_category,
-    clear_all_groups   # ✅ أضفنا هذه الدالة لمسح القروبات قبل الإضافة
+ 
 )
 from scheduler import start_scheduler
 from scheduler import send_reminder_for_new_deadline
@@ -326,10 +322,12 @@ def handle_all_messages(message):
         return
     
     # عرض رابط القروب عند اختيار اسمه
-    elif get_group_link(text):
+    else:
         link = get_group_link(text)
-        bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
+        if link:
+            bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
         return
+
     
     # عرض المقررات والعلامات
     elif text == "📖 عرض المقررات والعلامات":
@@ -799,14 +797,9 @@ def handle_all_messages(message):
 
     # ===================== إدارة القروبات =====================
     elif text == "إدارة القروبات" and chat_id in ADMIN_CHAT_ID:
-        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-        markup.add(
-            types.KeyboardButton("➕ إضافة قروب"),
-            types.KeyboardButton("✏️ تعديل قروب"),
-            types.KeyboardButton("❌ حذف قروب"),
-            types.KeyboardButton("📋 عرض كل القروبات"),
-            types.KeyboardButton("العودة للقائمة")
-        )
+        markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
+        markup.add(types.KeyboardButton("➕ إضافة قروب"))
+        markup.add(types.KeyboardButton("العودة للقائمة"))
         bot.send_message(chat_id, "⚙️ إدارة القروبات: اختر خياراً", reply_markup=markup)
         return
     
@@ -837,79 +830,6 @@ def handle_all_messages(message):
         admin_group_states.pop(chat_id, None)
         send_main_menu(chat_id)
         return
-    
-    # عرض كل القروبات
-    elif text == "📋 عرض كل القروبات" and chat_id in ADMIN_CHAT_ID:
-        categories = get_categories()
-        groups_data = []
-        for cat in categories:
-            for group_id, name, link in get_groups_by_category(cat):
-                groups_data.append((group_id, cat, name, link))
-        send_groups_table(chat_id, groups_data)
-        return 
-
-# --- حذف قروب ---
-    elif text == "❌ حذف قروب" and chat_id in ADMIN_CHAT_ID:
-        categories = get_categories()
-        groups_data = []
-        group_names = {}
-        for cat in categories:
-            for group_id, name, link in get_groups_by_category(cat):
-                groups_data.append((group_id, cat, name, link))
-                group_names[name] = group_id
-        send_groups_table(chat_id, groups_data, title="⚠️ اختر اسم القروب للحذف")
-        admin_group_states[chat_id] = {"stage": "awaiting_delete_name", "group_names": group_names}
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_delete_name":
-        name = text
-        if name in admin_group_states[chat_id]["group_names"]:
-            if delete_group(name):
-                bot.send_message(chat_id, f"✅ تم حذف القروب '{name}' بنجاح.")
-            else:
-                bot.send_message(chat_id, "⚠️ حصل خطأ أثناء الحذف.")
-        else:
-            bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
-        admin_group_states.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return
-
-# --- تعديل قروب ---
-    elif text == "✏️ تعديل قروب" and chat_id in ADMIN_CHAT_ID:
-        categories = get_categories()
-        groups_data = []
-        group_names = {}
-        for cat in categories:
-            for group_id, name, link in get_groups_by_category(cat):
-                groups_data.append((group_id, cat, name, link))
-                group_names[name] = group_id
-        send_groups_table(chat_id, groups_data, title="⚙️ اختر اسم القروب للتعديل")
-        admin_group_states[chat_id] = {"stage": "awaiting_edit_name", "group_names": group_names}
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_name":
-        name = text
-        if name not in admin_group_states[chat_id]["group_names"]:
-            bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
-            admin_group_states.pop(chat_id, None)
-            return
-        admin_group_states[chat_id]["old_name"] = name
-        admin_group_states[chat_id]["stage"] = "awaiting_edit_link"
-        bot.send_message(chat_id, "🔗 ارسل الرابط الجديد للقروب:")
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_link":
-        old_name = admin_group_states[chat_id]["old_name"]
-        new_link = text
-        if update_group(old_name, new_link):
-            bot.send_message(chat_id, f"✅ تم تعديل رابط القروب '{old_name}' إلى '{new_link}'")
-        else:
-            bot.send_message(chat_id, "⚠️ حصل خطأ أثناء التعديل.")
-        admin_group_states.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return
-
-    
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
