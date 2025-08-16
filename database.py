@@ -375,8 +375,8 @@ def edit_deadline(deadline_id, new_name, new_date):
             )
         conn.commit()
 
-# ---------- إدارة القروبات ----------
 def add_group(category, name, link):
+    """إضافة قروب جديد"""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -387,49 +387,72 @@ def add_group(category, name, link):
         conn.commit()
     return group_id
 
-def update_group(name, new_link):
+
+def update_group(group_id, new_name, new_link):
+    """تعديل قروب موجود حسب ID"""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE groups SET link = %s WHERE name = %s", (new_link, name))
+            cur.execute(
+                "UPDATE groups SET name = %s, link = %s WHERE id = %s",
+                (new_name, new_link, group_id)
+            )
         conn.commit()
 
-def delete_group(name):
+
+def delete_group(group_id):
+    """حذف قروب حسب ID"""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM groups WHERE name = %s RETURNING id", (name,))
+            cur.execute("DELETE FROM groups WHERE id = %s RETURNING id", (group_id,))
             deleted = cur.fetchone()
         conn.commit()
     return deleted is not None
 
-def get_groups_by_category(category):
+
+def get_group_by_id(group_id):
+    """جلب قروب حسب ID"""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT name, link FROM groups WHERE category = %s ORDER BY name", (category,))
+            cur.execute("SELECT id, category, name, link FROM groups WHERE id = %s", (group_id,))
+            return cur.fetchone()
+
+
+def get_groups_by_category(category):
+    """جلب كل القروبات ضمن تصنيف معين"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name, link FROM groups WHERE category = %s ORDER BY name", (category,))
             return cur.fetchall()
 
+
+def get_all_groups():
+    """جلب كل القروبات الموجودة بكل التصنيفات"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, category, name, link FROM groups ORDER BY category, name")
+            return cur.fetchall()
+
+
 def get_categories():
+    """جلب كل التصنيفات المتاحة"""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT category FROM groups ORDER BY category")
             return [row[0] for row in cur.fetchall()]
 
+
 def get_group_link(name):
+    """جلب رابط القروب حسب الاسم"""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT link FROM groups WHERE name = %s", (name,))
             row = cur.fetchone()
             return row[0] if row else None
-            
-def get_group_by_id(group_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id, category, name, link FROM groups WHERE id = %s", (group_id,))
-            return cur.fetchone()
-            
-def get_all_groups():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT category, name, link FROM groups ORDER BY category, name")
-            return cur.fetchall()
 
 
+def clear_all_groups():
+    """مسح كل القروبات من قاعدة البيانات"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM groups")
+        conn.commit()
