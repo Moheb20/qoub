@@ -184,7 +184,7 @@ def handle_start(message):
             f"Username: @{username}"
         )
         for admin_id in ADMIN_CHAT_ID:
-            bot.send_message(admin_id, admin_message)
+        bot.send_message(admin_id, admin_message)
     send_main_menu(chat_id)
 
 
