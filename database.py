@@ -71,6 +71,14 @@ def init_db():
                     date DATE NOT NULL
                 )
             ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS groups (
+                    id SERIAL PRIMARY KEY,
+                    category TEXT NOT NULL,
+                    name TEXT NOT NULL UNIQUE,
+                    link TEXT NOT NULL
+                )
+            ''')            
         conn.commit()
 
 # ---------- إدارة المستخدمين ----------
@@ -366,3 +374,49 @@ def edit_deadline(deadline_id, new_name, new_date):
                 (new_name, new_date, deadline_id)
             )
         conn.commit()
+
+# ---------- إدارة القروبات ----------
+def add_group(category, name, link):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO groups (category, name, link) VALUES (%s, %s, %s) RETURNING id",
+                (category, name, link)
+            )
+            group_id = cur.fetchone()[0]
+        conn.commit()
+    return group_id
+
+def update_group(name, new_link):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE groups SET link = %s WHERE name = %s", (new_link, name))
+        conn.commit()
+
+def delete_group(name):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM groups WHERE name = %s RETURNING id", (name,))
+            deleted = cur.fetchone()
+        conn.commit()
+    return deleted is not None
+
+def get_groups_by_category(category):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT name, link FROM groups WHERE category = %s ORDER BY name", (category,))
+            return cur.fetchall()
+
+def get_categories():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT category FROM groups ORDER BY category")
+            return [row[0] for row in cur.fetchall()]
+
+def get_group_link(name):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT link FROM groups WHERE name = %s", (name,))
+            row = cur.fetchone()
+            return row[0] if row else None
+
