@@ -10,3 +10,5 @@ cryptography
 psycopg2-binary
 python-dotenv
 Pillow
+arabic-reshaper
+python-bidi
