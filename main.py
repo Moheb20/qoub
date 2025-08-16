@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-import csv
-from io import StringIO
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 load_dotenv()
 import threading
 import logging
@@ -36,12 +36,6 @@ from scheduler import send_reminder_for_new_deadline
 from qou_scraper import QOUScraper
 from datetime import date, datetime
 import time
-
-
-
-
-
-
 # ---------- إعداد السجل (logging) ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,75 +55,6 @@ admin_states = {}
 admin_group_states = {}
 
 
-# روابط القروبات (مثل ما كانت)
-groups = {
-    "المواد": {
-        "مناهج البحث العلمي": "https://chat.whatsapp.com/Ixv647y5WKB8IR43tTWpZc",
-        "قواعد الكتابة والترقيم": "https://chat.whatsapp.com/IV0KQVlep5QJ1dBaRoqn5f",
-        "تصميم التدريس": "https://chat.whatsapp.com/BoHU1ifJd5n86dRTR1J3Zh",
-        "ادارة الصف وتنظيمه": "https://chat.whatsapp.com/FDgewENfci54CutRyr4SEd",
-        "الحـاسوب في التـعليم": "https://chat.whatsapp.com/KlOtrGM8b93JcFekltBPBv",
-        "تعــديل الســلوك": "https://chat.whatsapp.com/BwtqAdepHcpHFWQIt7drhb",
-        "الحركة الاسيرة": "https://chat.whatsapp.com/E4j2B4ncNPN2bpT2S1ZFHJ",
-        "الحاسوب": "https://chat.whatsapp.com/CPynN3OZm67InIvC3K1BZ4",
-        "القياس والتقويم": "https://chat.whatsapp.com/LJfQxUk14BxH1ysxyZTUzK",
-        "علم النفس التربوي": "https://chat.whatsapp.com/BglsAZvRlrGH6rCyRLnAoR",
-        "طرائق التدريس": "https://chat.whatsapp.com/BvAJOUr8fp66VvEWDHXEFG",
-        "تكنـولوجيـــا التعلــيم": "https://chat.whatsapp.com/Gflbw7bjbaf5o8d0bBbz7p",
-        "فــلسطين والقضية": "https://chat.whatsapp.com/DZs1DlkzmnJGIf1JlHlDYX",
-        "عربي 1": "https://chat.whatsapp.com/FLfYRCNtebY3EPsiD7uGPp",
-        "احصـاء تطبيقي": "https://chat.whatsapp.com/KT5hqKG3snvCepjk8qaaBX",
-        "مبادئ اقتصاد": "https://chat.whatsapp.com/LfbHXpOUOz9A29n2XYzPEM",
-        "انجليزي": "https://chat.whatsapp.com/D1DOsObs2dGAAyoK0V5YaC",
-        "رياضيات عامة": "https://chat.whatsapp.com/KtEcLDbk4Xz0FkW6m3uM8U",
-        "عربي ط ت": "https://chat.whatsapp.com/LCArS1t4YMT6VUzvKGJ6Qi",
-        "ثقافة اسلامية ط ت": "https://chat.whatsapp.com/Iw9X2cfBT8gFyc4HoXvv5t",
-        "رياضيات ط ت": "https://chat.whatsapp.com/JeyUzLDdB1CCEYtVgjcrw9",
-        "العلوم والصحة ط ت": "https://chat.whatsapp.com/EIJ355pYlRF5cjnpYP1Z0T",
-        "علم النفس التطوري": "https://chat.whatsapp.com/Lppv3hq6CJZ6oqxs5mm1Bl",
-        "الادب العربي وفنونه": "https://chat.whatsapp.com/BwtqAdepHcpHFWQIt7drhb",
-        "التفكير الابداعي": "https://chat.whatsapp.com/FkvU2389Qzu2vMwDFHrMs4",
-        "الموسيقى والاناشيد": "https://chat.whatsapp.com/LYQH6H1ZFllKQCO0WWRruf",
-        "عربي 2": "https://chat.whatsapp.com/GD8o5QO12Tf7xoFKfoU9eF",
-        "تربية رياضية": "https://chat.whatsapp.com/FRzFsB117xk0pUeg76NeLv",
-        "التربية الفنية وط ت": "https://chat.whatsapp.com/I0Vas9Z8X1pFkE9Ke8Ysvd",
-        "رعاية ذوي الاحتياجات الخاصة": "https://chat.whatsapp.com/JNnm5GECVmIFgzTA8RY0Xw",
-        "تربية عملية 1": "https://chat.whatsapp.com/HgV95AU4xHtFsNqG3MbG1t",
-        "تربية عملية 2": "https://chat.whatsapp.com/LS0xxaDp4NuI2rix8zUVtm",
-        "تعلم كيف تتعلم": "https://chat.whatsapp.com/CeJa59mznTxDOHUIrYG2HP",
-        "ثقافة اسلامية": "https://chat.whatsapp.com/Ljz92I8RBeb6uFtdsbSpHK",
-        "تاريخ القدس": "https://chat.whatsapp.com/B727rzlJ6fG8DQqSSBMkAg",
-        "مكافحة الفساد": "https://chat.whatsapp.com/IJOzzJyU7zQJo07wiybbLA",
-        "مسؤولية مجتمعية": "https://chat.whatsapp.com/CrzU3XKsb1TCaakYZa27hA",
-        "المنهاج التربوي": "https://chat.whatsapp.com/LN7NnmVHoIA7V9EWoAonmO",
-        "مبادئ الاحصاء": "https://chat.whatsapp.com/Hg0BXz3qx7O8a6cqU7x7EN",
-        "حقوق الانسان في الاسلام": "https://chat.whatsapp.com/ICvsYaRhWEI4GVpKrWV2JK",
-        "علم النفس الاجتماعي": "https://chat.whatsapp.com/HEQgklGNHWj47EBvfhUcp5",
-        "مبادئ علم النفس": "https://chat.whatsapp.com/HeGAyRUpTdaKbs2KRHTi24?mode=ac_t",
-    },
-    "التخصصات": {
-        "رياضيات": "https://chat.whatsapp.com/FKCxgfaJNWJ6CBnIB30FYO",
-        "القضاء والسياسة الشرعية": "https://chat.whatsapp.com/GQHGLIPrzGpLNxu1fWF089",
-        "انظــــمة معلومات حـاسوبية": "https://chat.whatsapp.com/HxEmcT3gS4pGfd8xbRNpz9",
-        "انـظمة معلومات - قلقيلية": "https://chat.whatsapp.com/Hou6HlL6nbR3lacuT9xF0T",
-        "الخدمة الاجتماعية": "https://chat.whatsapp.com/D5gfw5EJMROBJQzPGebgsV",
-        "تربية خاصة": "https://chat.whatsapp.com/D6odKzuaRBmL7JmA2dRWvX",
-        "علوم التأمين": "https://chat.whatsapp.com/CifzovXuTe1IlPJq9K9A5m",
-        "انجليزي": "https://chat.whatsapp.com/J8qE2FYFa8I8dpZCcfwqHX",
-        "انجليزي واداب": "https://chat.whatsapp.com/C55nolZBK8TIAfHA6vLWYl",
-        "انجليزي - فرعي تربية": "https://chat.whatsapp.com/Cz6LE95qUgO3AZNnACK8x5",
-        "طلاب وطالبات الزراعة": "https://chat.whatsapp.com/IxWar55rbzVB8F2yimbBNt",
-    },
-    "الجامعة": {
-        "طلاب جامعة القدس المفتوحة": "https://chat.whatsapp.com/Bvbnq3XTtnJAFsqJkSFl6e",
-        "طلاب التعليم الاساسي": "https://chat.whatsapp.com/EzuSWOJvx4v9cbgtGMMKEC",
-        "القدس المفتوحة جميع الأفرع": "https://chat.whatsapp.com/JbBWAzL3gW676ZTVYqwLsg",
-        "الملتقى الاكاديمي": "https://chat.whatsapp.com/DollAlktuua9In6itpZn6X",
-        "استفسارات": "https://chat.whatsapp.com/GoCdx1lqaGM7BCWY4ZHTNP",
-        "اخــبار الجـامعة": "https://chat.whatsapp.com/ITfbauxdP0ZH1rZ8HbGuOZ",
-        "طلاب وطالبات QOU": "https://chat.whatsapp.com/LvfpPDzjUC44MOasxDCoqN",
-    }
-}
 
 # ---------- تهيئة قاعدة البيانات والجدولة ----------
 init_db()
@@ -208,7 +133,46 @@ def handle_start(message):
 
 
 
+def send_groups_table(chat_id, groups_data, title="📌 القروبات الحالية"):
+    """إرسال جدول PNG للقروبات"""
+    # إعداد الخطوط (يمكنك تعديل المسار للخط العربي إذا لزم)
+    try:
+        font = ImageFont.truetype("arial.ttf", 16)
+        header_font = ImageFont.truetype("arialbd.ttf", 18)
+    except:
+        font = ImageFont.load_default()
+        header_font = ImageFont.load_default()
 
+    # إعداد أبعاد الصورة
+    width = 600
+    row_height = 25
+    header_height = 35
+    padding = 10
+    height = header_height + row_height * len(groups_data) + padding*2
+
+    img = Image.new("RGB", (width, height), color="white")
+    draw = ImageDraw.Draw(img)
+
+    # عنوان
+    draw.text((padding, padding), title, font=header_font, fill="black")
+
+    # رسم الجدول
+    y = header_height
+    draw.text((padding, y), "ID | التصنيف | الاسم | الرابط", font=font, fill="black")
+    y += row_height
+
+    for group_id, category, name, link in groups_data:
+        text = f"{group_id} | {category} | {name} | {link}"
+        draw.text((padding, y), text, font=font, fill="black")
+        y += row_height
+
+    # حفظ الصورة في الذاكرة
+    output = BytesIO()
+    img.save(output, format="PNG")
+    output.seek(0)
+
+    bot.send_photo(chat_id, output)
+    
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
@@ -859,90 +823,75 @@ def handle_all_messages(message):
         return
     
     # عرض كل القروبات
-elif text == "📋 عرض كل القروبات" and chat_id in ADMIN_CHAT_ID:
-    categories = get_categories()
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["ID", "التصنيف", "الاسم", "الرابط"])
-
-    for cat in categories:
-        for group_id, name, link in get_groups_by_category(cat):
-            writer.writerow([group_id, cat, name, link])
-
-    output.seek(0)
-    bot.send_document(chat_id, ("groups.csv", output))
-    return    
+    elif text == "📋 عرض كل القروبات" and chat_id in ADMIN_CHAT_ID:
+        categories = get_categories()
+        groups_data = []
+        for cat in categories:
+            for group_id, name, link in get_groups_by_category(cat):
+                groups_data.append((group_id, cat, name, link))
+        send_groups_table(chat_id, groups_data)
+        return 
 
 # --- حذف قروب ---
-elif text == "❌ حذف قروب" and chat_id in ADMIN_CHAT_ID:
-    categories = get_categories()
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["ID", "التصنيف", "الاسم"])
-
-    group_names = {}
-    for cat in categories:
-        for group_id, name, _ in get_groups_by_category(cat):
-            writer.writerow([group_id, cat, name])
-            group_names[name] = group_id
-
-    output.seek(0)
-    bot.send_document(chat_id, ("groups_to_delete.csv", output))
-    admin_group_states[chat_id] = {"stage": "awaiting_delete_name", "group_names": group_names}
-    return
-
-elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_delete_name":
-    name = text
-    if name in admin_group_states[chat_id]["group_names"]:
-        if delete_group(name):
-            bot.send_message(chat_id, f"✅ تم حذف القروب '{name}' بنجاح.")
+    elif text == "❌ حذف قروب" and chat_id in ADMIN_CHAT_ID:
+        categories = get_categories()
+        groups_data = []
+        group_names = {}
+        for cat in categories:
+            for group_id, name, link in get_groups_by_category(cat):
+                groups_data.append((group_id, cat, name, link))
+                group_names[name] = group_id
+        send_groups_table(chat_id, groups_data, title="⚠️ اختر اسم القروب للحذف")
+        admin_group_states[chat_id] = {"stage": "awaiting_delete_name", "group_names": group_names}
+        return
+    
+    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_delete_name":
+        name = text
+        if name in admin_group_states[chat_id]["group_names"]:
+            if delete_group(name):
+                bot.send_message(chat_id, f"✅ تم حذف القروب '{name}' بنجاح.")
+            else:
+                bot.send_message(chat_id, "⚠️ حصل خطأ أثناء الحذف.")
         else:
-            bot.send_message(chat_id, "⚠️ حصل خطأ أثناء الحذف.")
-    else:
-        bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
-    admin_group_states.pop(chat_id, None)
-    send_main_menu(chat_id)
-    return
+            bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
+        admin_group_states.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return
 
 # --- تعديل قروب ---
-elif text == "✏️ تعديل قروب" and chat_id in ADMIN_CHAT_ID:
-    categories = get_categories()
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["ID", "التصنيف", "الاسم", "الرابط"])
-
-    group_names = {}
-    for cat in categories:
-        for group_id, name, link in get_groups_by_category(cat):
-            writer.writerow([group_id, cat, name, link])
-            group_names[name] = group_id
-
-    output.seek(0)
-    bot.send_document(chat_id, ("groups_to_edit.csv", output))
-    admin_group_states[chat_id] = {"stage": "awaiting_edit_name", "group_names": group_names}
-    return
-
-elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_name":
-    name = text
-    if name not in admin_group_states[chat_id]["group_names"]:
-        bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
-        admin_group_states.pop(chat_id, None)
+    elif text == "✏️ تعديل قروب" and chat_id in ADMIN_CHAT_ID:
+        categories = get_categories()
+        groups_data = []
+        group_names = {}
+        for cat in categories:
+            for group_id, name, link in get_groups_by_category(cat):
+                groups_data.append((group_id, cat, name, link))
+                group_names[name] = group_id
+        send_groups_table(chat_id, groups_data, title="⚙️ اختر اسم القروب للتعديل")
+        admin_group_states[chat_id] = {"stage": "awaiting_edit_name", "group_names": group_names}
         return
-    admin_group_states[chat_id]["old_name"] = name
-    admin_group_states[chat_id]["stage"] = "awaiting_edit_link"
-    bot.send_message(chat_id, "🔗 ارسل الرابط الجديد للقروب:")
-    return
-
-elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_link":
-    old_name = admin_group_states[chat_id]["old_name"]
-    new_link = text
-    if update_group(old_name, new_link):
-        bot.send_message(chat_id, f"✅ تم تعديل رابط القروب '{old_name}' إلى '{new_link}'")
-    else:
-        bot.send_message(chat_id, "⚠️ حصل خطأ أثناء التعديل.")
-    admin_group_states.pop(chat_id, None)
-    send_main_menu(chat_id)
-    return
+    
+    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_name":
+        name = text
+        if name not in admin_group_states[chat_id]["group_names"]:
+            bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
+            admin_group_states.pop(chat_id, None)
+            return
+        admin_group_states[chat_id]["old_name"] = name
+        admin_group_states[chat_id]["stage"] = "awaiting_edit_link"
+        bot.send_message(chat_id, "🔗 ارسل الرابط الجديد للقروب:")
+        return
+    
+    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_link":
+        old_name = admin_group_states[chat_id]["old_name"]
+        new_link = text
+        if update_group(old_name, new_link):
+            bot.send_message(chat_id, f"✅ تم تعديل رابط القروب '{old_name}' إلى '{new_link}'")
+        else:
+            bot.send_message(chat_id, "⚠️ حصل خطأ أثناء التعديل.")
+        admin_group_states.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return
 
     
 
