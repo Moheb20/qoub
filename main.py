@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
-
+import csv
+from io import StringIO
 load_dotenv()
 import threading
 import logging
@@ -858,76 +859,90 @@ def handle_all_messages(message):
         return
     
     # عرض كل القروبات
-    elif text == "📋 عرض كل القروبات" and chat_id in ADMIN_CHAT_ID:
-        categories = get_categories()
-        msg = "📌 القروبات الحالية:\n\n"
-        for cat in categories:
-            for id, name, link in get_groups_by_category(cat):
-                msg += f"ID:{id} | {cat} | {name} | {link}\n"
-        bot.send_message(chat_id, msg)
-        return    
-    
-    # حذف قروب
-    elif text == "❌ حذف قروب" and chat_id in ADMIN_CHAT_ID:
-        categories = get_categories()
-        msg = "⚠️ اختر اسم القروب للحذف:\n\n"
-        group_names = []
-        for cat in categories:
-            for name, _ in get_groups_by_category(cat):
-                msg += f"{name} ({cat})\n"
-                group_names.append(name)
-        bot.send_message(chat_id, msg)
-        admin_group_states[chat_id] = {"stage": "awaiting_delete_name", "group_names": group_names}
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_delete_name":
-        name = text
-        if name in admin_group_states[chat_id]["group_names"]:
-            if delete_group(name):
-                bot.send_message(chat_id, f"✅ تم حذف القروب '{name}' بنجاح.")
-            else:
-                bot.send_message(chat_id, "⚠️ حصل خطأ أثناء الحذف.")
-        else:
-            bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
-        admin_group_states.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return
-    
-    # تعديل قروب
-    elif text == "✏️ تعديل قروب" and chat_id in ADMIN_CHAT_ID:
-        categories = get_categories()
-        msg = "⚙️ اختر اسم القروب للتعديل:\n\n"
-        group_names = []
-        for cat in categories:
-            for name, _ in get_groups_by_category(cat):
-                msg += f"{name} ({cat})\n"
-                group_names.append(name)
-        bot.send_message(chat_id, msg)
-        admin_group_states[chat_id] = {"stage": "awaiting_edit_name", "group_names": group_names}
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_name":
-        name = text
-        if name not in admin_group_states[chat_id]["group_names"]:
-            bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
-            admin_group_states.pop(chat_id, None)
-            return
-        admin_group_states[chat_id]["old_name"] = name
-        admin_group_states[chat_id]["stage"] = "awaiting_edit_link"
-        bot.send_message(chat_id, "🔗 ارسل الرابط الجديد للقروب:")
-        return
-    
-    elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_link":
-        old_name = admin_group_states[chat_id]["old_name"]
-        new_link = text
-        if update_group(old_name, new_link):
-            bot.send_message(chat_id, f"✅ تم تعديل رابط القروب '{old_name}' إلى '{new_link}'")
-        else:
-            bot.send_message(chat_id, "⚠️ حصل خطأ أثناء التعديل.")
-        admin_group_states.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return
+elif text == "📋 عرض كل القروبات" and chat_id in ADMIN_CHAT_ID:
+    categories = get_categories()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "التصنيف", "الاسم", "الرابط"])
 
+    for cat in categories:
+        for group_id, name, link in get_groups_by_category(cat):
+            writer.writerow([group_id, cat, name, link])
+
+    output.seek(0)
+    bot.send_document(chat_id, ("groups.csv", output))
+    return    
+
+# --- حذف قروب ---
+elif text == "❌ حذف قروب" and chat_id in ADMIN_CHAT_ID:
+    categories = get_categories()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "التصنيف", "الاسم"])
+
+    group_names = {}
+    for cat in categories:
+        for group_id, name, _ in get_groups_by_category(cat):
+            writer.writerow([group_id, cat, name])
+            group_names[name] = group_id
+
+    output.seek(0)
+    bot.send_document(chat_id, ("groups_to_delete.csv", output))
+    admin_group_states[chat_id] = {"stage": "awaiting_delete_name", "group_names": group_names}
+    return
+
+elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_delete_name":
+    name = text
+    if name in admin_group_states[chat_id]["group_names"]:
+        if delete_group(name):
+            bot.send_message(chat_id, f"✅ تم حذف القروب '{name}' بنجاح.")
+        else:
+            bot.send_message(chat_id, "⚠️ حصل خطأ أثناء الحذف.")
+    else:
+        bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
+    admin_group_states.pop(chat_id, None)
+    send_main_menu(chat_id)
+    return
+
+# --- تعديل قروب ---
+elif text == "✏️ تعديل قروب" and chat_id in ADMIN_CHAT_ID:
+    categories = get_categories()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "التصنيف", "الاسم", "الرابط"])
+
+    group_names = {}
+    for cat in categories:
+        for group_id, name, link in get_groups_by_category(cat):
+            writer.writerow([group_id, cat, name, link])
+            group_names[name] = group_id
+
+    output.seek(0)
+    bot.send_document(chat_id, ("groups_to_edit.csv", output))
+    admin_group_states[chat_id] = {"stage": "awaiting_edit_name", "group_names": group_names}
+    return
+
+elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_name":
+    name = text
+    if name not in admin_group_states[chat_id]["group_names"]:
+        bot.send_message(chat_id, "⚠️ اسم القروب غير موجود.")
+        admin_group_states.pop(chat_id, None)
+        return
+    admin_group_states[chat_id]["old_name"] = name
+    admin_group_states[chat_id]["stage"] = "awaiting_edit_link"
+    bot.send_message(chat_id, "🔗 ارسل الرابط الجديد للقروب:")
+    return
+
+elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_edit_link":
+    old_name = admin_group_states[chat_id]["old_name"]
+    new_link = text
+    if update_group(old_name, new_link):
+        bot.send_message(chat_id, f"✅ تم تعديل رابط القروب '{old_name}' إلى '{new_link}'")
+    else:
+        bot.send_message(chat_id, "⚠️ حصل خطأ أثناء التعديل.")
+    admin_group_states.pop(chat_id, None)
+    send_main_menu(chat_id)
+    return
 
     
 
