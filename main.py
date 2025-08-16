@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
+import arabic_reshaper
+from bidi.algorithm import get_display
 load_dotenv()
 import threading
 import logging
@@ -134,19 +136,20 @@ def handle_start(message):
 
 
 def send_groups_table(chat_id, groups_data, title="📌 القروبات الحالية"):
-    """إرسال جدول PNG للقروبات"""
-    # إعداد الخطوط (يمكنك تعديل المسار للخط العربي إذا لزم)
+    """إرسال جدول PNG للقروبات يدعم العربية والإنجليزية"""
+    # إعداد الخطوط
     try:
-        font = ImageFont.truetype("arial.ttf", 16)
-        header_font = ImageFont.truetype("arialbd.ttf", 18)
+        font_path = "arial.ttf"       # ضع مسار الخط العربي/الإنجليزي هنا
+        font = ImageFont.truetype(font_path, 16)
+        header_font = ImageFont.truetype(font_path, 18)
     except:
         font = ImageFont.load_default()
         header_font = ImageFont.load_default()
 
-    # إعداد أبعاد الصورة
-    width = 600
-    row_height = 25
-    header_height = 35
+    # أبعاد الصورة
+    width = 800
+    row_height = 30
+    header_height = 40
     padding = 10
     height = header_height + row_height * len(groups_data) + padding*2
 
@@ -154,16 +157,30 @@ def send_groups_table(chat_id, groups_data, title="📌 القروبات الح�
     draw = ImageDraw.Draw(img)
 
     # عنوان
-    draw.text((padding, padding), title, font=header_font, fill="black")
+    if any("\u0600" <= c <= "\u06FF" for c in title):  # إذا فيه عربي
+        reshaped_text = arabic_reshaper.reshape(title)
+        bidi_text = get_display(reshaped_text)
+        draw.text((padding, padding), bidi_text, font=header_font, fill="black")
+    else:
+        draw.text((padding, padding), title, font=header_font, fill="black")
 
-    # رسم الجدول
+    # رسم ترويسة الجدول
+    header = "ID | التصنيف | الاسم | الرابط"
+    reshaped_header = arabic_reshaper.reshape(header)
+    bidi_header = get_display(reshaped_header)
     y = header_height
-    draw.text((padding, y), "ID | التصنيف | الاسم | الرابط", font=font, fill="black")
+    draw.text((padding, y), bidi_header, font=font, fill="black")
     y += row_height
 
+    # رسم البيانات
     for group_id, category, name, link in groups_data:
-        text = f"{group_id} | {category} | {name} | {link}"
-        draw.text((padding, y), text, font=font, fill="black")
+        row_text = f"{group_id} | {category} | {name} | {link}"
+        if any("\u0600" <= c <= "\u06FF" for c in row_text):
+            reshaped_row = arabic_reshaper.reshape(row_text)
+            bidi_row = get_display(reshaped_row)
+            draw.text((padding, y), bidi_row, font=font, fill="black")
+        else:
+            draw.text((padding, y), row_text, font=font, fill="black")
         y += row_height
 
     # حفظ الصورة في الذاكرة
@@ -172,7 +189,6 @@ def send_groups_table(chat_id, groups_data, title="📌 القروبات الح�
     output.seek(0)
 
     bot.send_photo(chat_id, output)
-    
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
