@@ -1,7 +1,10 @@
 import time
 import threading
 import json
+import logging
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo  # ✅ لإدارة التوقيت
+
 from database import (
     get_all_users,
     update_last_msg,
@@ -9,15 +12,16 @@ from database import (
     update_user_gpa,
     get_all_deadlines,
     get_deadline_by_id,
-
 )
 from qou_scraper import QOUScraper
-import logging
 from bot_instance import bot
-send_lock = threading.Lock()  # لقفل الإرسال الآمن داخل الثريد
+
+send_lock = threading.Lock()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+PALESTINE_TZ = ZoneInfo("Asia/Jerusalem")  # ✅ توقيت القدس
 
 # ---------------------- متابعة الرسائل الجديدة ----------------------
 def check_for_new_messages():
@@ -42,12 +46,12 @@ def check_for_new_messages():
                     )
                     bot.send_message(chat_id, text)
                     update_last_msg(chat_id, latest['msg_id'])
-        time.sleep(20 * 60)  # كل 20 دقيقة
+        time.sleep(20 * 60)
 
 # ---------------------- متابعة تغير العلامات ----------------------
 def check_for_course_updates():
     while True:
-        now = datetime.now()
+        now = datetime.now(PALESTINE_TZ)
         hour = now.hour
         users = get_all_users()
 
@@ -68,26 +72,27 @@ def check_for_course_updates():
                         changes = []
                         for c in courses:
                             old_c = next((o for o in old_courses if o['course_code'] == c['course_code']), None)
-                            if old_c:
-                                if c['midterm_mark'] != old_c['midterm_mark'] or c['final_mark'] != old_c['final_mark']:
-                                    changes.append(c)
+                            if old_c and (
+                                c['midterm_mark'] != old_c['midterm_mark'] or
+                                c['final_mark'] != old_c['final_mark']
+                            ):
+                                changes.append(c)
 
                         if changes:
                             msg = "📢 تحديث جديد في العلامات:\n\n"
                             for change in changes:
-                                msg += f"📚 {change['course_name']}\n"
-                                msg += f"نصفي: {change['midterm_mark']} | نهائي: {change['final_mark']}\n\n"
+                                msg += (
+                                    f"📚 {change['course_name']}\n"
+                                    f"نصفي: {change['midterm_mark']} | نهائي: {change['final_mark']}\n\n"
+                                )
                             bot.send_message(chat_id, msg)
 
                     update_user_courses(chat_id, courses_json)
 
                 except Exception as e:
-                    print(f"❌ خطأ مع {student_id}: {e}")
+                    logger.error(f"❌ خطأ مع {student_id}: {e}")
 
-        if 21 <= hour < 24:
-            time.sleep(10 * 60)  # كل 10 دقائق
-        else:
-            time.sleep(60 * 60)  # كل ساعة
+        time.sleep(10 * 60 if 21 <= hour < 24 else 60 * 60)
 
 # ---------------------- متابعة جدول المحاضرات ----------------------
 def check_for_lectures():
@@ -96,12 +101,11 @@ def check_for_lectures():
     notified_started = {}
 
     while True:
-        now = datetime.now()
-        current_time = now.strftime("%H:%M")
+        now = datetime.now(PALESTINE_TZ)
         current_hour = now.hour
         current_weekday = now.strftime("%A")
-
         users = get_all_users()
+
         for user in users:
             chat_id = user['chat_id']
             student_id = user['student_id']
@@ -129,11 +133,12 @@ def check_for_lectures():
 
                     for lec in todays_lectures:
                         start_str, end_str = lec['time'].split(' - ')
-                        start_time = datetime.strptime(start_str, "%H:%M").time()
-                        end_time = datetime.strptime(end_str, "%H:%M").time()
+                        start_time = datetime.strptime(start_str.strip(), "%H:%M").time()
+                        end_time = datetime.strptime(end_str.strip(), "%H:%M").time()
 
-                        start_dt = datetime.combine(now.date(), start_time)
-                        end_dt = datetime.combine(now.date(), end_time)
+                        start_dt = datetime.combine(now.date(), start_time).replace(tzinfo=PALESTINE_TZ)
+                        end_dt = datetime.combine(now.date(), end_time).replace(tzinfo=PALESTINE_TZ)
+
                         diff_to_start = (start_dt - now).total_seconds() / 60
 
                         key_1h = f"{chat_id}_{lec['course_code']}_1h"
@@ -152,7 +157,7 @@ def check_for_lectures():
                         notified_started.clear()
 
                 except Exception as e:
-                    print(f"❌ خطأ في جلب محاضرات الطالب {student_id}: {e}")
+                    logger.error(f"❌ خطأ في جلب محاضرات الطالب {student_id}: {e}")
 
         time.sleep(60)
 
@@ -164,8 +169,7 @@ def check_for_gpa_changes():
             chat_id = user['chat_id']
             student_id = user['student_id']
             password = user['password']
-            old_gpa = user.get('last_gpa')
-            old_gpa = json.loads(old_gpa) if old_gpa else None
+            old_gpa = json.loads(user.get('last_gpa')) if user.get('last_gpa') else None
 
             scraper = QOUScraper(student_id, password)
             if scraper.login():
@@ -184,20 +188,17 @@ def check_for_gpa_changes():
                         update_user_gpa(chat_id, json.dumps(new_gpa))
 
                 except Exception as e:
-                    print(f"❌ خطأ أثناء التحقق من GPA للطالب {student_id}: {e}")
+                    logger.error(f"❌ خطأ أثناء التحقق من GPA للطالب {student_id}: {e}")
 
         time.sleep(24 * 60 * 60)
 
-
+# ---------------------- التذكير بالمواعيد ----------------------
 def send_deadline_reminders_loop():
-    """
-    ترسل تذكيرات للمستخدمين بكل المواعيد كل 12 ساعة.
-    """
     while True:
         try:
-            deadlines = get_all_deadlines()  # [(id, name, date)]
-            users = get_all_users()          # [{'chat_id': ...}, ...]
-            today = date.today()
+            deadlines = get_all_deadlines()
+            users = get_all_users()
+            today = datetime.now(PALESTINE_TZ).date()
 
             for user in users:
                 chat_id = user['chat_id']
@@ -209,48 +210,39 @@ def send_deadline_reminders_loop():
                         msg_lines.append(f"⏰ باقي {days_left} يوم للموعد: {d_name} ({d_date.strftime('%d/%m/%Y')})")
 
                 if msg_lines:
-                    full_msg = "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines)
-                    try:
-                        bot.send_message(chat_id, full_msg)
-                    except Exception as e:
-                        logger.exception(f"Failed to send deadline reminder to {chat_id}: {e}")
-
+                    bot.send_message(chat_id, "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines))
         except Exception as e:
-            logger.exception(f"Error in deadline reminders loop: {e}")
+            logger.exception("خطأ في التذكير بالمواعيد: %s", e)
 
-        # انتظر 12 ساعة قبل التكرار
         time.sleep(12 * 60 * 60)
 
-
-# دالة لإرسال تذكير فوري عند إضافة موعد جديد
 def send_reminder_for_new_deadline(deadline_id):
     deadline = get_deadline_by_id(deadline_id)
     if not deadline:
         return
 
-    users = get_all_users()
     d_id, d_name, d_date = deadline
-    today = date.today()
+    today = datetime.now(PALESTINE_TZ).date()
     days_left = (d_date - today).days
-
     if days_left < 0:
         return
 
-    for user in users:
+    for user in get_all_users():
         chat_id = user['chat_id']
         msg = f"⏰ تم إضافة موعد جديد: {d_name} بتاريخ {d_date.strftime('%d/%m/%Y')} (باقي {days_left} يوم)"
         try:
             bot.send_message(chat_id, msg)
         except Exception as e:
-            logger.exception(f"Failed to send new deadline reminder to {chat_id}: {e}")
+            logger.exception(f"فشل في إرسال موعد جديد إلى {chat_id}: {e}")
 
+# ---------------------- حلقات النقاش ----------------------
 def check_discussion_sessions():
     notified_today = {}
     notified_half_hour = {}
     last_known_sessions = {}
 
     while True:
-        now = datetime.now()
+        now = datetime.now(PALESTINE_TZ)
         today_str = now.strftime("%d/%m/%Y")
         users = get_all_users()
 
@@ -265,7 +257,6 @@ def check_discussion_sessions():
                     sessions = scraper.fetch_discussion_sessions()
                     today_sessions = [s for s in sessions if s['date'] == today_str]
 
-                    # 📌 1. تنبيه بوجود حلقة نقاش اليوم
                     if today_sessions and chat_id not in notified_today:
                         msg = "📅 *حلقات النقاش اليوم:*\n\n"
                         for s in today_sessions:
@@ -276,7 +267,6 @@ def check_discussion_sessions():
                         bot.send_message(chat_id, msg, parse_mode="Markdown")
                         notified_today[chat_id] = now.date()
 
-                    # 📌 2. تنبيه عند إضافة حلقة نقاش جديدة
                     current_ids = set(f"{s['course_code']}_{s['date']}_{s['time']}" for s in sessions)
                     previous_ids = last_known_sessions.get(chat_id, set())
                     new_ids = current_ids - previous_ids
@@ -293,10 +283,9 @@ def check_discussion_sessions():
                                     bot.send_message(chat_id, msg, parse_mode="Markdown")
                         last_known_sessions[chat_id] = current_ids
 
-                    # 📌 3. تذكير قبل الموعد بـ 30 دقيقة
                     for s in today_sessions:
-                        start_str = s['time'].split('-')[0].strip()  # 11:00
-                        session_time = datetime.strptime(f"{s['date']} {start_str}", "%d/%m/%Y %H:%M")
+                        start_str = s['time'].split('-')[0].strip()
+                        session_time = datetime.strptime(f"{s['date']} {start_str}", "%d/%m/%Y %H:%M").replace(tzinfo=PALESTINE_TZ)
                         diff = (session_time - now).total_seconds() / 60
                         key = f"{chat_id}_{s['course_code']}_{s['date']}_{start_str}"
                         if 0 < diff <= 30 and key not in notified_half_hour:
@@ -308,26 +297,20 @@ def check_discussion_sessions():
                             bot.send_message(chat_id, msg, parse_mode="Markdown")
                             notified_half_hour[key] = True
 
-                    # إعادة التهيئة يومياً
                     if now.hour == 0 and now.minute == 0:
                         notified_today.clear()
                         notified_half_hour.clear()
 
                 except Exception as e:
-                    logger.error(f"❌ خطأ أثناء التحقق من حلقات النقاش للطالب {student_id}: {e}")
+                    logger.error(f"❌ خطأ في حلقات النقاش للطالب {student_id}: {e}")
 
-        time.sleep(30 * 60)  # كل نصف ساعة
+        time.sleep(30 * 60)
 
-
-
-# ---------------------- تشغيل كل المهام ----------------------
+# ---------------------- تشغيل المهام ----------------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
     threading.Thread(target=check_for_course_updates, daemon=True).start()
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_deadline_reminders_loop, daemon=True).start()
-    threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
-    threading.Thread(target=check_discussion_sessions, daemon=True).start()  # ⬅️ تمت إضافتها
-
-
+    threading.Thread(target=check_discussion_sessions, daemon=True).start()
