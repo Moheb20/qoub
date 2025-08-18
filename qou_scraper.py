@@ -3,10 +3,14 @@ from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
 import logging
-from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
+import arabic_reshaper
+from bidi.algorithm import get_display
 from io import BytesIO
 pdfmetrics.registerFont(TTFont('Arial', '/fonts/arial.ttf'))  # تأكد من وجود ملف arial.ttf على السيرفر
 
@@ -250,6 +254,7 @@ class QOUScraper:
         if not rows:
             return None
     
+        # الأعمدة والبيانات
         columns = ["📅 الفصل", "💰 مطلوب", "💸 مدفوع", "🎁 منح", "🧾 رصيد"]
         data = [columns]
     
@@ -261,19 +266,33 @@ class QOUScraper:
     
         if len(data) == 1:
             return None
+    
+        # معالجة النص العربي لكل خلية في الجدول
+        for i in range(1, len(data)):
+            for j in range(len(data[i])):
+                data[i][j] = get_display(arabic_reshaper.reshape(data[i][j]))
+    
+        # معالجة عناوين الأعمدة
+        data[0] = [get_display(arabic_reshaper.reshape(col)) for col in data[0]]
+    
         output = BytesIO()
         pdf = SimpleDocTemplate(output, pagesize=A4)
         elements = []
     
         style_sheet = getSampleStyleSheet()
         arabic_style = style_sheet['Normal']
-        arabic_style.fontName = 'Arial'  # استخدام الخط العربي
+        arabic_style.fontName = 'Arial'
         arabic_style.fontSize = 12
-        elements.append(Paragraph("رصيد الطالب", style_sheet['Title']))
+    
+        # عنوان الصفحة
+        title_text = get_display(arabic_reshaper.reshape("رصيد الطالب"))
+        elements.append(Paragraph(title_text, arabic_style))
         elements.append(Spacer(1, 12))
     
+        # إنشاء الجدول
         table = Table(data, repeatRows=1, hAlign='CENTER')
         style = TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), 'Arial'),
             ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
             ('TEXTCOLOR', (0,0), (-1,0), colors.black),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
@@ -282,6 +301,7 @@ class QOUScraper:
         ])
         table.setStyle(style)
     
+        # تلوين الصفوف بالتناوب
         for i in range(1, len(data)):
             if i % 2 == 0:
                 table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
