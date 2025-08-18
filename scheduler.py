@@ -2,8 +2,10 @@ import time
 import threading
 import json
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo  # ✅ لإدارة التوقيت
+
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from database import (
     get_all_users,
@@ -306,7 +308,65 @@ def check_discussion_sessions():
 
         time.sleep(30 * 60)
 
-# ---------------------- تشغيل المهام ----------------------
+# ---------------------- متابعة الامتحانات ----------------------
+exam_scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
+exam_scheduler.start()
+
+def schedule_exam_reminders_for_all():
+    users = get_all_users()
+    for user in users:
+        chat_id = user['chat_id']
+        student_id = user['student_id']
+        password = user['password']
+
+        scraper = QOUScraper(student_id, password)
+        if scraper.login():
+            exams = scraper.fetch_exam_schedule(term_no="current_term", exam_type="final")
+            for exam in exams:
+                exam_datetime = datetime.strptime(f"{exam['date']} {exam['from_time']}", "%Y-%m-%d %H:%M")
+                exam_datetime = exam_datetime.replace(tzinfo=PALESTINE_TZ)
+
+                # تذكير الساعة 05:00 فجراً
+                day_start = exam_datetime.replace(hour=5, minute=0, second=0)
+                if day_start > datetime.now(PALESTINE_TZ):
+                    exam_scheduler.add_job(
+                        lambda exam=exam, chat_id=chat_id: bot.send_message(
+                            chat_id, f"📢 عندك اليوم امتحان: {exam['course_name']} الساعة {exam['from_time']}"
+                        ),
+                        trigger="date",
+                        run_date=day_start,
+                    )
+
+                # تذكير قبل الامتحان بساعة
+                one_hour_before = exam_datetime - timedelta(hours=1)
+                if one_hour_before > datetime.now(PALESTINE_TZ):
+                    exam_scheduler.add_job(
+                        lambda exam=exam, chat_id=chat_id: bot.send_message(
+                            chat_id, f"⏰ بعد ساعة عندك امتحان {exam['course_name']} الساعة {exam['from_time']}"
+                        ),
+                        trigger="date",
+                        run_date=one_hour_before,
+                    )
+
+                # وقت الامتحان
+                if exam_datetime > datetime.now(PALESTINE_TZ):
+                    exam_scheduler.add_job(
+                        lambda exam=exam, chat_id=chat_id: bot.send_message(
+                            chat_id, f"🚀 بدأ الآن امتحان {exam['course_name']} بالتوفيق ❤️"
+                        ),
+                        trigger="date",
+                        run_date=exam_datetime,
+                    )
+
+def exams_scheduler_loop():
+    while True:
+        try:
+            schedule_exam_reminders_for_all()
+        except Exception as e:
+            logger.error(f"❌ خطأ في جدولة الامتحانات: {e}")
+        time.sleep(6 * 60 * 60)  # تحديث الجدول كل 6 ساعات
+
+# ---------------------- تشغيل كل المهام ----------------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
     threading.Thread(target=check_for_course_updates, daemon=True).start()
@@ -314,3 +374,4 @@ def start_scheduler():
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_deadline_reminders_loop, daemon=True).start()
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
+    threading.Thread(target=exams_scheduler_loop, daemon=True).start()
