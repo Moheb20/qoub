@@ -813,18 +813,22 @@ def handle_all_messages(message):
                 bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
                 return
     
-            balance_text = scraper.fetch_balance_table()
+            # هنا نستدعي الدالة التي ترجع الصورة بدلاً من النص
+            balance_image = scraper.fetch_balance_table_image()
     
             # لوحة أزرار للإجمالي والعودة للرئيسية
             markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
             markup.add("📊 الإجمالي", "🏠 العودة للرئيسية")
     
-            bot.send_message(chat_id, balance_text, reply_markup=markup)
+            if balance_image:
+                bot.send_photo(chat_id, photo=balance_image, reply_markup=markup)
+            else:
+                bot.send_message(chat_id, "❌ لم يتم العثور على بيانات الرصيد", reply_markup=markup)
+    
         except Exception as e:
             print(f"Error fetching balance: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب بيانات الرصيد. حاول مرة أخرى لاحقاً.")
         return
-    
     # ------------------ زر الإجمالي ------------------
     elif text == "📊 الإجمالي":
         user = get_user(chat_id)
