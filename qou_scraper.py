@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
 import logging
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
@@ -235,9 +237,9 @@ class QOUScraper:
             }
             sessions.append(session)
         return sessions
-    def fetch_balance_table(self) -> str:
+    def fetch_balance_table_image(self) -> bytes:
         """
-        يرجع رصيد الطالب على شكل جدول منسق وجميل على Telegram
+        يرجع رصيد الطالب على شكل صورة جاهزة للإرسال على Telegram
         """
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
@@ -245,25 +247,54 @@ class QOUScraper:
     
         rows = soup.select("table#dataTable tbody tr")
         if not rows:
-            return "❌ لم يتم العثور على بيانات الرصيد"
+            return None  # يمكن التعامل مع الحالة خارج الدالة
     
-        # رأس الجدول
-        header = "📊 رصيد الطالب\n\n"
+        # تجهيز البيانات
         columns = ["📅الفصل", "💰مطلوب", "💸مدفوع", "🎁منح", "🧾رصيد"]
-    
-        # بناء الجدول
-        table_text = "```\n"
-        table_text += "".join(f"{col:<10}" for col in columns) + "\n"
-        table_text += "-" * 50 + "\n"
-    
+        data = []
         for row in rows:
             cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
             if len(cols) < 7:
                 continue
-            table_text += f"{cols[0]:<10}{cols[1]:<10}{cols[2]:<10}{cols[4]:<10}{cols[5]:<10}\n"
+            data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
     
-        table_text += "```"
-        return header + table_text
+        # إعداد الصورة
+        font = ImageFont.truetype("arial.ttf", 20)  # استخدم خط يدعم عربي و emoji
+        padding = 20
+        row_height = 35
+        col_widths = [120, 100, 100, 100, 100]
+        width = sum(col_widths) + padding*2
+        height = (len(data)+1)*row_height + padding*2
+    
+        img = Image.new("RGB", (width, height), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+    
+        # رسم الرأس
+        y = padding
+        x = padding
+        for i, col in enumerate(columns):
+            draw.text((x, y), col, font=font, fill=(0,0,0))
+            x += col_widths[i]
+    
+        # رسم خط أسفل الرأس
+        y += row_height - 10
+        draw.line([(padding, y), (width-padding, y)], fill=(0,0,0), width=2)
+    
+        # رسم الصفوف
+        y += 10
+        for row in data:
+            x = padding
+            for i, cell in enumerate(row):
+                draw.text((x, y), str(cell), font=font, fill=(0,0,0))
+                x += col_widths[i]
+            y += row_height
+    
+        # حفظ الصورة في ذاكرة مؤقتة لإرسالها مباشرة على Telegram
+        output = BytesIO()
+        img.save(output, format="PNG")
+        output.seek(0)
+        return output.getvalue()
+
     
     
     def fetch_balance_totals(self) -> str:
