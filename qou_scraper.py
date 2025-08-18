@@ -237,7 +237,7 @@ class QOUScraper:
             }
             sessions.append(session)
         return sessions
-    def fetch_balance_table_image(self) -> bytes:
+    def fetch_balance_table_image(self) -> BytesIO:
         """
         يرجع رصيد الطالب على شكل صورة جاهزة للإرسال على Telegram
         """
@@ -247,9 +247,8 @@ class QOUScraper:
     
         rows = soup.select("table#dataTable tbody tr")
         if not rows:
-            return None  # يمكن التعامل مع الحالة خارج الدالة
+            return None
     
-        # تجهيز البيانات
         columns = ["📅الفصل", "💰مطلوب", "💸مدفوع", "🎁منح", "🧾رصيد"]
         data = []
         for row in rows:
@@ -259,8 +258,9 @@ class QOUScraper:
             data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
     
         # إعداد الصورة
-        font = ImageFont.truetype("arial.ttf", 20)  # استخدم خط يدعم عربي و emoji
-        padding = 20
+        font_path = "arial.ttf"  # أو خط عربي يدعم emoji
+        font = ImageFont.truetype(font_path, 18)
+        padding = 15
         row_height = 35
         col_widths = [120, 100, 100, 100, 100]
         width = sum(col_widths) + padding*2
@@ -269,27 +269,25 @@ class QOUScraper:
         img = Image.new("RGB", (width, height), color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
     
-        # رسم الرأس
+        # رسم الرأس بخلفية خفيفة
         y = padding
         x = padding
         for i, col in enumerate(columns):
-            draw.text((x, y), col, font=font, fill=(0,0,0))
+            draw.rectangle([x, y, x+col_widths[i], y+row_height], fill=(230,230,250))
+            draw.text((x+5, y+7), col, font=font, fill=(0,0,0))
             x += col_widths[i]
     
-        # رسم خط أسفل الرأس
-        y += row_height - 10
-        draw.line([(padding, y), (width-padding, y)], fill=(0,0,0), width=2)
-    
-        # رسم الصفوف
-        y += 10
-        for row in data:
+        # رسم الصفوف بخلفية متبادلة
+        y += row_height
+        for idx, row in enumerate(data):
             x = padding
+            bg_color = (245,245,245) if idx%2==0 else (255,255,255)
+            draw.rectangle([padding, y, width-padding, y+row_height], fill=bg_color)
             for i, cell in enumerate(row):
-                draw.text((x, y), str(cell), font=font, fill=(0,0,0))
+                draw.text((x+5, y+7), str(cell), font=font, fill=(0,0,0))
                 x += col_widths[i]
             y += row_height
     
-        # حفظ الصورة في ذاكرة مؤقتة لإرسالها مباشرة على Telegram
         output = BytesIO()
         img.save(output, format="PNG")
         output.seek(0)
