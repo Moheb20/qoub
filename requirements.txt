@@ -13,3 +13,4 @@ Pillow
 arabic-reshaper
 python-bidi
 reportlab
+apscheduler
