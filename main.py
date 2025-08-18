@@ -813,16 +813,17 @@ def handle_all_messages(message):
                 bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
                 return
     
-            # استدعاء الدالة التي ترجع PDF بدلاً من الصورة
-            balance_pdf = scraper.fetch_balance_table_pdf()
+            # استدعاء الدالة التي ترجع PDF كـ bytes
+            balance_pdf_bytes = scraper.fetch_balance_table_pdf()
     
             # لوحة أزرار للإجمالي والعودة للرئيسية
             markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
             markup.add("📊 الإجمالي", "🏠 العودة للرئيسية")
     
-            if balance_pdf:
-                # إرسال الملف مباشرة كـ مستند PDF
-                bot.send_document(chat_id, document=balance_pdf, filename="رصيد_الطالب.pdf", reply_markup=markup)
+            if balance_pdf_bytes:
+                pdf_file = io.BytesIO(balance_pdf_bytes)
+                pdf_file.name = "رصيد_الطالب.pdf"
+                bot.send_document(chat_id, document=pdf_file, reply_markup=markup)
             else:
                 bot.send_message(chat_id, "❌ لم يتم العثور على بيانات الرصيد", reply_markup=markup)
     
