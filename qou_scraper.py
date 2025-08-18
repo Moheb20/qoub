@@ -239,62 +239,54 @@ class QOUScraper:
             }
             sessions.append(session)
         return sessions
-    def fetch_balance_table_image(self) -> BytesIO:
-        """
-        يرجع رصيد الطالب على شكل صورة جاهزة للإرسال على Telegram
-        """
-        resp = self.session.get(BALANCE_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-    
-        rows = soup.select("table#dataTable tbody tr")
-        if not rows:
-            return None
-    
-        columns = ["📅الفصل", "💰مطلوب", "💸مدفوع", "🎁منح", "🧾رصيد"]
-        data = []
-        for row in rows:
-            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
-            if len(cols) < 7:
-                continue
-            data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
-    
-        # إعداد الصورة
-        font_path = "arial.ttf"  # أو خط عربي يدعم emoji
-        font = ImageFont.truetype(font_path, 18)
-        padding = 15
-        row_height = 35
-        col_widths = [120, 100, 100, 100, 100]
-        width = sum(col_widths) + padding*2
-        height = (len(data)+1)*row_height + padding*2
-    
-        img = Image.new("RGB", (width, height), color=(255, 255, 255))
-        draw = ImageDraw.Draw(img)
-    
-        # رسم الرأس بخلفية خفيفة
-        y = padding
-        x = padding
-        for i, col in enumerate(columns):
-            draw.rectangle([x, y, x+col_widths[i], y+row_height], fill=(230,230,250))
-            draw.text((x+5, y+7), col, font=font, fill=(0,0,0))
-            x += col_widths[i]
-    
-        # رسم الصفوف بخلفية متبادلة
-        y += row_height
-        for idx, row in enumerate(data):
-            x = padding
-            bg_color = (245,245,245) if idx%2==0 else (255,255,255)
-            draw.rectangle([padding, y, width-padding, y+row_height], fill=bg_color)
-            for i, cell in enumerate(row):
-                draw.text((x+5, y+7), str(cell), font=font, fill=(0,0,0))
-                x += col_widths[i]
-            y += row_height
-    
-        output = BytesIO()
-        img.save(output, format="PNG")
-        output.seek(0)
-        return output
+def fetch_balance_table_pdf(self) -> BytesIO:
+    """
+    يرجع رصيد الطالب على شكل ملف PDF جاهز للإرسال على Telegram
+    """
+    resp = self.session.get(BALANCE_URL)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, 'html.parser')
 
+    rows = soup.select("table#dataTable tbody tr")
+    if not rows:
+        return None
+
+    # الأعمدة والبيانات
+    columns = ["📅 الفصل", "💰 مطلوب", "💸 مدفوع", "🎁 منح", "🧾 رصيد"]
+    data = [columns]  # أول صف للرأس
+    for row in rows:
+        cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
+        if len(cols) < 7:
+            continue
+        data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
+
+    if len(data) == 1:  # لا توجد بيانات بعد الرأس
+        return None
+
+    # إنشاء ملف PDF في الذاكرة
+    output = BytesIO()
+    pdf = SimpleDocTemplate(output, pagesize=A4)
+    
+    # إعداد الجدول
+    table = Table(data, repeatRows=1, hAlign='LEFT')
+    style = TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.black),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('BACKGROUND', (0,1), (-1,-1), colors.whitesmoke),
+    ])
+    table.setStyle(style)
+
+    # إضافة خلفية متبادلة للصفوف
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
+
+    # بناء الـ PDF
+    pdf.build([table])
+    output.seek(0)
+    return output
     
     
     def fetch_balance_totals(self) -> str:
