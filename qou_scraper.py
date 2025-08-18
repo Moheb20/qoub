@@ -12,8 +12,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 import arabic_reshaper
 from bidi.algorithm import get_display
 from io import BytesIO
-pdfmetrics.registerFont(TTFont('Arial', '/fonts/arial.ttf'))  # تأكد من وجود ملف arial.ttf على السيرفر
-
+font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
+pdfmetrics.registerFont(TTFont('Arial', font_path))
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
