@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+import os
 from typing import Optional, List
 from datetime import datetime
 import logging
