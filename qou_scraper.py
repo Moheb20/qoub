@@ -237,7 +237,7 @@ class QOUScraper:
         return sessions
     def fetch_balance_table(self) -> str:
         """
-        يرجع رصيد الطالب على شكل جدول منسق ومناسب للهواتف على Telegram
+        يرجع رصيد الطالب على شكل جدول منسق وجميل على Telegram
         """
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
@@ -249,28 +249,26 @@ class QOUScraper:
     
         # رأس الجدول
         header = "📊 رصيد الطالب\n\n"
-        columns = ["📅الفصل", "💰مطلوب", "💸مدفوع", "🔙سابق", "🎁منح", "🧾رصيد", "💱عملة"]
+        columns = ["📅الفصل", "💰مطلوب", "💸مدفوع", "🎁منح", "🧾رصيد"]
     
-        # نص الجدول مع أعمدة ثابتة وعرض قصير
+        # بناء الجدول
         table_text = "```\n"
-        # عرض العناوين
-        table_text += "".join(f"{col:<8}" for col in columns) + "\n"
-        table_text += "─" * 60 + "\n"
+        table_text += "".join(f"{col:<10}" for col in columns) + "\n"
+        table_text += "-" * 50 + "\n"
     
-        # إضافة الصفوف
         for row in rows:
             cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
             if len(cols) < 7:
                 continue
-            # كل قيمة في العمود تأخذ نفس العرض (قصير)
-            table_text += f"{cols[0]:<8}{cols[1]:<8}{cols[2]:<8}{cols[3]:<8}{cols[4]:<8}{cols[5]:<8}{cols[6]:<6}\n"
+            table_text += f"{cols[0]:<10}{cols[1]:<10}{cols[2]:<10}{cols[4]:<10}{cols[5]:<10}\n"
     
         table_text += "```"
         return header + table_text
-
+    
+    
     def fetch_balance_totals(self) -> str:
         """
-        يحسب الإجمالي لكل الأعمدة ويعرضه بطريقة جميلة على تيليجرام
+        يحسب الإجمالي لكل الأعمدة ويعرضه بشكل مرتب على Telegram
         """
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
@@ -280,7 +278,7 @@ class QOUScraper:
         if not rows:
             return "❌ لم يتم العثور على بيانات الرصيد"
     
-        total_required = total_paid = total_prev = total_grants = total_balance = 0.0
+        total_required = total_paid = total_grants = total_balance = 0.0
     
         for row in rows:
             cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
@@ -288,16 +286,14 @@ class QOUScraper:
                 continue
             total_required += float(cols[1])
             total_paid     += float(cols[2])
-            total_prev     += float(cols[3])
             total_grants   += float(cols[4])
             total_balance  += float(cols[5])
     
-        text = "📌 *الإجمالي الكلي للرصيد:*\n\n"
-        text += f"💰 *المطلوب:* `{total_required}`\n"
-        text += f"✅ *المدفوع:* `{total_paid}`\n"
-        text += f"📌 *السابق:* `{total_prev}`\n"
-        text += f"🎓 *المنح:* `{total_grants}`\n"
-        text += f"📊 *رصيد الفصل:* `{total_balance}`\n"
+        text = "📌 الإجمالي الكلي للرصيد:\n\n"
+        text += f"💰 المطلوب: {total_required}\n"
+        text += f"✅ المدفوع: {total_paid}\n"
+        text += f"🎓 المنح: {total_grants}\n"
+        text += f"📊 رصيد الفصل: {total_balance}\n"
     
         return text
-        
+
