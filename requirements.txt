@@ -12,3 +12,4 @@ python-dotenv
 Pillow
 arabic-reshaper
 python-bidi
+reportlab
