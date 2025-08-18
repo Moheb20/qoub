@@ -8,6 +8,7 @@ LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
+BALANCE_URL = 'https://portal.qou.edu/student/getSasStudFtermCardList.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
 logger = logging.getLogger(__name__)
 class QOUScraper:
@@ -234,5 +235,64 @@ class QOUScraper:
             }
             sessions.append(session)
         return sessions
+    def fetch_balance_table(self) -> str:
+        """
+        يرجع رصيد الطالب على شكل جدول منسق (تيكست)
+        """
+        resp = self.session.get(BALANCE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
 
+        rows = soup.select("table#dataTable tbody tr")
+        if not rows:
+            return "❌ لم يتم العثور على بيانات الرصيد"
+
+        text = "📊 *رصيد الطالب:*\n\n"
+        for row in rows:
+            cols = [c.get_text(strip=True) for c in row.find_all("td")]
+            if len(cols) < 7:
+                continue
+            text += f"📅 الفصل: {cols[0]}\n"
+            text += f"💰 المطلوب: {cols[1]}\n"
+            text += f"✅ المدفوع: {cols[2]}\n"
+            text += f"📌 السابق: {cols[3]}\n"
+            text += f"🎓 المنح: {cols[4]}\n"
+            text += f"📊 رصيد الفصل: {cols[5]}\n"
+            text += f"💵 العملة: {cols[6]}\n"
+            text += "---------------------\n"
+
+        return text
+
+    def fetch_balance_totals(self) -> str:
+        """
+        يحسب الإجمالي لكل الأعمدة
+        """
+        resp = self.session.get(BALANCE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        rows = soup.select("table#dataTable tbody tr")
+        if not rows:
+            return "❌ لم يتم العثور على بيانات الرصيد"
+
+        total_required = total_paid = total_prev = total_grants = total_balance = 0.0
+
+        for row in rows:
+            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
+            if len(cols) < 7:
+                continue
+            total_required += float(cols[1])
+            total_paid     += float(cols[2])
+            total_prev     += float(cols[3])
+            total_grants   += float(cols[4])
+            total_balance  += float(cols[5])
+
+        text = "📌 *الإجمالي:*\n\n"
+        text += f"💰 مجموع المطلوب: {total_required}\n"
+        text += f"✅ مجموع المدفوع: {total_paid}\n"
+        text += f"📌 مجموع السابق: {total_prev}\n"
+        text += f"🎓 مجموع المنح: {total_grants}\n"
+        text += f"📊 مجموع رصيد الفصل: {total_balance}\n"
+
+        return text
         
