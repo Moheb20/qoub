@@ -3,7 +3,9 @@ from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
 import logging
-from PIL import Image, ImageDraw, ImageFont
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 from io import BytesIO
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
