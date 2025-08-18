@@ -8,6 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from io import BytesIO
+pdfmetrics.registerFont(TTFont('Arial', '/fonts/arial.ttf'))  # تأكد من وجود ملف arial.ttf على السيرفر
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
@@ -260,12 +261,14 @@ class QOUScraper:
     
         if len(data) == 1:
             return None
-    
         output = BytesIO()
         pdf = SimpleDocTemplate(output, pagesize=A4)
         elements = []
     
         style_sheet = getSampleStyleSheet()
+        arabic_style = style_sheet['Normal']
+        arabic_style.fontName = 'Arial'  # استخدام الخط العربي
+        arabic_style.fontSize = 12
         elements.append(Paragraph("رصيد الطالب", style_sheet['Title']))
         elements.append(Spacer(1, 12))
     
