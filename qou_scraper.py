@@ -269,18 +269,18 @@ class QOUScraper:
 
     def fetch_balance_totals(self) -> str:
         """
-        يحسب الإجمالي لكل الأعمدة
+        يحسب الإجمالي لكل الأعمدة ويعرضه بطريقة جميلة على تيليجرام
         """
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
-
+    
         rows = soup.select("table#dataTable tbody tr")
         if not rows:
             return "❌ لم يتم العثور على بيانات الرصيد"
-
+    
         total_required = total_paid = total_prev = total_grants = total_balance = 0.0
-
+    
         for row in rows:
             cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
             if len(cols) < 7:
@@ -290,13 +290,13 @@ class QOUScraper:
             total_prev     += float(cols[3])
             total_grants   += float(cols[4])
             total_balance  += float(cols[5])
-
-        text = "📌 *الإجمالي:*\n\n"
-        text += f"💰 مجموع المطلوب: {total_required}\n"
-        text += f"✅ مجموع المدفوع: {total_paid}\n"
-        text += f"📌 مجموع السابق: {total_prev}\n"
-        text += f"🎓 مجموع المنح: {total_grants}\n"
-        text += f"📊 مجموع رصيد الفصل: {total_balance}\n"
-
+    
+        text = "📌 *الإجمالي الكلي للرصيد:*\n\n"
+        text += f"💰 *المطلوب:* `{total_required}`\n"
+        text += f"✅ *المدفوع:* `{total_paid}`\n"
+        text += f"📌 *السابق:* `{total_prev}`\n"
+        text += f"🎓 *المنح:* `{total_grants}`\n"
+        text += f"📊 *رصيد الفصل:* `{total_balance}`\n"
+    
         return text
         
