@@ -293,7 +293,7 @@ class QOUScraper:
         output = BytesIO()
         img.save(output, format="PNG")
         output.seek(0)
-        return output.getvalue()
+        return output
 
     
     
