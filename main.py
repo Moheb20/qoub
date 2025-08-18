@@ -821,9 +821,8 @@ def handle_all_messages(message):
             markup.add("📊 الإجمالي", "🏠 العودة للرئيسية")
     
             if balance_pdf_bytes:
-                pdf_file = io.BytesIO(balance_pdf_bytes)
-                pdf_file.name = "رصيد_الطالب.pdf"
-                bot.send_document(chat_id, document=pdf_file, reply_markup=markup)
+                balance_pdf_bytes.name = "رصيد_الطالب.pdf"
+                bot.send_document(chat_id, document=balance_pdf_bytes, reply_markup=markup)
             else:
                 bot.send_message(chat_id, "❌ لم يتم العثور على بيانات الرصيد", reply_markup=markup)
     
