@@ -237,7 +237,7 @@ class QOUScraper:
         return sessions
     def fetch_balance_table(self) -> str:
         """
-        يرجع رصيد الطالب على شكل جدول منسق (تيكست)
+        يرجع رصيد الطالب على شكل جدول نصي منسق
         """
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
@@ -247,21 +247,19 @@ class QOUScraper:
         if not rows:
             return "❌ لم يتم العثور على بيانات الرصيد"
 
-        text = "📊 *رصيد الطالب:*\n\n"
+        # إنشاء رأس الجدول
+        header_text = "📊 *رصيد الطالب:*\n\n"
+        table_header = f"{'الفصل':<10} | {'المطلوب':<10} | {'المدفوع':<10} | {'السابق':<10} | {'المنح':<10} | {'رصيد الفصل':<12} | {'العملة'}\n"
+        separator = "-" * 80 + "\n"
+        table_rows = ""
+
         for row in rows:
-            cols = [c.get_text(strip=True) for c in row.find_all("td")]
+            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
             if len(cols) < 7:
                 continue
-            text += f"📅 الفصل: {cols[0]}\n"
-            text += f"💰 المطلوب: {cols[1]}\n"
-            text += f"✅ المدفوع: {cols[2]}\n"
-            text += f"📌 السابق: {cols[3]}\n"
-            text += f"🎓 المنح: {cols[4]}\n"
-            text += f"📊 رصيد الفصل: {cols[5]}\n"
-            text += f"💵 العملة: {cols[6]}\n"
-            text += "---------------------\n"
+            table_rows += f"{cols[0]:<10} | {cols[1]:<10} | {cols[2]:<10} | {cols[3]:<10} | {cols[4]:<10} | {cols[5]:<12} | {cols[6]}\n"
 
-        return text
+        return header_text + table_header + separator + table_rows
 
     def fetch_balance_totals(self) -> str:
         """
