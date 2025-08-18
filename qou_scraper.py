@@ -4,8 +4,9 @@ from typing import Optional, List
 from datetime import datetime
 import logging
 from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
 from io import BytesIO
 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
@@ -239,55 +240,53 @@ class QOUScraper:
             }
             sessions.append(session)
         return sessions
-def fetch_balance_table_pdf(self) -> BytesIO:
-    """
-    يرجع رصيد الطالب على شكل ملف PDF جاهز للإرسال على Telegram
-    """
-    resp = self.session.get(BALANCE_URL)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, 'html.parser')
-
-    rows = soup.select("table#dataTable tbody tr")
-    if not rows:
-        return None
-
-    # الأعمدة والبيانات
-    columns = ["📅 الفصل", "💰 مطلوب", "💸 مدفوع", "🎁 منح", "🧾 رصيد"]
-    data = [columns]  # أول صف للرأس
-    for row in rows:
-        cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
-        if len(cols) < 7:
-            continue
-        data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
-
-    if len(data) == 1:  # لا توجد بيانات بعد الرأس
-        return None
-
-    # إنشاء ملف PDF في الذاكرة
-    output = BytesIO()
-    pdf = SimpleDocTemplate(output, pagesize=A4)
+    def fetch_balance_table_pdf(self) -> BytesIO:
+        resp = self.session.get(BALANCE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
     
-    # إعداد الجدول
-    table = Table(data, repeatRows=1, hAlign='LEFT')
-    style = TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.black),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BACKGROUND', (0,1), (-1,-1), colors.whitesmoke),
-    ])
-    table.setStyle(style)
-
-    # إضافة خلفية متبادلة للصفوف
-    for i in range(1, len(data)):
-        if i % 2 == 0:
-            table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
-
-    # بناء الـ PDF
-    pdf.build([table])
-    output.seek(0)
-    return output
+        rows = soup.select("table#dataTable tbody tr")
+        if not rows:
+            return None
     
+        columns = ["📅 الفصل", "💰 مطلوب", "💸 مدفوع", "🎁 منح", "🧾 رصيد"]
+        data = [columns]
+    
+        for row in rows:
+            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
+            if len(cols) < 7:
+                continue
+            data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
+    
+        if len(data) == 1:
+            return None
+    
+        output = BytesIO()
+        pdf = SimpleDocTemplate(output, pagesize=A4)
+        elements = []
+    
+        style_sheet = getSampleStyleSheet()
+        elements.append(Paragraph("رصيد الطالب", style_sheet['Title']))
+        elements.append(Spacer(1, 12))
+    
+        table = Table(data, repeatRows=1, hAlign='CENTER')
+        style = TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('BACKGROUND', (0,1), (-1,-1), colors.whitesmoke),
+        ])
+        table.setStyle(style)
+    
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
+    
+        elements.append(table)
+        pdf.build(elements)
+        output.seek(0)
+        return output
     
     def fetch_balance_totals(self) -> str:
         """
