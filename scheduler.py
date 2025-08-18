@@ -212,11 +212,16 @@ def send_deadline_reminders_loop():
                         msg_lines.append(f"⏰ باقي {days_left} يوم للموعد: {d_name} ({d_date.strftime('%d/%m/%Y')})")
 
                 if msg_lines:
-                    bot.send_message(chat_id, "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines))
+                    try:
+                        bot.send_message(chat_id, "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines))
+                    except Exception as e:
+                        logger.error(f"❌ فشل إرسال رسالة تذكير للمستخدم {chat_id}: {e}")
+
         except Exception as e:
-            logger.exception("خطأ في التذكير بالمواعيد: %s", e)
+            logger.exception(f"خطأ عام في التذكير بالمواعيد: {e}")
 
         time.sleep(12 * 60 * 60)
+
 
 def send_reminder_for_new_deadline(deadline_id):
     deadline = get_deadline_by_id(deadline_id)
