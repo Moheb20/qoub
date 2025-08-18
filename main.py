@@ -131,62 +131,6 @@ def handle_start(message):
     send_main_menu(chat_id)
 
 
-
-def send_groups_table(chat_id, groups_data, title="📌 القروبات الحالية"):
-    """إرسال جدول PNG للقروبات يدعم العربية والإنجليزية"""
-    # إعداد الخطوط
-    try:
-        font_path = "arial.ttf"       # ضع مسار الخط العربي/الإنجليزي هنا
-        font = ImageFont.truetype(font_path, 16)
-        header_font = ImageFont.truetype(font_path, 18)
-    except:
-        font = ImageFont.load_default()
-        header_font = ImageFont.load_default()
-
-    # أبعاد الصورة
-    width = 800
-    row_height = 30
-    header_height = 40
-    padding = 10
-    height = header_height + row_height * len(groups_data) + padding*2
-
-    img = Image.new("RGB", (width, height), color="white")
-    draw = ImageDraw.Draw(img)
-
-    # عنوان
-    if any("\u0600" <= c <= "\u06FF" for c in title):  # إذا فيه عربي
-        reshaped_text = arabic_reshaper.reshape(title)
-        bidi_text = get_display(reshaped_text)
-        draw.text((padding, padding), bidi_text, font=header_font, fill="black")
-    else:
-        draw.text((padding, padding), title, font=header_font, fill="black")
-
-    # رسم ترويسة الجدول
-    header = "ID | التصنيف | الاسم | الرابط"
-    reshaped_header = arabic_reshaper.reshape(header)
-    bidi_header = get_display(reshaped_header)
-    y = header_height
-    draw.text((padding, y), bidi_header, font=font, fill="black")
-    y += row_height
-
-    # رسم البيانات
-    for group_id, category, name, link in groups_data:
-        row_text = f"{group_id} | {category} | {name} | {link}"
-        if any("\u0600" <= c <= "\u06FF" for c in row_text):
-            reshaped_row = arabic_reshaper.reshape(row_text)
-            bidi_row = get_display(reshaped_row)
-            draw.text((padding, y), bidi_row, font=font, fill="black")
-        else:
-            draw.text((padding, y), row_text, font=font, fill="black")
-        y += row_height
-
-    # حفظ الصورة في الذاكرة
-    output = BytesIO()
-    img.save(output, format="PNG")
-    output.seek(0)
-
-    bot.send_photo(chat_id, output)
-
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     chat_id = message.chat.id
@@ -855,53 +799,55 @@ def handle_all_messages(message):
         bot.send_message(chat_id, msg, parse_mode="Markdown")
 
 
-        elif text == "💰 رصيد الطالب":
+# ------------------ زر رصيد الطالب ------------------
+    elif text == "💰 رصيد الطالب":
+        user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-
+    
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
             if not scraper.login():
                 bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
                 return
-
+    
             balance_text = scraper.fetch_balance_table()
-
+    
             # لوحة أزرار للإجمالي والعودة للرئيسية
             markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
             markup.add("📊 الإجمالي", "🏠 العودة للرئيسية")
-
+    
             bot.send_message(chat_id, balance_text, reply_markup=markup)
         except Exception as e:
             print(f"Error fetching balance: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب بيانات الرصيد. حاول مرة أخرى لاحقاً.")
         return
-
+    
     # ------------------ زر الإجمالي ------------------
     elif text == "📊 الإجمالي":
+        user = get_user(chat_id)
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-
+    
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
             if not scraper.login():
                 bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
                 return
-
+    
             totals_text = scraper.fetch_balance_totals()
-
-            # زر العودة للرئيسية بعد عرض الإجمالي
+    
             markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
             markup.add("🏠 العودة للرئيسية")
-
+    
             bot.send_message(chat_id, totals_text, reply_markup=markup)
         except Exception as e:
             print(f"Error fetching totals: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء حساب الإجمالي. حاول مرة أخرى لاحقاً.")
         return
-
+    
     # ------------------ العودة للرئيسية ------------------
     elif text == "🏠 العودة للرئيسية":
         send_main_menu(chat_id)
