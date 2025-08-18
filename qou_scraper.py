@@ -237,29 +237,35 @@ class QOUScraper:
         return sessions
     def fetch_balance_table(self) -> str:
         """
-        يرجع رصيد الطالب على شكل جدول نصي منسق
+        يرجع رصيد الطالب بشكل عصري مناسب للهواتف باستخدام MarkdownV2
         """
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
-
+    
         rows = soup.select("table#dataTable tbody tr")
         if not rows:
             return "❌ لم يتم العثور على بيانات الرصيد"
-
-        # إنشاء رأس الجدول
+    
         header_text = "📊 *رصيد الطالب:*\n\n"
-        table_header = f"{'الفصل':<10} | {'المطلوب':<10} | {'المدفوع':<10} | {'السابق':<10} | {'المنح':<10} | {'رصيد الفصل':<12} | {'العملة'}\n"
-        separator = "-" * 80 + "\n"
         table_rows = ""
-
+    
         for row in rows:
             cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
             if len(cols) < 7:
                 continue
-            table_rows += f"{cols[0]:<10} | {cols[1]:<10} | {cols[2]:<10} | {cols[3]:<10} | {cols[4]:<10} | {cols[5]:<12} | {cols[6]}\n"
-
-        return header_text + table_header + separator + table_rows
+            table_rows += (
+                f"📅 *الفصل:* `{cols[0]}`\n"
+                f"💰 *المطلوب:* `{cols[1]}`\n"
+                f"💸 *المدفوع:* `{cols[2]}`\n"
+                f"🔙 *السابق:* `{cols[3]}`\n"
+                f"🎁 *المنح:* `{cols[4]}`\n"
+                f"🧾 *رصيد الفصل:* `{cols[5]}`\n"
+                f"💱 *العملة:* `{cols[6]}`\n"
+                "────────────────────────────\n"
+            )
+    
+        return header_text + table_rows
 
     def fetch_balance_totals(self) -> str:
         """
