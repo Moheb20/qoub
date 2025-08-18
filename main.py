@@ -854,6 +854,59 @@ def handle_all_messages(message):
             )
         bot.send_message(chat_id, msg, parse_mode="Markdown")
 
+
+        elif text == "💰 رصيد الطالب":
+        if not user:
+            bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+            return
+
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+                return
+
+            balance_text = scraper.fetch_balance_table()
+
+            # لوحة أزرار للإجمالي والعودة للرئيسية
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            markup.add("📊 الإجمالي", "🏠 العودة للرئيسية")
+
+            bot.send_message(chat_id, balance_text, reply_markup=markup)
+        except Exception as e:
+            print(f"Error fetching balance: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب بيانات الرصيد. حاول مرة أخرى لاحقاً.")
+        return
+
+    # ------------------ زر الإجمالي ------------------
+    elif text == "📊 الإجمالي":
+        if not user:
+            bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
+            return
+
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            if not scraper.login():
+                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+                return
+
+            totals_text = scraper.fetch_balance_totals()
+
+            # زر العودة للرئيسية بعد عرض الإجمالي
+            markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
+            markup.add("🏠 العودة للرئيسية")
+
+            bot.send_message(chat_id, totals_text, reply_markup=markup)
+        except Exception as e:
+            print(f"Error fetching totals: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء حساب الإجمالي. حاول مرة أخرى لاحقاً.")
+        return
+
+    # ------------------ العودة للرئيسية ------------------
+    elif text == "🏠 العودة للرئيسية":
+        send_main_menu(chat_id)
+        return
+
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 
