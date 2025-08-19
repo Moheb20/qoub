@@ -551,7 +551,7 @@ def handle_all_messages(message):
     
         deadline_id = admin_deadline_states[chat_id]["id"]
         new_name = admin_deadline_states[chat_id]["name"]
-        edit_deadline(deadline_id, new_name, new_date)
+        update_deadline(deadline_id, new_name, new_date)
         bot.send_message(chat_id, f"✅ تم تعديل الموعد بنجاح: '{new_name}' بتاريخ {new_date.strftime('%d/%m/%Y')}")
         admin_deadline_states.pop(chat_id, None)
         send_main_menu(chat_id)
