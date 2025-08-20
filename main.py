@@ -870,7 +870,7 @@ def handle_all_messages(message):
 
     
     # --- زر الخطط الدراسية ---
-    if text == "📚 الخطط الدراسية":
+    elif text == "📚 الخطط الدراسية":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         for college in study_plans.keys():
             markup.add(types.KeyboardButton(college))
