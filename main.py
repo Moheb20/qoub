@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
+import json
 import arabic_reshaper
 from bidi.algorithm import get_display
 load_dotenv()
@@ -54,7 +55,12 @@ admin_states = {}
 admin_group_states = {}
 
 
+plans_file_path = os.path.join(os.path.dirname(__file__), "qou.json")
+with open(plans_file_path, "r", encoding="utf-8") as f:
+    study_plans = json.load(f)
 
+# حالة تخزين اختيار الكلية لكل مستخدم
+study_plan_states = {}
 # ---------- تهيئة قاعدة البيانات والجدولة ----------
 init_db()
 get_all_users()
@@ -860,6 +866,56 @@ def handle_all_messages(message):
     elif text == "🏠 العودة للرئيسية":
         send_main_menu(chat_id)
         return
+
+
+    
+    # --- زر الخطط الدراسية ---
+    if text == "📚 الخطط الدراسية":
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        for college in study_plans.keys():
+            markup.add(types.KeyboardButton(college))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+        study_plan_states[chat_id] = {"stage": "awaiting_college"}
+        bot.send_message(chat_id, "📚 اختر الكلية:", reply_markup=markup)
+        return
+    
+    # اختيار الكلية
+    if chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_college":
+        if text in study_plans:
+            study_plan_states[chat_id]["college"] = text
+            study_plan_states[chat_id]["stage"] = "awaiting_major"
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            for major in study_plans[text].keys():
+                markup.add(types.KeyboardButton(major))
+            markup.add(types.KeyboardButton("العودة للكلية"))
+            bot.send_message(chat_id, f"🏛️ اختر التخصص ضمن '{text}':", reply_markup=markup)
+        elif text == "العودة للرئيسية":
+            study_plan_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+        else:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار الكلية من القائمة.")
+        return
+    
+    # اختيار التخصص
+    if chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_major":
+        college = study_plan_states[chat_id]["college"]
+        if text in study_plans[college]:
+            link = study_plans[college][text]
+            bot.send_message(chat_id, f"🔗 رابط خطة '{text}' ضمن '{college}':\n{link}")
+            # بعد الإرسال نرجع للمراحل السابقة أو الرئيسة حسب رغبتك
+            study_plan_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+        elif text == "العودة للكلية":
+            study_plan_states[chat_id]["stage"] = "awaiting_college"
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            for col in study_plans.keys():
+                markup.add(types.KeyboardButton(col))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+            bot.send_message(chat_id, "📚 اختر الكلية:", reply_markup=markup)
+        else:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار التخصص من القائمة.")
+        return
+
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
