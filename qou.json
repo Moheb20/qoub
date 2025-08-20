@@ -1,0 +1,157 @@
+{
+  "كلية التكنولوجيا والعلوم التطبيقية": {
+    "تخصص أنظمة المعلومات والتطبيقات الحاسوبية": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/TechInformation-single.pdf",
+      "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/TechInformation_sub.pdf"
+    },
+    "تخصص تكنولوجيا المعلومات والاتصالات": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/Technology-single.pdf",
+      "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/Technology_sub.pdf"
+    },
+    "تخصص رياضيات": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/mathematics-single.pdf",
+      "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/mathematics_sub.pdf"
+    },
+    "تخصص العلوم": {
+      "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/science_sub.pdf?s=1"
+    },
+    "تخصص المكتبات وتقنية المعلومات": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/libraries&Information-technology.pdf?s=1"
+    }
+  },
+  "كلية التنمية الإجتماعية ولأسرية": {
+    "الخدمة الإجتماعية": "https://www.qou.edu/ar/cardsAndPlans/pdf/SocialWork_New.pdf?s=2",
+    "تنمية المجتمع المحلي": "https://www.qou.edu/ar/cardsAndPlans/pdf/Local_Social_Dev.pdf?s=2",
+    "النوع الاجتماعي وفضايا التنمية": "https://www.qou.edu/ar/cardsAndPlans/pdf/socialType.pdf?s=2",
+    "رعاية الطفل": "https://www.qou.edu/ar/cardsAndPlans/pdf/childCare.pdf?s=2"
+  },
+  "كلية العلوم التربوية": {
+    "الخطة الجديدة": {
+      "القضاء والسياسة الشرعية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/alqada.pdf?s=1",
+      "الإرشاد والصحة النفسية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/counseling-mental-health.pdf?s=1",
+      "المرحلة الأساسية الأولى": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/essFirstStage.pdf",
+      "تعليم التربية الإسلامية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/islam.pdf?s=1",
+      "التربية الخاصة": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/specEdu.pdf?s=1",
+      "تعليم الاجتماعيات": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/socialStudies.pdf?s=1",
+      "مصادر التعلم وتكنولوجيا التعليم": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/learningTech.pdf?s=1"
+    },
+    "خطة 1151": {
+      "الرياضيات وأساليب تدريسها": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/mathNew.pdf?s=1",
+      "تعليم العلوم": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/scienceNew.pdf?s=1",
+      "المرحلة الأساسية الأولى": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/prepEduNew.pdf?s=1",
+      "تعليم التربية الإسلامية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/islamicNew.pdf?s=1",
+      "اللغة العربية وأساليب تدريسها": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/arabicNew.pdf?s=1",
+      "تعليم الاجتماعيات": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/socialNew.pdf?s=1",
+      "اللغة الإنجليزية وأساليب تدريسها": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/englishNew.pdf?s=1"
+    },
+    "الخطة القديمة": {
+      "الرياضيات وأساليب تدريسها": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/math.pdf?s=1",
+      "تعليم العلوم": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/science.pdf?s=1",
+      "المرحلة الأساسية الأولى": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/prepEdu.pdf?s=1",
+      "تعليم التربية الإسلامية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/islamic.pdf?s=1",
+      "اللغة العربية وأساليب تدريسها": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/arabic.pdf?s=1",
+      "تعليم الاجتماعيات": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/social.pdf?s=1",
+      "اللغة الإنجليزية وأساليب تدريسها": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/english.pdf?s=1"
+    }
+  },
+  "كلية العلوم الإدارية والإقتصادية": {
+    "الخطة الجديدة": {
+      "المحاسبة": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/accNew.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/accSub.pdf?s=2",
+        "مسار اللغة الإنجليزية منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/acc_english.pdf?s=0",
+        "مسار اللغة الإنجليزية رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/acc_english_sub.pdf?s=0"
+      },
+      "إدارة الأعمال الرقمية": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/digitalMng.pdf",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/digitalMngSub.pdf"
+      },
+      "إدارة الأعمال": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/mngNew.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/mngSub.pdf?s=2"
+      },
+      "الإقتصاد": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/ecoNew.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/ecoSub.pdf?s=2"
+      },
+      "العلوم المالية والمصرفية": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/finanNew.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/finanSub.pdf?s=2"
+      },
+      "التسويق الرقمي": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/digital-marketing-new.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/digital-marketing-sub.pdf?s=2"
+      },
+      "الإدارة الصحية": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/healthNew.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/healthSub.pdf?s=2"
+      },
+      "الإدارة السياحية التطبيقية": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/tourism-management.pdf?s=2"
+      },
+      "علوم التأمين": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/insurance-sciences-new.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/insurance-sciences-sub.pdf?s=2"
+      },
+      "الإدارة والسياسات العامة": {
+        "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/admin-public-policies-new.pdf?s=2",
+        "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new/admin-public-policies-sub.pdf?s=2"
+      }
+    },
+    "الخطة القديمة": {
+      "المحاسبة": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/acc.pdf?s=1",
+      "إدارة الأعمال": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/mngerial.pdf?s=1",
+      "الإقتصاد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/eco.pdf?s=1",
+      "العلوم المالية والمصرفية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/finan.pdf?s=1",
+      "التسويق": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/marketing.pdf?s=1",
+      "الإدارة الصحية": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/health.pdf?s=1"
+    }
+  },
+  "كلية الزراعة": {
+    "الخطة الجديدة": {
+      "الإنتاج النباتي والوقاية": "https://www.qou.edu/ar/cardsAndPlans/pdf/plantProtectionCard_New.pdf?s=1",
+      "التنمية الريفية": "https://www.qou.edu/ar/cardsAndPlans/pdf/ruralDevelopmentCard_New.pdf?s=1",
+      "الإنتاج النباتي والوقاية (نسخة سابقة)": "https://www.qou.edu/ar/cardsAndPlans/pdf/plantProtectionCard.pdf?s=1",
+      "التنمية الريفية (نسخة سابقة)": "https://www.qou.edu/ar/cardsAndPlans/pdf/ruralDevelopmentCard.pdf?s=1"
+    },
+    "الخطة القديمة": {
+      "الإنتاج النباتي والوقاية": "https://www.qou.edu/ar/cardsAndPlans/pdf/plantProtectionCard.pdf?s=1",
+      "التنمية الريفية": "https://www.qou.edu/ar/cardsAndPlans/pdf/ruralDevelopmentCard.pdf?s=1"
+    }
+  },
+  "كلية الإعلام": {
+    "العلاقات العامة والإعلان": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/publiuc-relations-and-advertisement-card.pdf",
+      "فرعي الإعلام الدبلوماسي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/public-relation--deplomatic-card.pdf"
+    },
+    "الإعلام الجديد": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/new-media-2025-card.pdf",
+      "فرعي الإعلام الدبلوماسي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/newmedia--deplomatic-card.pdf",
+      "فرعي سينما الهاتف المحمول": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/newmedia--cinema-mobile-branch-card.pdf"
+    }
+  },
+  "كلية الآداب": {
+    "اللغة العربية وآدابها": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/arabic-single-card.pdf?s=1",
+      "رئيسي-فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/arabic-main-branch-card.pdf?s=1"
+    },
+    "اللغة الإنجليزية وآدابها": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/english-single-card.pdf?s=1",
+      "رئيسي/فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/english-main-branch-card.pdf?s=1"
+    },
+    "اللغة العبرية وآدابها": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/hebro-single-card.pdf?s=1",
+      "رئيسي فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/hebro-main-branch-card.pdf?s=1"
+    },
+    "اللغة الفرنسية": {
+      "فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/frans-branch-card.pdf?s=1"
+    },
+    "الترجمة في اللغة الإنجليزية": {
+      "فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/english-translation-branch-card.pdf?s=1"
+    },
+    "اللغة التركية وآدابها": {
+      "منفرد": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/turkish-card-singhle.pdf?s=1",
+      "رئيسي فرعي": "https://www.qou.edu/ar/cardsAndPlans/pdf/cards/turkish-card-main-branch.pdf?s=1"
+    }
+  }
+}
