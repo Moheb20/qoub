@@ -90,6 +90,7 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📊 عرض بيانات الفصل"),
         types.KeyboardButton("📅 جدول الامتحانات"),
         types.KeyboardButton("🎙️ حلقات النقاش"),
+        types.KeyboardButton("📚 الخطط الدراسية"),
         types.KeyboardButton("💰 رصيد الطالب"),
     )
     if chat_id in ADMIN_CHAT_ID:
@@ -868,8 +869,6 @@ def handle_all_messages(message):
         return
 
 
-    
-    # --- زر الخطط الدراسية ---
     elif text == "📚 الخطط الدراسية":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         for college in study_plans.keys():
@@ -880,15 +879,18 @@ def handle_all_messages(message):
         return
     
     # اختيار الكلية
-    if chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_college":
+    elif chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_college":
         if text in study_plans:
             study_plan_states[chat_id]["college"] = text
             study_plan_states[chat_id]["stage"] = "awaiting_major"
+    
             markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
             for major in study_plans[text].keys():
                 markup.add(types.KeyboardButton(major))
-            markup.add(types.KeyboardButton("العودة للكلية"))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
             bot.send_message(chat_id, f"🏛️ اختر التخصص ضمن '{text}':", reply_markup=markup)
+    
         elif text == "العودة للرئيسية":
             study_plan_states.pop(chat_id, None)
             send_main_menu(chat_id)
@@ -896,26 +898,54 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "⚠️ الرجاء اختيار الكلية من القائمة.")
         return
     
-    # اختيار التخصص
-    if chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_major":
+    # اختيار التخصص أو النسخة الفرعية
+    elif chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_major":
         college = study_plan_states[chat_id]["college"]
-        if text in study_plans[college]:
-            link = study_plans[college][text]
-            bot.send_message(chat_id, f"🔗 رابط خطة '{text}' ضمن '{college}':\n{link}")
-            # بعد الإرسال نرجع للمراحل السابقة أو الرئيسة حسب رغبتك
+        major_item = study_plans[college].get(text)
+    
+        if major_item:
+            if isinstance(major_item, dict):
+                # يوجد مستويات أو نسخ متعددة
+                markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+                for sublevel in major_item.keys():
+                    markup.add(types.KeyboardButton(sublevel))
+                markup.add(types.KeyboardButton("العودة للتخصص"))
+                study_plan_states[chat_id]["stage"] = "awaiting_sublevel"
+                study_plan_states[chat_id]["major"] = text
+                study_plan_states[chat_id]["sublevels"] = major_item
+                bot.send_message(chat_id, f"🔹 اختر النسخة أو المستوى لـ '{text}':", reply_markup=markup)
+            else:
+                # رابط مباشر
+                bot.send_message(chat_id, f"🔗 رابط خطة '{text}' ضمن '{college}':\n{major_item}")
+                study_plan_states.pop(chat_id, None)
+                send_main_menu(chat_id)
+        elif text == "العودة للرئيسية":
             study_plan_states.pop(chat_id, None)
             send_main_menu(chat_id)
-        elif text == "العودة للكلية":
-            study_plan_states[chat_id]["stage"] = "awaiting_college"
-            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-            for col in study_plans.keys():
-                markup.add(types.KeyboardButton(col))
-            markup.add(types.KeyboardButton("العودة للرئيسية"))
-            bot.send_message(chat_id, "📚 اختر الكلية:", reply_markup=markup)
         else:
             bot.send_message(chat_id, "⚠️ الرجاء اختيار التخصص من القائمة.")
         return
-
+    
+    # اختيار النسخة الفرعية
+    elif chat_id in study_plan_states and study_plan_states[chat_id]["stage"] == "awaiting_sublevel":
+        sublevels = study_plan_states[chat_id]["sublevels"]
+        major = study_plan_states[chat_id]["major"]
+        college = study_plan_states[chat_id]["college"]
+    
+        if text in sublevels:
+            bot.send_message(chat_id, f"🔗 رابط خطة '{major}' ({text}) ضمن '{college}':\n{sublevels[text]}")
+            study_plan_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+        elif text == "العودة للتخصص":
+            study_plan_states[chat_id]["stage"] = "awaiting_major"
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            for major_name in study_plans[college].keys():
+                markup.add(types.KeyboardButton(major_name))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+            bot.send_message(chat_id, f"🏛️ اختر التخصص ضمن '{college}':", reply_markup=markup)
+        else:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار النسخة من القائمة.")
+        return
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
