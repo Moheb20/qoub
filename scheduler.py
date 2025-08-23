@@ -319,6 +319,8 @@ def check_discussion_sessions():
 def schedule_exam_reminders_for_all():
     users = get_all_users()
     now = datetime.now(PALESTINE_TZ)
+    print(f"⏱ Running reminder check at: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+
     today_date_str = now.strftime("%d-%m-%Y")
 
     exam_type_map = {
