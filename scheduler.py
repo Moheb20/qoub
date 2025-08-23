@@ -319,54 +319,76 @@ exam_scheduler.start()
 
 def schedule_exam_reminders_for_all():
     users = get_all_users()
+    now = datetime.now(PALESTINE_TZ)
     for user in users:
         chat_id = user['chat_id']
         student_id = user['student_id']
         password = user['password']
 
         scraper = QOUScraper(student_id, password)
-        if scraper.login():
-            exams = scraper.fetch_exam_schedule(term_no="current_term", exam_type="final")
-            for exam in exams:
-                exam_datetime = datetime.strptime(f"{exam['date']} {exam['from_time']}", "%Y-%m-%d %H:%M")
-                exam_datetime = exam_datetime.replace(tzinfo=PALESTINE_TZ)
+        if not scraper.login():
+            logger.warning(f"فشل تسجيل الدخول للمستخدم {chat_id}")
+            continue
 
-                # تذكير الساعة 05:00 فجراً
-                day_start = exam_datetime.replace(hour=5, minute=0, second=0)
-                if day_start > datetime.now(PALESTINE_TZ):
-                    exam_scheduler.add_job(
-                        lambda exam=exam, chat_id=chat_id: bot.send_message(
-                            chat_id, f"📢 عندك اليوم امتحان: {exam['course_name']} الساعة {exam['from_time']}"
-                        ),
-                        trigger="date",
-                        run_date=day_start,
-                    )
+        exams = scraper.fetch_exam_schedule(term_no="current_term", exam_type="final")
+        for exam in exams:
+            try:
+                # تأكد من التنسيق الصحيح:  تاريخ بصيغة يوم-شهر-سنة
+                exam_datetime = datetime.strptime(f"{exam['date']} {exam['from_time']}", "%d-%m-%Y %H:%M")
+                exam_datetime = PALESTINE_TZ.localize(exam_datetime)
+            except Exception as e:
+                logger.error(f"خطأ في تحويل تاريخ الامتحان للمستخدم {chat_id}: {e}")
+                continue
 
-                # تذكير قبل الامتحان بساعة
-                one_hour_before = exam_datetime - timedelta(hours=1)
-                if one_hour_before > datetime.now(PALESTINE_TZ):
-                    exam_scheduler.add_job(
-                        lambda exam=exam, chat_id=chat_id: bot.send_message(
-                            chat_id, f"⏰ بعد ساعة عندك امتحان {exam['course_name']} الساعة {exam['from_time']}"
-                        ),
-                        trigger="date",
-                        run_date=one_hour_before,
-                    )
+            # تذكير الساعة 05:00 فجراً من يوم الامتحان
+            day_start = exam_datetime.replace(hour=5, minute=0, second=0)
+            if day_start > now:
+                exam_scheduler.add_job(
+                    partial(send_message, bot, chat_id, f"📢 عندك اليوم امتحان: {exam['course_name']} الساعة {exam['from_time']}"),
+                    trigger="date",
+                    run_date=day_start,
+                    id=f"{chat_id}_daystart_{exam['course_code']}_{exam['date']}",
+                    replace_existing=True
+                )
 
-                # وقت الامتحان
-                if exam_datetime > datetime.now(PALESTINE_TZ):
-                    exam_scheduler.add_job(
-                        lambda exam=exam, chat_id=chat_id: bot.send_message(
-                            chat_id, f"🚀 بدأ الآن امتحان {exam['course_name']} بالتوفيق ❤️"
-                        ),
-                        trigger="date",
-                        run_date=exam_datetime,
-                    )
+            # تذكير قبل الامتحان بساعتين
+            two_hours_before = exam_datetime - timedelta(hours=2)
+            if two_hours_before > now:
+                exam_scheduler.add_job(
+                    partial(send_message, bot, chat_id, f"⏰ بعد ساعتين عندك امتحان {exam['course_name']} الساعة {exam['from_time']}"),
+                    trigger="date",
+                    run_date=two_hours_before,
+                    id=f"{chat_id}_2hours_{exam['course_code']}_{exam['date']}",
+                    replace_existing=True
+                )
+
+            # تذكير قبل الامتحان بنصف ساعة
+            half_hour_before = exam_datetime - timedelta(minutes=30)
+            if half_hour_before > now:
+                exam_scheduler.add_job(
+                    partial(send_message, bot, chat_id, f"⚠️ بعد نصف ساعة أو أقل امتحان {exam['course_name']} الساعة {exam['from_time']}"),
+                    trigger="date",
+                    run_date=half_hour_before,
+                    id=f"{chat_id}_30min_{exam['course_code']}_{exam['date']}",
+                    replace_existing=True
+                )
+
+            # وقت بداية الامتحان
+            if exam_datetime > now:
+                exam_scheduler.add_job(
+                    partial(send_message, bot, chat_id, f"🚀 بدأ الآن امتحان {exam['course_name']} بالتوفيق ❤️"),
+                    trigger="date",
+                    run_date=exam_datetime,
+                    id=f"{chat_id}_start_{exam['course_code']}_{exam['date']}",
+                    replace_existing=True
+                )
+
 
 def exams_scheduler_loop():
     while True:
         try:
             schedule_exam_reminders_for_all()
+            logger.info("✅ تم تحديث جدول التذكيرات بنجاح")
         except Exception as e:
             logger.error(f"❌ خطأ في جدولة الامتحانات: {e}")
         time.sleep(6 * 60 * 60)  # تحديث الجدول كل 6 ساعات
