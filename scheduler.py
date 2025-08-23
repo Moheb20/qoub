@@ -344,12 +344,17 @@ def schedule_exam_reminders_for_all():
             try:
                 exams = scraper.fetch_exam_schedule(term_no="current_term", exam_type=exam_type_code)
                 today_exams = [exam for exam in exams if exam.get("date") == today_date_str]
+                print(f"📚 Today exams for user {chat_id} - {exam_type_code}: {today_exams}")
+
                 for exam in today_exams:
                     exam["exam_type_label"] = exam_type_label
                 all_today_exams.extend(today_exams)
             except Exception as e:
                 logger.error(f"⚠️ فشل جلب امتحانات {exam_type_code} للمستخدم {chat_id}: {e}")
                 continue
+
+        
+        print(f"📊 All today's exams for user {chat_id}: {all_today_exams}")
 
         if not all_today_exams:
             continue
