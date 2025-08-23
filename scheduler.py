@@ -1,3 +1,8 @@
+import logging
+from functools import partial
+from apscheduler.schedulers.background import BackgroundScheduler
+import pytz
+
 import time
 import threading
 import json
@@ -23,7 +28,29 @@ send_lock = threading.Lock()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PALESTINE_TZ = ZoneInfo("Asia/Jerusalem")  # ✅ توقيت القدس
+ 
+
+
+
+# --- إعداد اللوج ---
+logging.basicConfig(
+	format="%(asctime)s - %(levelname)s - %(message)s",
+	level=logging.INFO
+)
+
+# --- المنطقة الزمنية لفلسطين ---
+PALESTINE_TZ = pytz.timezone("Asia/Gaza")
+
+# --- Scheduler عالمي ---
+exam_scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
+
+# --- Exam type labels ---
+EXAM_TYPE_MAP = {
+	"MT&IM": "📝 النصفي",
+	"FT&IF": "🏁 النهائي النظري",
+	"FP&FP": "🧪 النهائي العملي",
+	"LE&LE": "📈 امتحان المستوى",
+}
 
 # ---------------------- متابعة الرسائل الجديدة ----------------------
 def check_for_new_messages():
@@ -313,135 +340,161 @@ def check_discussion_sessions():
 
         time.sleep(30 * 60)
 
-# ---------------------- متابعة الامتحانات ----------------------
 
+# --- دوال مساعدة ---
+def _safe_job_id(prefix: str, chat_id, exam: dict, suffix: str):
+	cc = (exam.get("course_code") or "-").replace(" ", "_").replace(":", "-")
+	dt = (exam.get("date") or "-").replace(" ", "_").replace(":", "-").replace("/", "-")
+	tm = (exam.get("from_time") or "-").replace(" ", "_").replace(":", "-")
+	return f"{prefix}_{chat_id}_{cc}_{dt}_{tm}_{suffix}"
 
-def schedule_exam_reminders_for_all():
-    users = get_all_users()
-    now = datetime.now(PALESTINE_TZ)
-    print(f"⏱ Running reminder check at: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+def parse_exam_datetime(date_str: str, time_str: str):
+	"""
+	تحويل التاريخ/الوقت من نص 12 ساعة -> datetime aware 24 ساعة
+	"""
+	try:
+		date_str = date_str.strip()
+		time_str = time_str.strip().upper()
+		# تحويل 12 ساعة AM/PM إلى 24 ساعة
+		dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %I:%M %p")
+		return PALESTINE_TZ.localize(dt)
+	except Exception as e:
+		logging.error(f"❌ خطأ في تحويل التاريخ/الوقت: {date_str} {time_str} | {e}")
+		raise e
 
-    today_date_str = now.strftime("%d-%m-%Y")
+# --- دوال المهام ---
+def schedule_exam_reminders_for_all(term_no="current_term"):
+	global exam_scheduler
+	if exam_scheduler is None:
+		logging.error("❌ exam_scheduler غير معرف")
+		return
 
-    exam_type_map = {
-        "MT&IM": "📝 النصفي",
-        "FT&IF": "🏁 النهائي النظري",
-        "FP&FP": "🧪 النهائي العملي",
-        "LE&LE": "📈 امتحان المستوى",
-    }
+	now = datetime.now(PALESTINE_TZ)
+	logging.info(f"⏱ Running reminder check at: {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    for user in users:
-        chat_id = user['chat_id']
-        student_id = user['student_id']
-        password = user['password']
+	users = get_all_users()
+	today = now.date()
 
-        scraper = QOUScraper(student_id, password)
-        if not scraper.login():
-            logger.warning(f"❌ فشل تسجيل الدخول للمستخدم {chat_id}")
-            continue
+	for user in users:
+		chat_id = user['chat_id']
+		student_id = user['student_id']
+		password = user['password']
 
-        all_today_exams = []
+		logging.info(f"👤 معالجة المستخدم: {chat_id}")
 
-        for exam_type_code, exam_type_label in exam_type_map.items():
-            try:
-                exams = scraper.fetch_exam_schedule(term_no="current_term", exam_type=exam_type_code)
-                today_exams = [exam for exam in exams if exam.get("date") == today_date_str]
-                print(f"📚 Today exams for user {chat_id} - {exam_type_code}: {today_exams}")
+		scraper = QOUScraper(student_id, password)
+		if not scraper.login():
+			logging.warning(f"❌ فشل تسجيل الدخول للمستخدم {chat_id}")
+			continue
 
-                for exam in today_exams:
-                    exam["exam_type_label"] = exam_type_label
-                all_today_exams.extend(today_exams)
-            except Exception as e:
-                logger.error(f"⚠️ فشل جلب امتحانات {exam_type_code} للمستخدم {chat_id}: {e}")
-                continue
+		all_today_exams = []
 
-        
-        print(f"📊 All today's exams for user {chat_id}: {all_today_exams}")
+		for exam_type_code, exam_type_label in EXAM_TYPE_MAP.items():
+			try:
+				exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type=exam_type_code) or []
+				today_exams = []
+				for exam in exams:
+					try:
+						exam_dt = parse_exam_datetime(exam.get("date", ""), exam.get("from_time", ""))
+						if exam_dt.date() == today:
+							exam["exam_type_label"] = exam_type_label
+							exam["exam_datetime"] = exam_dt
+							today_exams.append(exam)
+					except Exception as e:
+						logging.error(f"⚠️ خطأ في تحويل الوقت للمستخدم {chat_id}: {e}")
+				logging.info(f"📚 Found {len(today_exams)} {exam_type_code} exams for user {chat_id}")
+				all_today_exams.extend(today_exams)
+			except Exception as e:
+				logging.error(f"⚠️ فشل جلب امتحانات {exam_type_code} للمستخدم {chat_id}: {e}")
+				continue
 
-        if not all_today_exams:
-            continue
+		if not all_today_exams:
+			logging.info(f"ℹ️ لا توجد امتحانات اليوم للمستخدم {chat_id}")
+			continue
 
-        summary_msg = f"📅 عندك اليوم {len(all_today_exams)} امتحان/امتحانات:\n\n"
+		for exam in all_today_exams:
+			course_name = exam.get('course_name', '-')
+			from_time = exam.get('from_time', '-')
+			exam_dt = exam['exam_datetime']
 
-        for exam in all_today_exams:
-            course_name = exam.get('course_name', '-')
-            from_time = exam.get('from_time', '-')
-            exam_type = exam.get('exam_type_label', '📘 امتحان')
-            exam_datetime_str = f"{exam['date']} {exam['from_time']}"
+			# --- تذكير قبل ساعتين ---
+			before_2h = exam_dt - timedelta(hours=2)
+			if before_2h > now:
+				job_id = _safe_job_id("exam", chat_id, exam, "2h")
+				exam_scheduler.add_job(
+					partial(send_message, bot, chat_id,
+							f"⏰ بعد ساعتين تقريبًا عندك امتحان {course_name} الساعة {from_time}"),
+					trigger="date",
+					run_date=before_2h,
+					id=job_id,
+					replace_existing=True,
+					misfire_grace_time=15*60
+				)
+				logging.info(f"✅ تم جدولة تذكير 2h للمستخدم {chat_id} - {course_name}")
 
-            try:
-                exam_datetime = datetime.strptime(exam_datetime_str, "%d-%m-%Y %H:%M")
-                exam_datetime = PALESTINE_TZ.localize(exam_datetime)
-            except Exception as e:
-                logger.error(f"⚠️ خطأ في تحويل وقت الامتحان للمستخدم {chat_id}: {e}")
-                continue
+			# --- تذكير قبل 30 دقيقة ---
+			before_30m = exam_dt - timedelta(minutes=30)
+			if before_30m > now:
+				job_id = _safe_job_id("exam", chat_id, exam, "30m")
+				exam_scheduler.add_job(
+					partial(send_message, bot, chat_id,
+							f"⚠️ قرّب امتحان {course_name} الساعة {from_time}، حضّر حالك!"),
+					trigger="date",
+					run_date=before_30m,
+					id=job_id,
+					replace_existing=True,
+					misfire_grace_time=10*60
+				)
+				logging.info(f"✅ تم جدولة تذكير 30m للمستخدم {chat_id} - {course_name}")
 
-            summary_msg += (
-                f"{exam_type}\n"
-                f"📘 {course_name}\n"
-                f"🕓 الساعة: {from_time}\n"
-                f"───────────────\n"
-            )
+			# --- تذكير عند بدء الامتحان ---
+			if exam_dt > now:
+				job_id = _safe_job_id("exam", chat_id, exam, "start")
+				exam_scheduler.add_job(
+					partial(send_message, bot, chat_id,
+							f"🚀 بدأ الآن امتحان {course_name}، بالتوفيق ❤️"),
+					trigger="date",
+					run_date=exam_dt,
+					id=job_id,
+					replace_existing=True,
+					misfire_grace_time=10*60
+				)
+				logging.info(f"✅ تم جدولة تذكير start للمستخدم {chat_id} - {course_name}")
 
-            # تذكير قبل ساعتين
-            before_2h = exam_datetime - timedelta(hours=2)
-            if before_2h > now:
-                exam_scheduler.add_job(
-                    partial(send_message, bot, chat_id,
-                            f"⏰ بعد ساعتين تقريبًا عندك امتحان {course_name} الساعة {from_time}"),
-                    trigger="date",
-                    run_date=before_2h,
-                    id=f"{chat_id}_2h_{exam['course_code']}_{exam['date']}",
-                    replace_existing=True
-                )
+		logging.info(f"📊 تم جدولة جميع التذكيرات للمستخدم {chat_id} بنجاح")
 
-            # تذكير قبل نصف ساعة
-            before_30m = exam_datetime - timedelta(minutes=30)
-            if before_30m > now:
-                exam_scheduler.add_job(
-                    partial(send_message, bot, chat_id,
-                            f"⚠️ قرب امتحان {course_name} الساعة {from_time}، حضّر حالك!"),
-                    trigger="date",
-                    run_date=before_30m,
-                    id=f"{chat_id}_30m_{exam['course_code']}_{exam['date']}",
-                    replace_existing=True
-                )
+def exams_scheduler_loop(term_no="current_term"):
+	global exam_scheduler
 
-            # تذكير عند بدء الامتحان
-            if exam_datetime > now:
-                exam_scheduler.add_job(
-                    partial(send_message, bot, chat_id,
-                            f"🚀 بدأ الآن امتحان {course_name}، بالتوفيق ❤️"),
-                    trigger="date",
-                    run_date=exam_datetime,
-                    id=f"{chat_id}_start_{exam['course_code']}_{exam['date']}",
-                    replace_existing=True
-                )
+	job_defaults = {
+		"coalesce": True,
+		"max_instances": 4,
+		"misfire_grace_time": 5*60,
+	}
+	exam_scheduler.configure(job_defaults=job_defaults)
 
-        # رسالة تأكيد الجدولة
-        summary_msg += "\n✅ تم جدولة التذكيرات بنجاح."
-        bot.send_message(chat_id, summary_msg)
+	# --- تشغيل يومي الساعة 00:00 ---
+	exam_scheduler.add_job(
+		lambda: schedule_exam_reminders_for_all(term_no=term_no),
+		trigger=CronTrigger(hour=0, minute=0),
+		id="daily_exam_check",
+		replace_existing=True
+	)
 
+	# --- تشغيل فوري عند بدء التشغيل ---
+	exam_scheduler.add_job(
+		lambda: schedule_exam_reminders_for_all(term_no=term_no),
+		trigger="date",
+		run_date=datetime.now(PALESTINE_TZ) + timedelta(seconds=2),
+		id="startup_exam_check",
+		replace_existing=True
+	)
 
-def exams_scheduler_loop():
-    from apscheduler.schedulers.background import BackgroundScheduler
-    from apscheduler.triggers.cron import CronTrigger
-
-    scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
-    
-    # جدولة التحقق اليومي الساعة 00:00
-    scheduler.add_job(
-        schedule_exam_reminders_for_all,
-        CronTrigger(hour=0, minute=0),
-        id="daily_exam_check",
-        replace_existing=True
-    )
-
-    try:
-        scheduler.start()
-        logger.info("✅ تم تشغيل جدولة الامتحانات اليومية بنجاح")
-    except Exception as e:
-        logger.error(f"❌ خطأ أثناء تشغيل المجدول: {e}")
+	try:
+		exam_scheduler.start()
+		logging.info("✅ تم تشغيل جدولة الامتحانات اليومية بنجاح")
+	except Exception as e:
+		logging.error(f"❌ خطأ أثناء تشغيل المجدول: {e}")
 
 
 # ---------------------- تشغيل كل المهام ----------------------
