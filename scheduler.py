@@ -18,6 +18,8 @@ from database import (
 )
 from qou_scraper import QOUScraper
 from bot_instance import bot
+from database import decrypt_text, encrypt_text
+
 
 # ---------------------- إعداد اللوج ----------------------
 logging.basicConfig(
