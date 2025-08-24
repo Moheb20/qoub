@@ -19,20 +19,20 @@ from database import (
 from qou_scraper import QOUScraper
 from bot_instance import bot
 from database import decrypt_text, encrypt_text
+from pytz import timezone  # للتوافق مع Render
 
 
-# ---------------------- إعداد اللوج ----------------------
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
+
+
+# ---------------- إعداد الوقت واللوج ----------------
+PALESTINE_TZ = timezone("Asia/Hebron")
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------------- المنطقة الزمنية ----------------------
-PALESTINE_TZ = pytz.timezone("Asia/Gaza")
-
-# ---------------------- Scheduler عالمي ----------------------
+# ---------------- إنشاء Scheduler ----------------
 exam_scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
+exam_scheduler.configure(job_defaults={"coalesce": True, "max_instances": 4, "misfire_grace_time": 300})
+
 
 # ---------------------- Exam type labels ----------------------
 EXAM_TYPE_MAP = {
@@ -211,14 +211,11 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
 
         scraper = QOUScraper(student_id, password)
         if scraper.login():
-            # ✅ طباعة الامتحانات للتحقق قبل الحفظ
             exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type="final")
-            print(f"Exams for {student_id}: {exams}")
+            logger.info(f"Exams for {student_id}: {exams}")
 
-            # 1️⃣ حفظ الامتحانات في قاعدة البيانات
             scraper.save_exams_to_db(student_id)
 
-            # 2️⃣ جلب الامتحانات للجدولة
             for exam_type_code, exam_type_label in EXAM_TYPE_MAP.items():
                 exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type=exam_type_code) or []
 
@@ -231,7 +228,7 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
                     exam["exam_datetime"] = exam_dt
 
                     # ---- أوقات التذكير ----
-                    day_start = datetime.combine(exam_dt.date(), time(2, 38, tzinfo=PALESTINE_TZ))  # بداية اليوم 02:35
+                    day_start = datetime.combine(exam_dt.date(), time(2, 35, tzinfo=PALESTINE_TZ))
                     before_2h = exam_dt - timedelta(hours=2)
                     before_30m = exam_dt - timedelta(minutes=30)
 
@@ -251,28 +248,37 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
                                 id=_safe_job_id("exam", chat_id, exam, str(remind_time)),
                                 replace_existing=True
                             )
-                            logging.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
+                            logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 
-
+# ---------------- تشغيل Scheduler ----------------
 def exams_scheduler_loop(term_no="current_term"):
     job_defaults = {"coalesce": True, "max_instances": 4, "misfire_grace_time": 5*60}
     exam_scheduler.configure(job_defaults=job_defaults)
-    exam_scheduler.add_job(lambda: schedule_exam_reminders_for_all(term_no=term_no),
-                           trigger=CronTrigger(hour=0, minute=0),
-                           id="daily_exam_check",
-                           replace_existing=True)
-    exam_scheduler.add_job(lambda: schedule_exam_reminders_for_all(term_no=term_no),
-                           trigger="date",
-                           run_date=datetime.now(PALESTINE_TZ) + timedelta(seconds=2),
-                           id="startup_exam_check",
-                           replace_existing=True)
+
+    # فحص يومي عند منتصف الليل
+    exam_scheduler.add_job(
+        lambda: schedule_exam_reminders_for_all(term_no=term_no),
+        trigger=CronTrigger(hour=2, minute=48),
+        id="daily_exam_check",
+        replace_existing=True
+    )
+
+    # فحص عند الإقلاع + تجربة تذكير سريع بعد ثانيتين
+    exam_scheduler.add_job(
+        lambda: schedule_exam_reminders_for_all(term_no=term_no),
+        trigger="date",
+        run_date=datetime.now(PALESTINE_TZ) + timedelta(seconds=2),
+        id="startup_exam_check",
+        replace_existing=True
+    )
+
     try:
         exam_scheduler.start()
         logger.info("✅ تم تشغيل جدولة الامتحانات اليومية بنجاح")
     except Exception as e:
         logger.error(f"❌ خطأ أثناء تشغيل المجدول: {e}")
 
-# ====================== تشغيل كل المهام ======================
+# ---------------- تشغيل كل المهام ----------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
     threading.Thread(target=check_for_course_updates, daemon=True).start()
@@ -280,4 +286,5 @@ def start_scheduler():
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
     threading.Thread(target=exams_scheduler_loop, daemon=True).start()
+
     logger.info("✅ تم تشغيل جميع المهام المجدولة والخلفية بنجاح")
