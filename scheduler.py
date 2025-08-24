@@ -225,7 +225,7 @@ scheduler.add_job(task_check_messages, 'interval', minutes=20, id="job_messages"
 scheduler.add_job(task_check_courses, 'interval', minutes=60, id="job_courses")
 scheduler.add_job(task_check_lectures, 'interval', minutes=30, id="job_lectures")
 scheduler.add_job(task_check_discussions, 'interval', minutes=30, id="job_discussions")
-scheduler.add_job(task_check_exams, 'cron', hour=0, minute=0, id="job_exams")  # يومياً
+scheduler.add_job(task_check_exams, 'cron', hour=0, minute=15, id="job_exams")  # يومياً
 scheduler.add_job(task_check_deadlines, 'interval', hours=12, id="job_deadlines")  # كل 12 ساعة
 
 # تنفيذ فوري لتذكيرات المواعيد عند بدء التشغيل
