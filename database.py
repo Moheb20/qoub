@@ -94,7 +94,8 @@ def init_db():
                     note VARCHAR(255),
                     reminder_2h_sent BOOLEAN DEFAULT FALSE,
                     reminder_30m_sent BOOLEAN DEFAULT FALSE,
-                    start_sent BOOLEAN DEFAULT FALSE
+                    start_sent BOOLEAN DEFAULT FALSE,
+                    UNIQUE (student_id, course_code, date, from_time)
                 )
             ''')
 
