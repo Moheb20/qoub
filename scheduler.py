@@ -204,10 +204,10 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
 
     for user in users:
         chat_id = user['chat_id']
-        scraper = QOUScraper(user['student_id'], user['password'])
+        scraper = QOUScraper(student_id, password)
         if scraper.login():
-            # 1️⃣ حفظ كل الامتحانات في قاعدة البيانات
-            scraper.save_exams_to_db(user['student_id'])
+            # 1️⃣ حفظ الامتحانات في قاعدة البيانات
+            scraper.save_exams_to_db(student_id)
 
             # 2️⃣ جلب الامتحانات من السكربر للجدولة
             for exam_type_code, exam_type_label in EXAM_TYPE_MAP.items():
