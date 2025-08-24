@@ -202,7 +202,7 @@ def send_reminder_for_new_deadline():
 def schedule_exam_reminders_for_all(term_no="current_term"):
     now = datetime.now(PALESTINE_TZ)
     today = now.date()
-    users = get_all_users()
+    users = get_all_users()  # جلب كل المستخدمين من قاعدة البيانات
 
     for user in users:
         chat_id = user['chat_id']
@@ -215,7 +215,7 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
             exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type="final")
             print(f"Exams for {student_id}: {exams}")
 
-            # 1️⃣ حفظ كل الامتحانات في قاعدة البيانات
+            # 1️⃣ حفظ الامتحانات في قاعدة البيانات
             scraper.save_exams_to_db(student_id)
 
             # 2️⃣ جلب الامتحانات للجدولة
@@ -230,8 +230,8 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
                     exam["exam_type_label"] = exam_type_label
                     exam["exam_datetime"] = exam_dt
 
-                    # ---- تحديد أوقات التذكير ----
-                    day_start = datetime.combine(exam_dt.date(), time(2, 33, tzinfo=PALESTINE_TZ))  # بداية اليوم 02:35
+                    # ---- أوقات التذكير ----
+                    day_start = datetime.combine(exam_dt.date(), time(2, 38, tzinfo=PALESTINE_TZ))  # بداية اليوم 02:35
                     before_2h = exam_dt - timedelta(hours=2)
                     before_30m = exam_dt - timedelta(minutes=30)
 
@@ -251,7 +251,7 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
                                 id=_safe_job_id("exam", chat_id, exam, str(remind_time)),
                                 replace_existing=True
                             )
-                            print(f"⏰ جدولت تذكير: {message} في {remind_time}")
+                            logging.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 
 
 def exams_scheduler_loop(term_no="current_term"):
