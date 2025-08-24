@@ -126,6 +126,8 @@ def task_check_exams():
     users = get_all_users()
     now = datetime.now(PALESTINE_TZ)
     today = now.date()
+    tomorrow = today + timedelta(days=1)
+
     for u in users:
         chat_id = u['chat_id']
         scraper = QOUScraper(u['student_id'], u['password'])
@@ -134,52 +136,82 @@ def task_check_exams():
                 exams = scraper.fetch_exam_schedule("current_term", exam_type)
                 for ex in exams:
                     ex_dt = parse_exam_datetime(ex['date'], ex['from_time'])
-                    if not ex_dt or ex_dt.date() != today:
+                    if not ex_dt:
                         continue
-                    # قبل ساعتين
+
+                    # ================= تذكير امتحانات الغد الساعة 12 =================
+                    if ex_dt.date() == tomorrow:
+                        reminder_time = datetime.combine(today, datetime.min.time()).replace(hour=12, tzinfo=PALESTINE_TZ)
+                        if reminder_time > now:
+                            job_id = f"exam_tomorrow_12_{chat_id}_{ex['course_code']}_{ex['date']}"
+                            scheduler.add_job(
+                                partial(send_message, bot, chat_id, f"📌 تذكير: لديك امتحان غداً: {ex['course_name']} الساعة {ex['from_time']}"),
+                                trigger='date',
+                                run_date=reminder_time,
+                                id=job_id,
+                                replace_existing=True
+                            )
+                            logger.info(f"⏰ تم جدولة تذكير امتحان الغد لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+
+                    # ================= تذكير قبل ساعتين =================
                     before_2h = ex_dt - timedelta(hours=2)
                     if before_2h > now:
+                        job_id = f"exam_2h_{chat_id}_{ex['course_code']}_{ex['date']}"
                         scheduler.add_job(
                             partial(send_message, bot, chat_id, f"⏰ بعد ساعتين امتحان {ex['course_name']} الساعة {ex['from_time']}"),
                             trigger='date',
                             run_date=before_2h,
-                            id=f"exam_2h_{chat_id}_{ex['course_code']}_{ex['date']}",
+                            id=job_id,
                             replace_existing=True
                         )
-                    # قبل 30 دقيقة
+                        logger.info(f"⏰ تم جدولة تذكير قبل ساعتين لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+
+                    # ================= تذكير قبل 30 دقيقة =================
                     before_30m = ex_dt - timedelta(minutes=30)
                     if before_30m > now:
+                        job_id = f"exam_30m_{chat_id}_{ex['course_code']}_{ex['date']}"
                         scheduler.add_job(
                             partial(send_message, bot, chat_id, f"⚠️ امتحان {ex['course_name']} قرب الساعة {ex['from_time']}"),
                             trigger='date',
                             run_date=before_30m,
-                            id=f"exam_30m_{chat_id}_{ex['course_code']}_{ex['date']}",
+                            id=job_id,
                             replace_existing=True
                         )
-                    # وقت الامتحان
+                        logger.info(f"⏰ تم جدولة تذكير قبل 30 دقيقة لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+
+                    # ================= وقت الامتحان =================
                     if ex_dt > now:
+                        job_id = f"exam_start_{chat_id}_{ex['course_code']}_{ex['date']}"
                         scheduler.add_job(
                             partial(send_message, bot, chat_id, f"🚀 بدأ الآن امتحان {ex['course_name']}"),
                             trigger='date',
                             run_date=ex_dt,
-                            id=f"exam_start_{chat_id}_{ex['course_code']}_{ex['date']}",
+                            id=job_id,
                             replace_existing=True
                         )
+                        logger.info(f"🚀 تم جدولة تذكير بدء الامتحان لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+
 
 # ====================== مهمة المواعيد ======================
 def task_check_deadlines():
     logger.info("🔹 بدء مهمة تذكير المواعيد لكل المستخدمين")
     deadlines = get_all_deadlines()
     if not deadlines:
-        logger.info("لا توجد مواعيد حالياً")
+        logger.info("📭 لا توجد مواعيد حالياً")
         return
     users = get_all_users()
+    today = datetime.now(PALESTINE_TZ).date()
     for u in users:
         chat_id = u['chat_id']
-        msg = "⏰ تذكير بالمواعيد:\n\n"
-        for d in deadlines:
-            msg += f"📌 {d[1]} بتاريخ {d[2].strftime('%d/%m/%Y')}\n"
-        send_message(bot, chat_id, msg)
+        msg_lines = []
+        for d_id, d_name, d_date in deadlines:
+            days_left = (d_date - today).days
+            if days_left >= 0:
+                msg_lines.append(f"⏰ باقي {days_left} يوم للموعد: {d_name} ({d_date.strftime('%d/%m/%Y')})")
+        if msg_lines:
+            full_msg = "📌 تذكير بالمواعيد القادمة:\n\n" + "\n".join(msg_lines)
+            send_message(bot, chat_id, full_msg)
+            logger.info(f"📤 تم إرسال تذكيرات المواعيد لـ {chat_id}")
 
 # ====================== إضافة المهام للجدولة ======================
 scheduler.add_job(task_check_messages, 'interval', minutes=20, id="job_messages")
@@ -188,6 +220,9 @@ scheduler.add_job(task_check_lectures, 'interval', minutes=30, id="job_lectures"
 scheduler.add_job(task_check_discussions, 'interval', minutes=30, id="job_discussions")
 scheduler.add_job(task_check_exams, 'cron', hour=0, minute=0, id="job_exams")  # يومياً
 scheduler.add_job(task_check_deadlines, 'interval', hours=12, id="job_deadlines")  # كل 12 ساعة
+
+# تنفيذ فوري لتذكيرات المواعيد عند بدء التشغيل
+task_check_deadlines()
 
 scheduler.start()
 logger.info("✅ تم تشغيل جميع المهام المجدولة بنجاح")
