@@ -140,18 +140,23 @@ def task_check_exams():
                         continue
 
                     # ================= تذكير امتحانات الغد الساعة 12 =================
-                    if ex_dt.date() == tomorrow:
-                        reminder_time = datetime.combine(today, datetime.min.time()).replace(hour=12, tzinfo=PALESTINE_TZ)
+                    if ex_dt.date() == today:
+                        reminder_time = datetime.combine(today, datetime.min.time()).replace(tzinfo=PALESTINE_TZ)
                         if reminder_time > now:
-                            job_id = f"exam_tomorrow_12_{chat_id}_{ex['course_code']}_{ex['date']}"
+                            # نضيف مهمة مجدولة
                             scheduler.add_job(
-                                partial(send_message, bot, chat_id, f"📌 تذكير: لديك امتحان غداً: {ex['course_name']} الساعة {ex['from_time']}"),
+                                partial(send_message, bot, chat_id, f"📌 تذكير: لديك امتحان اليوم: {ex['course_name']} الساعة {ex['from_time']}"),
                                 trigger='date',
                                 run_date=reminder_time,
-                                id=job_id,
+                                id=f"exam_today_12_{chat_id}_{ex['course_code']}_{ex['date']}",
                                 replace_existing=True
                             )
-                            logger.info(f"⏰ تم جدولة تذكير امتحان الغد لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+                            logger.info(f"⏰ تم جدولة تذكير امتحان اليوم لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+                        else:
+                            # إذا الساعة تعدت 12، نرسل الرسالة مباشرة
+                            send_message(bot, chat_id, f"📌 تذكير: لديك امتحان اليوم: {ex['course_name']} الساعة {ex['from_time']}")
+                            logger.info(f"⏰ تم إرسال تذكير امتحان اليوم مباشرة لـ {chat_id}: {ex['course_name']} الساعة {ex['from_time']}")
+
 
                     # ================= تذكير قبل ساعتين =================
                     before_2h = ex_dt - timedelta(hours=2)
