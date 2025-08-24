@@ -201,7 +201,7 @@ def check_for_gpa_changes():
             logger.error(f"❌ خطأ في متابعة GPA: {e}")
             time.sleep(60)
 
-def send_deadline_reminders_loop():
+def send_reminder_for_new_deadline():
     while True:
         try:
             deadlines = get_all_deadlines()
@@ -360,7 +360,7 @@ def start_scheduler():
     threading.Thread(target=check_for_course_updates, daemon=True).start()
     threading.Thread(target=check_for_lectures, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
-    threading.Thread(target=send_deadline_reminders_loop, daemon=True).start()
+    threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=exams_scheduler_loop, daemon=True).start()
     logger.info("✅ تم تشغيل جميع المهام المجدولة والخلفية بنجاح")
