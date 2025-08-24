@@ -209,6 +209,10 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
 
         scraper = QOUScraper(student_id, password)
         if scraper.login():
+                        # ✅ طباعة الامتحانات للتحقق قبل الحفظ
+            exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type="final")
+            print(f"Exams for {student_id}: {exams}")
+
             # 1️⃣ حفظ كل الامتحانات في قاعدة البيانات
             scraper.save_exams_to_db(student_id)
 
