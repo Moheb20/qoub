@@ -14,5 +14,4 @@ arabic-reshaper
 python-bidi
 reportlab
 apscheduler
-functools
 pytz
