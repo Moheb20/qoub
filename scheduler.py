@@ -199,23 +199,28 @@ def send_reminder_for_new_deadline():
 # ====================== جدولة الامتحانات ======================
 def schedule_exam_reminders_for_all(term_no="current_term"):
     now = datetime.now(PALESTINE_TZ)
-    users = get_all_users()
     today = now.date()
+    users = get_all_users()
 
     for user in users:
         chat_id = user['chat_id']
+        student_id = decrypt_text(user['student_id'])
+        password = decrypt_text(user['password'])
+
         scraper = QOUScraper(student_id, password)
         if scraper.login():
-            # 1️⃣ حفظ الامتحانات في قاعدة البيانات
+            # 1️⃣ حفظ كل الامتحانات في قاعدة البيانات
             scraper.save_exams_to_db(student_id)
 
-            # 2️⃣ جلب الامتحانات من السكربر للجدولة
+            # 2️⃣ جلب الامتحانات للجدولة
             for exam_type_code, exam_type_label in EXAM_TYPE_MAP.items():
                 exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type=exam_type_code) or []
+
                 for exam in exams:
                     exam_dt = parse_exam_datetime(exam.get("date", ""), exam.get("from_time", ""))
                     if not exam_dt or exam_dt.date() != today:
                         continue
+
                     exam["exam_type_label"] = exam_type_label
                     exam["exam_datetime"] = exam_dt
 
@@ -228,27 +233,32 @@ def schedule_exam_reminders_for_all(term_no="current_term"):
                                 send_message, bot, chat_id,
                                 f"⏰ بعد ساعتين تقريبًا عندك امتحان {exam['course_name']} الساعة {exam['from_time']}"
                             ),
-                            trigger="date", run_date=before_2h,
+                            trigger="date",
+                            run_date=before_2h,
                             id=_safe_job_id("exam", chat_id, exam, "2h"),
                             replace_existing=True
                         )
+
                     if before_30m > now:
                         exam_scheduler.add_job(
                             partial(
                                 send_message, bot, chat_id,
                                 f"⚠️ قرّب امتحان {exam['course_name']} الساعة {exam['from_time']}، حضّر حالك!"
                             ),
-                            trigger="date", run_date=before_30m,
+                            trigger="date",
+                            run_date=before_30m,
                             id=_safe_job_id("exam", chat_id, exam, "30m"),
                             replace_existing=True
                         )
+
                     if exam_dt > now:
                         exam_scheduler.add_job(
                             partial(
                                 send_message, bot, chat_id,
                                 f"🚀 بدأ الآن امتحان {exam['course_name']}، بالتوفيق ❤️"
                             ),
-                            trigger="date", run_date=exam_dt,
+                            trigger="date",
+                            run_date=exam_dt,
                             id=_safe_job_id("exam", chat_id, exam, "start"),
                             replace_existing=True
                         )
