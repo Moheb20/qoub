@@ -78,7 +78,26 @@ def init_db():
                     name TEXT NOT NULL UNIQUE,
                     link TEXT NOT NULL
                 )
-            ''')            
+            ''')      
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS exam_schedule (
+                    id SERIAL PRIMARY KEY
+                    student_id VARCHAR(20),
+                    exam_type VARCHAR(20),
+                    course_code VARCHAR(20),
+                    course_name VARCHAR(100),
+                    date DATE,
+                    from_time TIME,
+                    to_time TIME,
+                    lecturer VARCHAR(100),
+                    session VARCHAR(20),
+                    note VARCHAR(255),
+                    reminder_2h_sent BOOLEAN DEFAULT FALSE,
+                    reminder_30m_sent BOOLEAN DEFAULT FALSE,
+                    start_sent BOOLEAN DEFAULT FALSE
+                )
+            ''')
+            
         conn.commit()
 
 # ---------- إدارة المستخدمين ----------
@@ -414,3 +433,31 @@ def get_group_link(name):
             cur.execute("SELECT link FROM groups WHERE name = %s", (name,))
             row = cur.fetchone()
             return row[0] if row else None
+
+def add_exam(student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO exam_schedule 
+                (student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note))
+        conn.commit()
+
+def get_exams_by_student(student_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT id, student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note,
+                       reminder_2h_sent, reminder_30m_sent, start_sent
+                FROM exam_schedule
+                WHERE student_id = %s
+            ''', (student_id,))
+            return cur.fetchall()
+            
+def clear_exams():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM exam_schedule')
+        conn.commit()
+
