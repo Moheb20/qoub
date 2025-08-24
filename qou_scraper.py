@@ -345,39 +345,32 @@ class QOUScraper:
     
         return text
 
-    def save_exams_to_db(term_no="current_term"):
-        """
-        جلب جدول الامتحانات لكل طالب من البوابة وحفظه في قاعدة البيانات.
-        """
-        users = get_all_users()
-        for user in users:
-            chat_id = user['chat_id']
-            student_id = user['student_id']
-            password = user['password']
+    def save_exams_to_db(self, student_id):
+        from database import get_conn
+        exams = []
+        for exam_type_code in EXAM_TYPE_MAP.keys():
+            exams += self.fetch_exam_schedule(term_no="current_term", exam_type=exam_type_code) or []
     
-            scraper = QOUScraper(student_id, password)
-            if scraper.login():
-                for exam_type_code in ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]:
-                    exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type=exam_type_code) or []
-                    for exam in exams:
-                        try:
-                            exam_date = datetime.strptime(exam.get("date",""), "%d/%m/%Y").date()
-                            from_time = datetime.strptime(exam.get("from_time",""), "%H:%M").time()
-                            to_time = datetime.strptime(exam.get("to_time",""), "%H:%M").time()
-                        except Exception as e:
-                            # إذا فيه خطأ بالتاريخ أو الوقت نتجاوز
-                            continue
-    
-                        add_exam(
-                            student_id=student_id,
-                            exam_type=exam_type_code,
-                            course_code=exam.get("course_code","-"),
-                            course_name=exam.get("course_name","-"),
-                            date=exam_date,
-                            from_time=from_time,
-                            to_time=to_time,
-                            lecturer=exam.get("lecturer","-"),
-                            session=exam.get("session","-"),
-                            note=exam.get("note","-")
-                        )
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                for exam in exams:
+                    cur.execute('''
+                        INSERT INTO exam_schedule
+                        (student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (student_id, course_code, date, from_time) DO NOTHING
+                    ''', (
+                        student_id,
+                        exam.get("exam_kind"),
+                        exam.get("course_code"),
+                        exam.get("course_name"),
+                        exam.get("date"),
+                        exam.get("from_time"),
+                        exam.get("to_time"),
+                        exam.get("lecturer"),
+                        exam.get("session"),
+                        exam.get("note")
+                    ))
+            conn.commit()
+
 
