@@ -81,7 +81,7 @@ def init_db():
             ''')      
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS exam_schedule (
-                    id SERIAL PRIMARY KEY
+                    id SERIAL PRIMARY KEY,
                     student_id VARCHAR(20),
                     exam_type VARCHAR(20),
                     course_code VARCHAR(20),
@@ -97,6 +97,7 @@ def init_db():
                     start_sent BOOLEAN DEFAULT FALSE
                 )
             ''')
+
             
         conn.commit()
 
