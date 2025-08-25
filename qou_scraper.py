@@ -182,11 +182,11 @@ class QOUScraper:
     def parse_exam_datetime(self, date_str, time_str):
         """يحوّل التاريخ + الوقت من النص إلى datetime جاهز"""
         try:
-            dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
+            # دعم 23-08-2025 بدل 23/08/2025
+            dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M")
             return dt.replace(tzinfo=PALESTINE_TZ)
         except Exception:
             return None
-    
     # ------------------- جلب آخر فصلين -------------------
     def get_last_two_terms(self):
         resp = self.session.get(EXAMS_SCHEDULE_URL)
