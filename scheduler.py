@@ -316,6 +316,7 @@ def schedule_today_exams(term_no="current_term"):
                     logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 
 # ---------------- تشغيل الجدولة ----------------
+# ---------------- تشغيل الجدولة ----------------
 def start_exam_scheduler(term_no="current_term"):
     # تشغيل مرة واحدة عند بداية البوت
     exam_scheduler.add_job(
@@ -326,10 +327,10 @@ def start_exam_scheduler(term_no="current_term"):
         replace_existing=True,
     )
 
-    # تشغيل يومي عند 02:30 صباحًا
+    # تشغيل يومي الساعة 1:00 الظهر
     exam_scheduler.add_job(
         lambda: schedule_today_exams(term_no=term_no),
-        trigger=CronTrigger(hour=13, minute=12),
+        trigger=CronTrigger(hour=13, minute=17, timezone=PALESTINE_TZ),
         id="daily_exam_check",
         replace_existing=True,
     )
@@ -339,6 +340,8 @@ def start_exam_scheduler(term_no="current_term"):
         logger.info("✅ تم تشغيل جدولة الامتحانات اليومية بنجاح")
     except Exception as e:
         logger.error(f"❌ خطأ أثناء تشغيل المجدول: {e}")
+
+
 # ---------------- تشغيل كل المهام ----------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
@@ -346,6 +349,9 @@ def start_scheduler():
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
-    threading.Thread(target=start_exam_scheduler, daemon=True).start()
+
+    # شغل مباشرة بدون Thread
+    start_exam_scheduler()
 
     logger.info("✅ تم تشغيل جميع المهام المجدولة والخلفية بنجاح")
+
