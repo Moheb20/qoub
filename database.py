@@ -79,32 +79,6 @@ def init_db():
                     link TEXT NOT NULL
                 )
             ''')      
-            # ✅ جدول الامتحانات (متوافق مع PostgreSQL)
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS exams (
-                    id SERIAL PRIMARY KEY,
-                    user_id BIGINT NOT NULL REFERENCES users(chat_id) ON DELETE CASCADE,
-                    course_name TEXT NOT NULL,
-                    exam_date TIMESTAMP NOT NULL,
-                    exam_type TEXT NOT NULL,        -- midterm / final
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-            # ✅ جدول تذكيرات الامتحانات
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS exam_reminders (
-                    id SERIAL PRIMARY KEY,
-                    exam_id INT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-                    reminder_type TEXT NOT NULL,    -- "2h_before", "30m_before", "at_start"
-                    sent BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-
-        
-            
 
             
         conn.commit()
@@ -442,57 +416,4 @@ def get_group_link(name):
             cur.execute("SELECT link FROM groups WHERE name = %s", (name,))
             row = cur.fetchone()
             return row[0] if row else None
-def add_exam(user_id, course_name, exam_date, exam_type):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                '''
-                INSERT INTO exams (user_id, course_name, exam_date, exam_type)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id
-                ''',
-                (user_id, course_name, exam_date, exam_type)
-            )
-            exam_id = cur.fetchone()[0]
-        conn.commit()
-    return exam_id
-def get_today_exams(user_id, tz):
-    today = datetime.datetime.now(tz).date()
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                '''
-                SELECT id, course_name, exam_date, exam_type
-                FROM exams
-                WHERE user_id = %s AND DATE(exam_date AT TIME ZONE %s) = %s
-                ORDER BY exam_date
-                ''',
-                (user_id, str(tz), today)
-            )
-            exams = cur.fetchall()
-    return exams
 
-
-def add_exam_reminder(exam_id, reminder_type):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                '''
-                INSERT INTO exam_reminders (exam_id, reminder_type)
-                VALUES (%s, %s)
-                RETURNING id
-                ''',
-                (exam_id, reminder_type)
-            )
-            reminder_id = cur.fetchone()[0]
-        conn.commit()
-    return reminder_id
-
-def mark_reminder_sent(reminder_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                'UPDATE exam_reminders SET sent = TRUE WHERE id = %s',
-                (reminder_id,)
-            )
-        conn.commit()
