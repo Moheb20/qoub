@@ -279,9 +279,10 @@ def start_exam_scheduler():
             today = datetime.now(PALESTINE_TZ).date()
 
             for user in users:
-                user_id = user[0]
-                student_id = user[1]
-                password = user[2]
+                user_id = user['chat_id']       # أو 'user_id' حسب اسم المفتاح في DB
+                student_id = user['student_id']
+                password = user['password']
+
 
                 user_scraper = QOUScraper(student_id, password)
                 if not user_scraper.login():
