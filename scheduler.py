@@ -312,7 +312,10 @@ def check_today_exams():
                         continue
 
                     for e in exams:
-                        logger.info(f"[{user_id}] بيانات الامتحان الخام: date={e['date']}, from={e['from_time']}, to={e['to_time']}, course={e['course_name']}")
+                        logger.info(
+                            f"[{user_id}] بيانات الامتحان الخام: date={e['date']}, from={e['from_time']}, "
+                            f"to={e['to_time']}, course={e['course_name']}"
+                        )
                         exam_dt = parse_exam_datetime(e["date"], e["from_time"])
                         if not exam_dt:
                             logger.warning(f"[{user_id}] فشل تحويل التاريخ للامتحان {e['course_name']}")
@@ -332,7 +335,6 @@ def check_today_exams():
                             )
                             logger.info(f"[{user_id}] جاري إرسال رسالة الامتحان: {e['course_name']}")
 
-                            
                             try:
                                 bot.send_message(user_id, msg)
                                 logger.info(f"[{user_id}] تم إرسال رسالة الامتحان بنجاح")
@@ -347,11 +349,10 @@ def check_today_exams():
                                 ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
                             ]
 
-
                             for r_type, r_time, r_msg in reminders:
                                 if r_time.tzinfo is None:
                                     r_time = PALESTINE_TZ.localize(r_time)
-                        
+
                                 if r_time > datetime.now(PALESTINE_TZ):
                                     try:
                                         job_func = partial(bot.send_message, user_id, r_msg)
@@ -367,12 +368,13 @@ def check_today_exams():
     except Exception as e:
         logger.exception(f"❌ فشل أثناء فحص امتحانات اليوم: {e}")
 
+
 def start_exam_scheduler():
     check_today_exams()
-    
     exam_scheduler.add_job(check_today_exams, "cron", hour=0, minute=1)
     exam_scheduler.start()
     logger.info("🕒 تم بدء جدولة امتحانات ")
+
 
 
 # ---------------- بدء الـ scheduler في Thread دايم ----------------
