@@ -24,6 +24,13 @@ WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 BALANCE_URL = 'https://portal.qou.edu/student/getSasStudFtermCardList.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
 logger = logging.getLogger(__name__)
+EXAM_TYPE_MAP = {
+    "MT&IM": "📝 النصفي",
+    "FT&IF": "🏁 النهائي النظري",
+    "FP&FP": "🧪 النهائي العملي",
+    "LE&LE": "📈 امتحان المستوى",
+}
+
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
@@ -190,12 +197,6 @@ class QOUScraper:
         except Exception as e:
             return None
     
-EXAM_TYPE_MAP = {
-    "MT&IM": "📝 النصفي",
-    "FT&IF": "🏁 النهائي النظري",
-    "FP&FP": "🧪 النهائي العملي",
-    "LE&LE": "📈 امتحان المستوى",
-}
 
 # ------------------- جلب جدول الامتحانات من البوابة -------------------
     def fetch_exam_schedule(self, term_no, exam_type) -> list[dict]:
