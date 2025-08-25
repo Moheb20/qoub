@@ -80,24 +80,29 @@ def init_db():
                 )
             ''')      
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS exam_schedule (
-                    id SERIAL PRIMARY KEY,
-                    student_id VARCHAR(20),
-                    exam_type VARCHAR(20),
-                    course_code VARCHAR(20),
-                    course_name VARCHAR(100),
-                    date DATE,
-                    from_time TIME,
-                    to_time TIME,
-                    lecturer VARCHAR(100),
-                    session VARCHAR(20),
-                    note VARCHAR(255),
-                    reminder_2h_sent BOOLEAN DEFAULT FALSE,
-                    reminder_30m_sent BOOLEAN DEFAULT FALSE,
-                    start_sent BOOLEAN DEFAULT FALSE,
-                    UNIQUE (student_id, course_code, date, from_time)
+                CREATE TABLE IF NOT EXISTS exam (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,          -- رقم الجامعة أو معرف الطالب
+                    course_name TEXT NOT NULL,      -- اسم المساق
+                    exam_date DATETIME NOT NULL,    -- تاريخ ووقت الامتحان
+                    exam_type TEXT NOT NULL,        -- midterm / final
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS exam_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_id INTEGER NOT NULL,
+                    reminder_type TEXT NOT NULL,    -- "2h_before", "30m_before", "at_start"
+                    sent BOOLEAN DEFAULT 0,         -- 0 = مش مبعوث , 1 = مبعوث
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+                )
+            ''')
+
+
+        
+            
 
             
         conn.commit()
@@ -436,30 +441,5 @@ def get_group_link(name):
             row = cur.fetchone()
             return row[0] if row else None
 
-def add_exam(student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute('''
-                INSERT INTO exam_schedule 
-                (student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', (student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note))
-        conn.commit()
 
-def get_exams_by_student(student_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute('''
-                SELECT id, student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note,
-                       reminder_2h_sent, reminder_30m_sent, start_sent
-                FROM exam_schedule
-                WHERE student_id = %s
-            ''', (student_id,))
-            return cur.fetchall()
-            
-def clear_exams():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute('DELETE FROM exam_schedule')
-        conn.commit()
 
