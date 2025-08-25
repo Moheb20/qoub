@@ -265,6 +265,12 @@ def schedule_lecture_reminders_for_all():
                         )
                         logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 # ====================== جدولة الامتحانات ======================
+def parse_exam_datetime(date_str, time_str):
+    try:
+        dt_str = f"{date_str} {time_str}"
+        return datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=PALESTINE_TZ)
+    except:
+        return None
 
 def schedule_today_exams(bot):
     now = datetime.datetime.now(PALESTINE_TZ)
