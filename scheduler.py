@@ -15,7 +15,10 @@ from database import (
     update_user_courses,
     update_user_gpa,
     get_all_deadlines,
+    add_exam,
     get_today_exams,
+    add_exam_reminder,
+    mark_reminder_sent
 )
 from qou_scraper import QOUScraper
 from bot_instance import bot
