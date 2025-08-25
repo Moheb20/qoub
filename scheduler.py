@@ -15,10 +15,7 @@ from database import (
     update_user_courses,
     update_user_gpa,
     get_all_deadlines,
-    add_exam,
-    get_today_exams,
-    add_exam_reminder,
-    mark_reminder_sent
+
 )
 from qou_scraper import QOUScraper
 from bot_instance import bot
@@ -29,7 +26,7 @@ from pytz import timezone  # للتوافق مع Render
 
 
 # ---------------- إعداد الوقت واللوج ----------------
-PALESTINE_TZ = timezone("Asia/Hebron")
+PALESTINE_TZ = pytz.timezone("Asia/Gaza")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("exam_scheduler")
 # ---------------- إنشاء Scheduler ----------------
@@ -269,6 +266,73 @@ def schedule_lecture_reminders_for_all():
                         )
                         logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 
+def schedule_daily_exam_check():
+    """
+    كل يوم الساعة 12 صباحًا يفحص الامتحانات لليوم الحالي لجميع الطلاب
+    """
+    scraper = QOUScraper("", "")  # نستخدم لاحقًا لكل طالب بياناته
+    scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
+
+    def check_today_exams():
+        try:
+            users = get_all_users()
+            today = datetime.now(PALESTINE_TZ).date()
+
+            for user in users:
+                user_id = user[0]
+                student_id = user[1]  # تأكد عندك الأعمدة: chat_id, student_id, password
+                password = user[2]
+
+                user_scraper = QOUScraper(student_id, password)
+                if not user_scraper.login():
+                    logger.warning(f"[{user_id}] فشل تسجيل الدخول للطالب {student_id}")
+                    continue
+
+                terms = user_scraper.get_last_two_terms()
+                if not terms:
+                    logger.warning(f"[{user_id}] لا توجد فصول دراسية")
+                    continue
+
+                for term in terms:
+                    exam_types = ["1", "2"]  # نصفي / نهائي
+                    for exam_type in exam_types:
+                        exams = user_scraper.fetch_exam_schedule(term["value"], exam_type)
+                        for e in exams:
+                            exam_dt = user_scraper.parse_exam_datetime(e["date"], e["from_time"])
+                            if not exam_dt:
+                                continue
+
+                            if exam_dt.date() == today:
+                                # تنبيه اليوم
+                                msg = (
+                                    f"📌 عندك امتحان اليوم:\n"
+                                    f"المادة: {e['course_name']}\n"
+                                    f"النوع: {e['exam_kind']}\n"
+                                    f"الساعة: {e['from_time']} - {e['to_time']}\n"
+                                    f"المحاضر: {e['lecturer']}\n"
+                                    f"القسم: {e['section']}\n"
+                                    f"ملاحظة: {e['note']}"
+                                )
+                                bot.send_message(user_id, msg)
+                                logger.info(f"[{user_id}] تم إعلامه بالامتحان اليوم: {e['course_name']}")
+
+                                # جدولة التذكيرات
+                                reminders = [
+                                    ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
+                                    ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
+                                    ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
+                                ]
+
+                                for r_type, r_time, r_msg in reminders:
+                                    if r_time > datetime.now(PALESTINE_TZ):
+                                        scheduler.add_job(
+                                            lambda uid=user_id, msg=r_msg: bot.send_message(uid, msg),
+                                            "date",
+                                            run_date=r_time
+                                        )
+
+        except Exception as e:
+            logger.exception(f"فشل أثناء فحص امتحانات اليوم: {e}")
 
 # ---------------- تشغيل كل المهام ----------------
 def start_scheduler():
@@ -277,7 +341,9 @@ def start_scheduler():
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
-    threading.Thread(target=start_exam_scheduler, args=(bot,), daemon=True).start()
+    threading.Thread(target=schedule_daily_exam_check, daemon=True).start()
+
+
 
 
     logger.info("✅ تم تشغيل جميع المهام المجدولة والخلفية بنجاح")
