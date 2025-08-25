@@ -27,8 +27,7 @@ from pytz import timezone  # للتوافق مع Render
 # ---------------- إعداد الوقت واللوج ----------------
 PALESTINE_TZ = timezone("Asia/Hebron")
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger("exam_scheduler")
 # ---------------- إنشاء Scheduler ----------------
 exam_scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
 exam_scheduler.configure(job_defaults={"coalesce": True, "max_instances": 4, "misfire_grace_time": 300})
@@ -266,74 +265,65 @@ def schedule_lecture_reminders_for_all():
                         )
                         logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 # ====================== جدولة الامتحانات ======================
-def schedule_today_exams(term_no="current_term"):
-    now = datetime.now(PALESTINE_TZ)
-    today = now.date()
 
-    users = get_all_users()
+def schedule_today_exams(bot):
+    now = datetime.datetime.now(PALESTINE_TZ)
+    users = get_all_users_with_credentials()  # جلب كل الطلاب
+
     for user in users:
         chat_id = user["chat_id"]
-        logger.info(f"🔎 Raw DB student_id: {user['student_id']}")
-        student_id = decrypt_text(user["student_id"])
-        password = decrypt_text(user["password"])
+        student_id = user["student_id"]
 
-        scraper = QOUScraper(student_id, password)
-        if not scraper.login():
-            continue
-
-        exams = scraper.fetch_exam_schedule(term_no=term_no, exam_type="final")
-        logger.info(f"Exams for {student_id}: {exams}")
-
+        # جلب امتحانات اليوم للطالب
+        exams = get_today_exams(student_id, PALESTINE_TZ)
         for exam in exams:
-            exam_dt = parse_exam_datetime(exam.get("date", ""), exam.get("from_time", ""))
-            if not exam_dt or exam_dt.date() != today:
-                continue
+            exam_id, course_name, exam_dt, exam_type = exam
 
-            course_name = exam.get("course_name", "مقرر")
-            from_time = exam.get("from_time", "-")
+            # تحديد أوقات التذكير
+            reminders = {
+                "day_start": datetime.datetime.combine(exam_dt.date(), datetime.time(18, 0, tzinfo=PALESTINE_TZ)),
+                "2h_before": exam_dt - datetime.timedelta(hours=2),
+                "30m_before": exam_dt - datetime.timedelta(minutes=30),
+                "at_start": exam_dt
+            }
 
-            # ---- أوقات التذكير ----
-            day_start = datetime.combine(exam_dt.date(), dtime(13, 25, tzinfo=PALESTINE_TZ))
-            before_2h = exam_dt - timedelta(hours=2)
-            before_30m = exam_dt - timedelta(minutes=30)
-
-            reminders = [
-                (day_start, f"🟢 اليوم عندك امتحان {course_name} الساعة {from_time}"),
-                (before_2h, f"⏰ بعد ساعتين عندك امتحان {course_name} الساعة {from_time}"),
-                (before_30m, f"⚠️ قرّب امتحان {course_name} الساعة {from_time}، حضّر حالك!"),
-                (exam_dt, f"🚀 بدأ الآن امتحان {course_name}، بالتوفيق ❤️"),
-            ]
-
-            for remind_time, message in reminders:
+            for reminder_type, remind_time in reminders.items():
                 if remind_time > now:
-                    job_id = f"exam_{chat_id}_{course_name}_{remind_time}"
+                    message = {
+                        "day_start": f"🟢 اليوم عندك امتحان {course_name} الساعة {exam_dt.strftime('%H:%M')}",
+                        "2h_before": f"⏰ بعد ساعتين عندك امتحان {course_name} الساعة {exam_dt.strftime('%H:%M')}",
+                        "30m_before": f"⚠️ قرّب امتحان {course_name} الساعة {exam_dt.strftime('%H:%M')}، حضّر حالك!",
+                        "at_start": f"🚀 بدأ الآن امتحان {course_name}، بالتوفيق ❤️"
+                    }[reminder_type]
+
+                    job_id = f"exam_{chat_id}_{exam_id}_{reminder_type}"
                     exam_scheduler.add_job(
                         partial(send_message, bot, chat_id, message),
                         trigger="date",
                         run_date=remind_time,
                         id=job_id,
-                        replace_existing=True,
+                        replace_existing=True
                     )
+                    add_exam_reminder(exam_id, reminder_type)  # تسجيل التذكير في DB
                     logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
 
-# ---------------- تشغيل الجدولة ----------------
-# ---------------- تشغيل الجدولة ----------------
-def start_exam_scheduler(term_no="current_term"):
-    # تشغيل مرة واحدة عند بداية البوت
+# ---- تشغيل المجدول ----
+def start_exam_scheduler(bot):
+    # فحص أولي عند تشغيل البوت
     exam_scheduler.add_job(
-        lambda: schedule_today_exams(term_no=term_no),
-        trigger=CronTrigger(hour=13, minute=25, timezone=PALESTINE_TZ),
-        id="daily_exam_check",
-        replace_existing=True,
+        lambda: schedule_today_exams(bot),
+        trigger="date",
+        run_date=datetime.datetime.now(PALESTINE_TZ) + datetime.timedelta(seconds=5),
+        id="startup_exam_check",
+        replace_existing=True
     )
 
-
-    # تشغيل يومي الساعة 1:00 الظهر
+    # تشغيل يومي الساعة 18:00 مساءً
     exam_scheduler.add_job(
-        lambda: schedule_today_exams(term_no=term_no),
-        trigger=CronTrigger(hour=13, minute=17, timezone=PALESTINE_TZ),
+        lambda: schedule_today_exams(bot),
+        trigger=CronTrigger(hour=18, minute=0, timezone=PALESTINE_TZ),
         id="daily_exam_check",
-        replace_existing=True,
+        replace_existing=True
     )
 
     try:
@@ -350,9 +340,8 @@ def start_scheduler():
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
+    threading.Thread(target=start_exam_scheduler, args=(bot,), daemon=True).start()
 
-    # شغل مباشرة بدون Thread
-    start_exam_scheduler()
 
     logger.info("✅ تم تشغيل جميع المهام المجدولة والخلفية بنجاح")
 
