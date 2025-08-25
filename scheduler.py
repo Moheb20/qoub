@@ -356,13 +356,14 @@ def check_today_exams():
 
     # --- جدولة الفحص اليومي الساعة 8:35 مساءً ---
 def start_exam_scheduler():
-    # جدولة فحص الامتحانات يومياً الساعة 20:35 (مثال)
-    scheduler.add_job(check_today_exams, "cron", hour=22, minute=53)
-    scheduler.start()
+    # جدولة فحص الامتحانات يومياً الساعة 20:35
+    exam_scheduler.add_job(check_today_exams, "cron", hour=22, minute=55)
+    exam_scheduler.start()
     logger.info("🕒 تم بدء جدولة امتحانات اليوم الساعة 20:35")
 
 
 # ---------------- بدء الـ scheduler في Thread دايم ----------------
+
 def start_exam_scheduler_thread():
     threading.Thread(target=start_exam_scheduler, daemon=True).start()
     logger.info("✅ Thread جدولة امتحانات اليوم بدأ")
