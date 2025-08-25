@@ -268,7 +268,7 @@ def schedule_lecture_reminders_for_all():
 
 
 def schedule_today_exams(bot):
-    now = datetime.datetime.now(PALESTINE_TZ)
+    now = datetime.now(PALESTINE_TZ)
     users = get_all_users_with_credentials()  # جلب كل الطلاب
 
     for user in users:
