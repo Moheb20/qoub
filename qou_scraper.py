@@ -179,58 +179,28 @@ class QOUScraper:
             'cumulative': parse_row(rows[1])
         }
 
-    def get_last_two_terms(self) -> List[dict]:
-        resp = self.session.get(EXAMS_SCHEDULE_URL)
+    def parse_exam_datetime(date_str, time_str):
+        """يحوّل التاريخ + الوقت من النص إلى datetime جاهز"""
+        try:
+            dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
+            return dt.replace(tzinfo=PALESTINE_TZ)
+        except Exception:
+            return None
+    
+    # ------------------- جلب آخر فصلين -------------------
+    def get_last_two_terms(session):
+        resp = session.get(EXAMS_SCHEDULE_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         select_term = soup.find("select", {"name": "termNo"})
         options = select_term.find_all("option")
-        last_two = options[:2]  # آخر فصلين
+        last_two = options[:2]
         return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
-
-    def import_last_terms_exams(session):
-        """
-        تجلب امتحانات آخر فصلين لكل الطلاب وتضيفها لقاعدة البيانات.
-        """
-        scraper = QOUScraper(session)
-        try:
-            last_terms = scraper.get_last_two_terms()
-        except Exception as e:
-            logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
-            return
     
-        exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]  # جميع أنواع الامتحانات
-    
-        for term in last_terms:
-            term_no = term["value"]
-            for exam_kind in exam_types:
-                try:
-                    import_exams_to_db(term_no, exam_kind, session)
-                    logger.info(f"✅ تم استيراد امتحانات الفصل {term_no} ({exam_kind}) لجميع الطلاب")
-                except Exception as e:
-                    logger.error(f"❌ خطأ عند استيراد امتحانات الفصل {term_no} ({exam_kind}): {e}")
-        
-        def parse_exam_datetime(self, date_str, time_str):  # ✅ الآن صحيح
-            """ يحوّل التاريخ + الوقت من النص إلى datetime جاهز """
-            try:
-                # مثال: 06/12/2025 و 13:30
-                dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
-                return dt.replace(tzinfo=PALESTINE_TZ)
-            except Exception as e:
-                return None
-    
-
-# ------------------- جلب جدول الامتحانات من البوابة -------------------
-    def fetch_exam_schedule(self, term_no, exam_type) -> list[dict]:
-        """
-        تجلب امتحانات الفصل من البوابة وترجع قائمة بالامتحانات.
-        كل امتحان عبارة عن dict يحتوي على تفاصيله و datetime جاهز للجدولة.
-        """
-        payload = {
-            "termNo": term_no,
-            "examType": exam_type
-        }
-        resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)
+    # ------------------- جلب جدول الامتحانات من البوابة -------------------
+    def fetch_exam_schedule(session, term_no, exam_type):
+        payload = {"termNo": term_no, "examType": exam_type}
+        resp = session.post(EXAMS_SCHEDULE_URL, data=payload)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         table = soup.find("table", id="dataTable")
@@ -246,10 +216,9 @@ class QOUScraper:
     
             date_str = cols[6].get_text(strip=True)
             time_str = cols[8].get_text(strip=True)
-    
-            exam_dt = self.parse_exam_datetime(date_str, time_str)
+            exam_dt = parse_exam_datetime(date_str, time_str)
             if not exam_dt:
-                continue  # تجاهل الصفوف الغير صالحة
+                continue
     
             exams.append({
                 "exam_kind": cols[0].get_text(strip=True),
@@ -265,20 +234,19 @@ class QOUScraper:
                 "note": cols[10].get_text(strip=True),
                 "datetime": exam_dt
             })
-    
         return exams
-
-    def import_exams_to_db(term_no, exam_type, session):
-        scraper = QOUScraper(session)
+    
+    # ------------------- إضافة الامتحانات لقاعدة البيانات -------------------
+    def import_exams_to_db(session, term_no, exam_type):
         users = get_all_users()  # جلب كل الطلاب
     
         for user in users:
             user_token = user.get("student_id")
             if not user_token:
-                continue  # تجاهل الطلاب بدون token
+                continue
     
             try:
-                exams = scraper.fetch_exam_schedule(term_no, exam_type)
+                exams = fetch_exam_schedule(session, term_no, exam_type)
             except Exception as e:
                 logger.error(f"❌ خطأ عند جلب امتحانات الطالب {user_token}: {e}")
                 continue
@@ -286,21 +254,29 @@ class QOUScraper:
             for exam in exams:
                 exam_dt = exam.get("datetime")
                 if not exam_dt:
-                    continue  # تجاهل الصفوف غير الصالحة
+                    continue
     
                 exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
     
                 try:
-                    exam_id = add_exam(
-                        user_token,
-                        exam["course_name"],
-                        exam_dt,
-                        exam_type_text
-                    )
+                    exam_id = add_exam(user_token, exam["course_name"], exam_dt, exam_type_text)
                     logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {user_token} برقم {exam_id} ({exam_type_text})")
                 except Exception as e:
                     logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {user_token}: {e}")
-
+    
+    # ------------------- استيراد آخر فصلين لجميع الطلاب -------------------
+    def import_last_terms_exams(session):
+        try:
+            last_terms = get_last_two_terms(session)
+        except Exception as e:
+            logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
+            return
+    
+        exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]
+        for term in last_terms:
+            term_no = term["value"]
+            for exam_kind in exam_types:
+                import_exams_to_db(session, term_no, exam_kind)
     def fetch_gpa(self):
         stats = self.fetch_term_summary_stats()
         if not stats:
