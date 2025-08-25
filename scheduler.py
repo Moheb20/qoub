@@ -333,12 +333,12 @@ def check_today_exams():
                             logger.info(f"[{user_id}] جاري إرسال رسالة الامتحان: {e['course_name']}")
 
                             
-                              try:
-                                    bot.send_message(user_id, msg)
-                                    logger.info(f"[{user_id}] تم إرسال رسالة الامتحان بنجاح")
-                                except Exception as ex:
-                                    logger.warning(f"[{user_id}] فشل إرسال رسالة الامتحان ({e['course_name']}): {ex}")
-                                    continue  # نكمل باقي الطلاب بدل ما يوقف
+                            try:
+                                bot.send_message(user_id, msg)
+                                logger.info(f"[{user_id}] تم إرسال رسالة الامتحان بنجاح")
+                            except Exception as ex:
+                                logger.warning(f"[{user_id}] فشل إرسال رسالة الامتحان ({e['course_name']}): {ex}")
+                                continue  # نكمل باقي الطلاب بدل ما يوقف
 
                             # جدولة التذكيرات
                             reminders = [
