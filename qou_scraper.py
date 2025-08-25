@@ -188,12 +188,15 @@ class QOUScraper:
             return None
     
     # ------------------- جلب آخر فصلين -------------------
-    def get_last_two_terms(self, date_str, time_str):
-        resp = session.get(EXAMS_SCHEDULE_URL)
+    def get_last_two_terms(self):
+        resp = self.session.get(EXAMS_SCHEDULE_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         select_term = soup.find("select", {"name": "termNo"})
+        if not select_term:
+            return []
         options = select_term.find_all("option")
+        # عادةً يكون أول خيار هو الفصل الحالي، الثاني السابق
         last_two = options[:2]
         return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
     
