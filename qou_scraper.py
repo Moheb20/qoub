@@ -231,6 +231,45 @@ class QOUScraper:
             exams.append(exam)
     
         return exams
+
+
+    def import_exams_to_db(term_no, exam_type, session):
+        """
+        تجلب امتحانات كل الطلاب من البوابة وتضيفها لقاعدة البيانات مع تحويل نوع الامتحان
+        """
+        scraper = QOUScraper(session)
+        users = get_all_users_with_credentials()  # جلب كل الطلاب اللي عندهم student_id
+    
+        for user in users:
+            student_id = user["student_id"]
+            if not student_id:
+                continue  # تجاهل المستخدمين بدون student_id
+    
+            try:
+                exams = scraper.fetch_exam_schedule(term_no, exam_type)
+            except Exception as e:
+                print(f"❌ خطأ عند جلب امتحانات الطالب {student_id}: {e}")
+                continue
+    
+            for exam in exams:
+                exam_dt = exam["datetime"]
+                if not exam_dt:
+                    continue  # تجاهل الصفوف غير الصالحة
+    
+                # تحويل نوع الامتحان إلى نص/رمز معبر
+                exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
+    
+                try:
+                    exam_id = add_exam(
+                        user_id=student_id,
+                        course_name=exam["course_name"],
+                        exam_date=exam_dt,
+                        exam_type=exam_type_text
+                    )
+                    print(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {student_id} برقم {exam_id} ({exam_type_text})")
+                except Exception as e:
+                    print(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {student_id}: {e}")
+                    
     def fetch_gpa(self):
         stats = self.fetch_term_summary_stats()
         if not stats:
