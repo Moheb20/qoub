@@ -347,7 +347,7 @@ def start_exam_scheduler():
             logger.exception(f"❌ فشل أثناء فحص امتحانات اليوم: {e}")
 
     # --- جدولة الفحص اليومي الساعة 8:35 مساءً ---
-    scheduler.add_job(check_today_exams, "cron", hour=21, minute=39)
+    scheduler.add_job(check_today_exams, "cron", hour=21, minute=43)
     scheduler.start()
     logger.info("🕒 تم بدء جدولة امتحانات اليوم الساعة 8:35 مساءً")
 
