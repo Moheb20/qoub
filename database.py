@@ -447,7 +447,7 @@ def add_exam(user_id, course_name, exam_date, exam_type):
         with conn.cursor() as cur:
             cur.execute(
                 '''
-                INSERT INTO exam (user_id, course_name, exam_date, exam_type)
+                INSERT INTO exams (user_id, course_name, exam_date, exam_type)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id
                 ''',
@@ -463,7 +463,7 @@ def get_today_exams(user_id, tz):
             cur.execute(
                 '''
                 SELECT id, course_name, exam_date, exam_type
-                FROM exam
+                FROM exams
                 WHERE user_id = %s AND DATE(exam_date AT TIME ZONE %s) = %s
                 ORDER BY exam_date
                 ''',
