@@ -238,7 +238,7 @@ class QOUScraper:
         تجلب امتحانات كل الطلاب من البوابة وتضيفها لقاعدة البيانات مع تحويل نوع الامتحان
         """
         scraper = QOUScraper(session)
-        users = get_all_users_with_credentials()  # جلب كل الطلاب اللي عندهم student_id
+        users = get_all_users()  # جلب كل الطلاب اللي عندهم student_id
     
         for user in users:
             student_id = user["student_id"]
@@ -402,32 +402,5 @@ class QOUScraper:
     
         return text
 
-    def save_exams_to_db(self, student_id):
-        from database import get_conn
-        exams = []
-        for exam_type_code in EXAM_TYPE_MAP.keys():
-            exams += self.fetch_exam_schedule(term_no="current_term", exam_type=exam_type_code) or []
-    
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                for exam in exams:
-                    cur.execute('''
-                        INSERT INTO exam_schedule
-                        (student_id, exam_type, course_code, course_name, date, from_time, to_time, lecturer, session, note)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                        ON CONFLICT (student_id, course_code, date, from_time) DO NOTHING
-                    ''', (
-                        student_id,
-                        exam.get("exam_kind"),
-                        exam.get("course_code"),
-                        exam.get("course_name"),
-                        exam.get("date"),
-                        exam.get("from_time"),
-                        exam.get("to_time"),
-                        exam.get("lecturer"),
-                        exam.get("session"),
-                        exam.get("note")
-                    ))
-            conn.commit()
 
 
