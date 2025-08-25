@@ -179,7 +179,7 @@ class QOUScraper:
             'cumulative': parse_row(rows[1])
         }
 
-    def parse_exam_datetime(date_str, time_str):
+    def parse_exam_datetime(self, date_str, time_str):
         """يحوّل التاريخ + الوقت من النص إلى datetime جاهز"""
         try:
             dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
@@ -188,7 +188,7 @@ class QOUScraper:
             return None
     
     # ------------------- جلب آخر فصلين -------------------
-    def get_last_two_terms(session):
+    def parse_exam_datetime(self, date_str, time_str):
         resp = session.get(EXAMS_SCHEDULE_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -198,7 +198,7 @@ class QOUScraper:
         return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
     
     # ------------------- جلب جدول الامتحانات من البوابة -------------------
-    def fetch_exam_schedule(session, term_no, exam_type):
+    def fetch_exam_schedule(self, term_no, exam_type) -> list[dict]:
         payload = {"termNo": term_no, "examType": exam_type}
         resp = session.post(EXAMS_SCHEDULE_URL, data=payload)
         resp.raise_for_status()
@@ -236,47 +236,7 @@ class QOUScraper:
             })
         return exams
     
-    # ------------------- إضافة الامتحانات لقاعدة البيانات -------------------
-    def import_exams_to_db(session, term_no, exam_type):
-        users = get_all_users()  # جلب كل الطلاب
-    
-        for user in users:
-            user_token = user.get("student_id")
-            if not user_token:
-                continue
-    
-            try:
-                exams = fetch_exam_schedule(session, term_no, exam_type)
-            except Exception as e:
-                logger.error(f"❌ خطأ عند جلب امتحانات الطالب {user_token}: {e}")
-                continue
-    
-            for exam in exams:
-                exam_dt = exam.get("datetime")
-                if not exam_dt:
-                    continue
-    
-                exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
-    
-                try:
-                    exam_id = add_exam(user_token, exam["course_name"], exam_dt, exam_type_text)
-                    logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {user_token} برقم {exam_id} ({exam_type_text})")
-                except Exception as e:
-                    logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {user_token}: {e}")
-    
-    # ------------------- استيراد آخر فصلين لجميع الطلاب -------------------
-    def import_last_terms_exams(session):
-        try:
-            last_terms = get_last_two_terms(session)
-        except Exception as e:
-            logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
-            return
-    
-        exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]
-        for term in last_terms:
-            term_no = term["value"]
-            for exam_kind in exam_types:
-                import_exams_to_db(session, term_no, exam_kind)
+
     def fetch_gpa(self):
         stats = self.fetch_term_summary_stats()
         if not stats:
@@ -409,5 +369,38 @@ class QOUScraper:
     
         return text
 
+def import_exams_to_db(session):
+    scraper = QOUScraper("", "")  # لا تحتاج بيانات تسجيل، فقط لجلب آخر فصلين
+    users = get_all_users()  # جلب كل الطلاب
 
+    try:
+        last_terms = scraper.get_last_two_terms()
+    except Exception as e:
+        logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
+        return
+
+    exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]
+    for term in last_terms:
+        term_no = term["value"]
+        for exam_kind in exam_types:
+            for user in users:
+                user_token = user.get("student_id")
+                if not user_token:
+                    continue
+                try:
+                    exams = scraper.fetch_exam_schedule(term_no, exam_kind)
+                except Exception as e:
+                    logger.error(f"❌ خطأ عند جلب امتحانات الطالب {user_token}: {e}")
+                    continue
+
+                for exam in exams:
+                    exam_dt = exam.get("datetime")
+                    if not exam_dt:
+                        continue
+                    exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
+                    try:
+                        exam_id = add_exam(user_token, exam["course_name"], exam_dt, exam_type_text)
+                        logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {user_token} برقم {exam_id} ({exam_type_text})")
+                    except Exception as e:
+                        logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {user_token}: {e}")
 
