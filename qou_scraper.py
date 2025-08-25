@@ -187,15 +187,37 @@ class QOUScraper:
         options = select_term.find_all("option")
         last_two = options[:2]  # آخر فصلين
         return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
-    
-    def parse_exam_datetime(self, date_str, time_str):  # ✅ الآن صحيح
-        """ يحوّل التاريخ + الوقت من النص إلى datetime جاهز """
+
+    def import_last_terms_exams(session):
+        """
+        تجلب امتحانات آخر فصلين لكل الطلاب وتضيفها لقاعدة البيانات.
+        """
+        scraper = QOUScraper(session)
         try:
-            # مثال: 06/12/2025 و 13:30
-            dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
-            return dt.replace(tzinfo=PALESTINE_TZ)
+            last_terms = scraper.get_last_two_terms()
         except Exception as e:
-            return None
+            logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
+            return
+    
+        exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]  # جميع أنواع الامتحانات
+    
+        for term in last_terms:
+            term_no = term["value"]
+            for exam_kind in exam_types:
+                try:
+                    import_exams_to_db(term_no, exam_kind, session)
+                    logger.info(f"✅ تم استيراد امتحانات الفصل {term_no} ({exam_kind}) لجميع الطلاب")
+                except Exception as e:
+                    logger.error(f"❌ خطأ عند استيراد امتحانات الفصل {term_no} ({exam_kind}): {e}")
+        
+        def parse_exam_datetime(self, date_str, time_str):  # ✅ الآن صحيح
+            """ يحوّل التاريخ + الوقت من النص إلى datetime جاهز """
+            try:
+                # مثال: 06/12/2025 و 13:30
+                dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
+                return dt.replace(tzinfo=PALESTINE_TZ)
+            except Exception as e:
+                return None
     
 
 # ------------------- جلب جدول الامتحانات من البوابة -------------------
