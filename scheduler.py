@@ -268,7 +268,7 @@ def schedule_lecture_reminders_for_all():
 
 def start_exam_scheduler():
     """
-    بدء جدولة فحص الامتحانات لكل الطلاب.
+    بدء جدولة فحص الامتحانات لكل الطلاب يومياً الساعة 8:35 مساءً.
     """
     scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
 
@@ -296,7 +296,7 @@ def start_exam_scheduler():
                     continue
 
                 for term in terms:
-                    # جلب كل أنواع الامتحانات الموجودة
+                    # جلب كل أنواع الامتحانات
                     exams = []
                     try:
                         exams = user_scraper.fetch_exam_schedule(term["value"], exam_type="")
@@ -333,25 +333,23 @@ def start_exam_scheduler():
                             for r_type, r_time, r_msg in reminders:
                                 if r_time > datetime.now(PALESTINE_TZ):
                                     job_func = partial(bot.send_message, user_id, r_msg)
-                                    scheduler.add_job(job_func, "date", run_date=r_time
-                                    )
+                                    scheduler.add_job(job_func, "date", run_date=r_time)
 
             logger.info("✅ انتهى فحص امتحانات اليوم")
 
         except Exception as e:
             logger.exception(f"فشل أثناء فحص امتحانات اليوم: {e}")
 
-    # --- جدولة الفحص اليومي الساعة 12 صباحًا ---
-    scheduler.add_job(check_today_exams, "cron", hour=0, minute=0)
+    # --- جدولة الفحص اليومي الساعة 8:35 مساءً ---
+    scheduler.add_job(check_today_exams, "cron", hour=20, minute=35)
     scheduler.start()
-    logger.info("🕒 تم بدء جدولة امتحانات اليوم")
+    logger.info("🕒 تم بدء جدولة امتحانات اليوم الساعة 8:35 مساءً")
 
+# ---------------- بدء الـ scheduler في Thread دايم ----------------
 def start_exam_scheduler_thread():
-    """
-    بدء الـ scheduler في Thread دايم.
-    """
     threading.Thread(target=start_exam_scheduler, daemon=True).start()
     logger.info("✅ Thread جدولة امتحانات اليوم بدأ")
+
 # ---------------- تشغيل كل المهام ----------------
 def start_scheduler():
     threading.Thread(target=check_for_new_messages, daemon=True).start()
