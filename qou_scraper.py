@@ -188,7 +188,7 @@ class QOUScraper:
             return None
     
     # ------------------- جلب آخر فصلين -------------------
-    def parse_exam_datetime(self, date_str, time_str):
+    def get_last_two_terms(self, date_str, time_str):
         resp = session.get(EXAMS_SCHEDULE_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
