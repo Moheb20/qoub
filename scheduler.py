@@ -278,7 +278,9 @@ def schedule_today_exams(bot):
     for user in users:
         chat_id = user["chat_id"]
         student_id = user["student_id"]
-
+        
+        if not student_id:
+            continue 
         # جلب امتحانات اليوم للطالب
         exams = get_today_exams(student_id, PALESTINE_TZ)
         for exam in exams:
