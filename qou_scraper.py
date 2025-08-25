@@ -246,49 +246,39 @@ class QOUScraper:
     
         return exams
 
-    def import_exams_to_db(session):
-        """
-        تجلب جميع الامتحانات لكل الطلاب وتضيفها لقاعدة البيانات.
-        - يحول نوع الامتحان باستخدام EXAM_TYPE_MAP.
-        - يتجاهل الطلاب بدون student_id.
-        """
+    def import_exams_to_db(term_no, exam_type, session):
         scraper = QOUScraper(session)
-        users = get_all_users()  # جلب جميع الطلاب
+        users = get_all_users()  # جلب كل الطلاب
     
-        # جلب آخر فصلين تلقائيًا
-        last_terms = scraper.get_last_two_terms()
+        for user in users:
+            user_token = user.get("student_id")
+            if not user_token:
+                continue  # تجاهل الطلاب بدون token
     
-        for term in last_terms:
-            term_no = term['value']
-            for exam_type in ["midterm", "final"]:
+            try:
+                exams = scraper.fetch_exam_schedule(term_no, exam_type)
+            except Exception as e:
+                logger.error(f"❌ خطأ عند جلب امتحانات الطالب {user_token}: {e}")
+                continue
+    
+            for exam in exams:
+                exam_dt = exam.get("datetime")
+                if not exam_dt:
+                    continue  # تجاهل الصفوف غير الصالحة
+    
+                exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
+    
                 try:
-                    exams_list = scraper.fetch_exam_schedule(term_no, exam_type)
+                    exam_id = add_exam(
+                        user_token,
+                        exam["course_name"],
+                        exam_dt,
+                        exam_type_text
+                    )
+                    logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {user_token} برقم {exam_id} ({exam_type_text})")
                 except Exception as e:
-                    print(f"❌ خطأ عند جلب امتحانات الفصل {term_no}: {e}")
-                    continue
-    
-                for user in users:
-                    student_id = user.get("student_id")
-                    if not student_id:
-                        continue  # تجاهل الطلاب بدون student_id
-    
-                    for exam in exams_list:
-                        exam_dt = exam["datetime"]
-                        if not exam_dt:
-                            continue
-    
-                        exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
-    
-                        try:
-                            exam_id = add_exam(
-                                user_id=student_id,
-                                course_name=exam["course_name"],
-                                exam_date=exam_dt,
-                                exam_type=exam_type_text
-                            )
-                            print(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {student_id} برقم {exam_id} ({exam_type_text})")
-                        except Exception as e:
-                            print(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {student_id}: {e}")
+                    logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {user_token}: {e}")
+
     def fetch_gpa(self):
         stats = self.fetch_term_summary_stats()
         if not stats:
