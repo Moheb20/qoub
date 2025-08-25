@@ -203,7 +203,7 @@ class QOUScraper:
     # ------------------- جلب جدول الامتحانات من البوابة -------------------
     def fetch_exam_schedule(self, term_no, exam_type) -> list[dict]:
         payload = {"termNo": term_no, "examType": exam_type}
-        resp = session.post(EXAMS_SCHEDULE_URL, data=payload)
+        resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)  # ✅ استخدم self.session
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         table = soup.find("table", id="dataTable")
