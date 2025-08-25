@@ -56,14 +56,19 @@ def _safe_job_id(prefix: str, chat_id, exam: dict, suffix: str):
     tm = (exam.get("from_time") or "-").replace(" ", "_").replace(":", "-")
     return f"{prefix}_{chat_id}_{cc}_{dt}_{tm}_{suffix}"
 
-def parse_exam_datetime(date_str: str, time_str: str):
+def parse_exam_datetime(date_str, time_str):
+    """
+    تحويل التاريخ والوقت من البوابة إلى كائن datetime.
+    صيغة التاريخ: DD-MM-YYYY
+    صيغة الوقت: HH:MM
+    """
     try:
-        dt = datetime.strptime(f"{date_str.strip()} {time_str.strip()}", "%d-%m-%Y %H:%M")
-        return PALESTINE_TZ.localize(dt)
+        date_obj = datetime.strptime(date_str, "%d-%m-%Y")  # تعديل هنا
+        time_obj = datetime.strptime(time_str, "%H:%M").time()
+        return datetime.combine(date_obj, time_obj)
     except Exception as e:
-        logger.error(f"❌ خطأ في تحويل التاريخ/الوقت: {date_str} {time_str} | {e}")
+        logger.warning(f"فشل تحويل التاريخ والوقت: {date_str} {time_str} | خطأ: {e}")
         return None
-
 # ====================== المهام الرئيسية ======================
 def check_for_new_messages():
     while True:
