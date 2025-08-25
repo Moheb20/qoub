@@ -15,6 +15,7 @@ from database import (
     update_user_courses,
     update_user_gpa,
     get_all_deadlines,
+    get_today_exams,
 )
 from qou_scraper import QOUScraper
 from bot_instance import bot
