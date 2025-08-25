@@ -45,7 +45,7 @@ EXAM_TYPE_MAP = {
 def send_message(bot_instance, chat_id, message):
     try:
         bot_instance.send_message(chat_id, message)
-        logger.info(f"✅ أرسلت رسالة لـ {chat_id}")
+        logger.info(f"✅ أرسلت رسالة لـ {chat_id}: {message}")
     except Exception as e:
         logger.error(f"❌ خطأ أثناء إرسال الرسالة إلى {chat_id}: {e}")
 
