@@ -280,7 +280,7 @@ def check_today_exams():
     try:
         logger.info("✅ بدء فحص امتحانات اليوم لكل الطلاب")
         users = get_all_users()
-        today = datetime.now(PALESTINE_TZ).date()
+        today = datetime.now(PALESTINE_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
 
         for user in users:
             user_id = user['chat_id']
@@ -318,7 +318,7 @@ def check_today_exams():
                             logger.warning(f"[{user_id}] فشل تحويل التاريخ للامتحان {e['course_name']}")
                             continue
 
-                        if exam_dt.date() == today:
+                        if exam_dt.date() == today.date():
                             exams_today_count += 1
                             # رسالة اليوم
                             msg = (
