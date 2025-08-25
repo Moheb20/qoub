@@ -332,10 +332,8 @@ def start_exam_scheduler():
 
                             for r_type, r_time, r_msg in reminders:
                                 if r_time > datetime.now(PALESTINE_TZ):
-                                    scheduler.add_job(
-                                        lambda uid=user_id, msg=r_msg: bot.send_message(uid, msg),
-                                        "date",
-                                        run_date=r_time
+                                    job_func = partial(bot.send_message, user_id, r_msg)
+                                    scheduler.add_job(job_func, "date", run_date=r_time
                                     )
 
             logger.info("✅ انتهى فحص امتحانات اليوم")
@@ -361,10 +359,5 @@ def start_scheduler():
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
-    threading.Thread(target=schedule_daily_exam_check, daemon=True).start()
-
-
-
-
-    logger.info("✅ تم تشغيل جميع المهام المجدولة والخلفية بنجاح")
+    start_exam_scheduler_thread()
 
