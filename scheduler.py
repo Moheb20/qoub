@@ -329,7 +329,7 @@ def start_exam_scheduler(term_no="current_term"):
     # تشغيل يومي عند 02:30 صباحًا
     exam_scheduler.add_job(
         lambda: schedule_today_exams(term_no=term_no),
-        trigger=CronTrigger(hour=1, minute=10),
+        trigger=CronTrigger(hour=13, minute=12),
         id="daily_exam_check",
         replace_existing=True,
     )
