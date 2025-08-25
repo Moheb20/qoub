@@ -272,74 +272,84 @@ def start_exam_scheduler():
     """
     scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
 
-    def check_today_exams():
-        try:
-            logger.info("✅ بدء فحص امتحانات اليوم لكل الطلاب")
-            users = get_all_users()
-            today = datetime.now(PALESTINE_TZ).date()
+def check_today_exams():
+    """
+    فحص امتحانات اليوم لكل الطلاب وإرسال الرسائل والتذكيرات.
+    """
+    try:
+        logger.info("✅ بدء فحص امتحانات اليوم لكل الطلاب")
+        users = get_all_users()
+        today = datetime.now(PALESTINE_TZ).date()
 
-            for user in users:
-                user_id = user['chat_id']       # أو 'user_id' حسب اسم المفتاح في DB
-                student_id = user['student_id']
-                password = user['password']
+        for user in users:
+            user_id = user['chat_id']        # تأكد أن هذا المفتاح صحيح
+            student_id = user['student_id']
+            password = user['password']
 
+            logger.info(f"[{user_id}] محاولة تسجيل الدخول...")
+            user_scraper = QOUScraper(student_id, password)
+            if not user_scraper.login():
+                logger.warning(f"[{user_id}] فشل تسجيل الدخول للطالب {student_id}")
+                continue
+            logger.info(f"[{user_id}] تم تسجيل الدخول بنجاح")
 
-                user_scraper = QOUScraper(student_id, password)
-                if not user_scraper.login():
-                    logger.warning(f"[{user_id}] فشل تسجيل الدخول للطالب {student_id}")
+            # جلب آخر فصلين
+            terms = user_scraper.get_last_two_terms()
+            if not terms:
+                logger.warning(f"[{user_id}] لا توجد فصول دراسية")
+                continue
+
+            exams_today_count = 0  # عداد امتحانات اليوم
+
+            for term in terms:
+                try:
+                    exams = user_scraper.fetch_exam_schedule(term["value"], exam_type="")
+                    logger.info(f"[{user_id}] عدد الامتحانات المجلبه للفصل {term['value']}: {len(exams)}")
+                except Exception as e:
+                    logger.exception(f"[{user_id}] خطأ أثناء جلب الامتحانات: {e}")
                     continue
-                logger.info(f"[{user_id}] تم تسجيل الدخول بنجاح")
 
-                # جلب آخر فصلين
-                terms = user_scraper.get_last_two_terms()
-                if not terms:
-                    logger.warning(f"[{user_id}] لا توجد فصول دراسية")
-                    continue
-
-                for term in terms:
-                    # جلب كل أنواع الامتحانات
-                    exams = []
-                    try:
-                        exams = user_scraper.fetch_exam_schedule(term["value"], exam_type="")
-                    except Exception as e:
-                        logger.exception(f"[{user_id}] خطأ أثناء جلب الامتحانات: {e}")
+                for e in exams:
+                    exam_dt = user_scraper.parse_exam_datetime(e["date"], e["from_time"])
+                    if not exam_dt:
+                        logger.warning(f"[{user_id}] فشل تحويل التاريخ للامتحان {e['course_name']}")
                         continue
 
-                    for e in exams:
-                        exam_dt = user_scraper.parse_exam_datetime(e["date"], e["from_time"])
-                        if not exam_dt:
-                            continue
+                    if exam_dt.date() == today:
+                        exams_today_count += 1
+                        # رسالة اليوم
+                        msg = (
+                            f"📌 عندك امتحان اليوم:\n"
+                            f"المادة: {e['course_name']}\n"
+                            f"النوع: {e['exam_kind']}\n"
+                            f"الساعة: {e['from_time']} - {e['to_time']}\n"
+                            f"المحاضر: {e['lecturer']}\n"
+                            f"القسم: {e['section']}\n"
+                            f"ملاحظة: {e['note']}"
+                        )
+                        logger.info(f"[{user_id}] جاري إرسال رسالة الامتحان: {e['course_name']}")
+                        bot.send_message(user_id, msg)
+                        logger.info(f"[{user_id}] تم إرسال رسالة الامتحان بنجاح")
 
-                        if exam_dt.date() == today:
-                            # رسالة اليوم
-                            msg = (
-                                f"📌 عندك امتحان اليوم:\n"
-                                f"المادة: {e['course_name']}\n"
-                                f"النوع: {e['exam_kind']}\n"
-                                f"الساعة: {e['from_time']} - {e['to_time']}\n"
-                                f"المحاضر: {e['lecturer']}\n"
-                                f"القسم: {e['section']}\n"
-                                f"ملاحظة: {e['note']}"
-                            )
-                            bot.send_message(user_id, msg)
-                            logger.info(f"[{user_id}] تم إعلامه بالامتحان اليوم: {e['course_name']}")
+                        # جدولة التذكيرات
+                        reminders = [
+                            ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
+                            ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
+                            ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
+                        ]
 
-                            # جدولة التذكيرات
-                            reminders = [
-                                ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
-                                ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
-                                ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
-                            ]
+                        for r_type, r_time, r_msg in reminders:
+                            if r_time > datetime.now(PALESTINE_TZ):
+                                job_func = partial(bot.send_message, user_id, r_msg)
+                                scheduler.add_job(job_func, "date", run_date=r_time)
+                                logger.info(f"[{user_id}] تم جدولة تذكير: {r_type} في {r_time}")
 
-                            for r_type, r_time, r_msg in reminders:
-                                if r_time > datetime.now(PALESTINE_TZ):
-                                    job_func = partial(bot.send_message, user_id, r_msg)
-                                    scheduler.add_job(job_func, "date", run_date=r_time)
+            logger.info(f"[{user_id}] عدد امتحانات اليوم: {exams_today_count}")
 
-            logger.info("✅ انتهى فحص امتحانات اليوم")
+        logger.info("✅ انتهى فحص امتحانات اليوم")
 
-        except Exception as e:
-            logger.exception(f"فشل أثناء فحص امتحانات اليوم: {e}")
+    except Exception as e:
+        logger.exception(f"❌ فشل أثناء فحص امتحانات اليوم: {e}")
 
     # --- جدولة الفحص اليومي الساعة 8:35 مساءً ---
     scheduler.add_job(check_today_exams, "cron", hour=20, minute=45)
