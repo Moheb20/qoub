@@ -314,7 +314,7 @@ def start_exam_scheduler(bot):
     exam_scheduler.add_job(
         lambda: schedule_today_exams(bot),
         trigger="date",
-        run_date=datetime.datetime.now(PALESTINE_TZ) + datetime.timedelta(seconds=5),
+        run_date = datetime.now(PALESTINE_TZ) + timedelta(seconds=5)
         id="startup_exam_check",
         replace_existing=True
     )
