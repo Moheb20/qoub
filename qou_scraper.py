@@ -13,7 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 import arabic_reshaper
 from bidi.algorithm import get_display
 from io import BytesIO
-from database import add_exam, get_all_users
+from database import get_all_users
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
 pdfmetrics.registerFont(TTFont('Arial', font_path))
