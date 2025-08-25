@@ -341,7 +341,12 @@ def check_today_exams():
                                 ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
                             ]
 
+
                             for r_type, r_time, r_msg in reminders:
+                                # إذا r_time naive، حوّله لـ aware
+                                if r_time.tzinfo is None:
+                                    r_time = PALESTINE_TZ.localize(r_time)
+                                
                                 if r_time > datetime.now(PALESTINE_TZ):
                                     job_func = partial(bot.send_message, user_id, r_msg)
                                     exam_scheduler.add_job(job_func, "date", run_date=r_time)
