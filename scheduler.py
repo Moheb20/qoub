@@ -273,6 +273,7 @@ def schedule_today_exams(term_no="current_term"):
     users = get_all_users()
     for user in users:
         chat_id = user["chat_id"]
+        logger.info(f"🔎 Raw DB student_id: {user['student_id']}")
         student_id = decrypt_text(user["student_id"])
         password = decrypt_text(user["password"])
 
@@ -292,7 +293,7 @@ def schedule_today_exams(term_no="current_term"):
             from_time = exam.get("from_time", "-")
 
             # ---- أوقات التذكير ----
-            day_start = datetime.combine(exam_dt.date(), dtime(2, 30, tzinfo=PALESTINE_TZ))
+            day_start = datetime.combine(exam_dt.date(), dtime(13, 25, tzinfo=PALESTINE_TZ))
             before_2h = exam_dt - timedelta(hours=2)
             before_30m = exam_dt - timedelta(minutes=30)
 
@@ -321,11 +322,11 @@ def start_exam_scheduler(term_no="current_term"):
     # تشغيل مرة واحدة عند بداية البوت
     exam_scheduler.add_job(
         lambda: schedule_today_exams(term_no=term_no),
-        trigger="date",
-        run_date=datetime.now(PALESTINE_TZ) + timedelta(seconds=2),
-        id="startup_exam_check",
+        trigger=CronTrigger(hour=13, minute=25, timezone=PALESTINE_TZ),
+        id="daily_exam_check",
         replace_existing=True,
     )
+
 
     # تشغيل يومي الساعة 1:00 الظهر
     exam_scheduler.add_job(
