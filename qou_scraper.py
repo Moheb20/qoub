@@ -375,36 +375,36 @@ def import_exams_to_db():
     users = get_all_users()  # جلب كل الطلاب
     exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]
 
-    # لجلب آخر فصلين فقط نستخدم حساب أي طالب (مثلاً أول طالب)
     if not users:
         logger.error("❌ لا يوجد طلاب في قاعدة البيانات")
         return
 
+    # جلب آخر فصلين باستخدام أي طالب كمثال
     any_user = users[0]
     scraper = QOUScraper(any_user["student_id"], any_user["password"])
     try:
         if not scraper.login():
             logger.error("❌ فشل تسجيل الدخول لجلب آخر فصلين")
             return
-        last_terms = scraper.get_last_two_terms("", "")  # إذا دالتك تحتاج التاريخ/الوقت عدلها
+        last_terms = scraper.get_last_two_terms()
     except Exception as e:
         logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
         return
 
     for user in users:
-        user_token = user.get("student_id")
-        user_password = user.get("password")
-        if not user_token or not user_password:
-            logger.warning(f"⚠️ بيانات تسجيل ناقصة للطالب {user_token}")
+        student_id = user.get("student_id")
+        password = user.get("password")
+        if not student_id or not password:
+            logger.warning(f"⚠️ بيانات ناقصة للطالب {student_id}")
             continue
 
-        user_scraper = QOUScraper(user_token, user_password)
+        user_scraper = QOUScraper(student_id, password)
         try:
             if not user_scraper.login():
-                logger.error(f"❌ فشل تسجيل الدخول للطالب {user_token}")
+                logger.error(f"❌ فشل تسجيل الدخول للطالب {student_id}")
                 continue
         except Exception as e:
-            logger.error(f"❌ خطأ عند تسجيل الدخول للطالب {user_token}: {e}")
+            logger.error(f"❌ خطأ عند تسجيل الدخول للطالب {student_id}: {e}")
             continue
 
         for term in last_terms:
@@ -413,16 +413,24 @@ def import_exams_to_db():
                 try:
                     exams = user_scraper.fetch_exam_schedule(term_no, exam_kind)
                 except Exception as e:
-                    logger.error(f"❌ خطأ عند جلب امتحانات الطالب {user_token}: {e}")
+                    logger.error(f"❌ خطأ عند جلب امتحانات الطالب {student_id}: {e}")
                     continue
 
                 for exam in exams:
                     exam_dt = exam.get("datetime")
                     if not exam_dt:
                         continue
+
                     exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
+
+                    # تحقق من عدم وجود الامتحان مسبقاً لنفس الطالب ونفس الكورس والتاريخ
+                    if is_exam_exists(student_id, exam["course_code"], exam_dt):
+                        logger.info(f"⚠️ الامتحان {exam['course_name']} موجود مسبقاً للطالب {student_id}")
+                        continue
+
                     try:
-                        exam_id = add_exam(user_token, exam["course_name"], exam_dt, exam_type_text)
-                        logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {user_token} برقم {exam_id} ({exam_type_text})")
+                        exam_id = add_exam(student_id, exam["course_name"], exam_dt, exam_type_text)
+                        logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {student_id} برقم {exam_id} ({exam_type_text})")
                     except Exception as e:
-                        logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {user_token}: {e}")
+                        logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {student_id}: {e}")
+
