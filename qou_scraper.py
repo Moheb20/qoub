@@ -202,9 +202,15 @@ class QOUScraper:
     
     # ------------------- جلب جدول الامتحانات من البوابة -------------------
     def fetch_exam_schedule(self, term_no, exam_type) -> list[dict]:
+        """
+        جلب جدول الامتحانات من البوابة.
+        term_no: رقم الفصل الدراسي
+        exam_type: نوع الامتحان (مثلاً "FT&IF")
+        """
         payload = {"termNo": term_no, "examType": exam_type}
         resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)
         resp.raise_for_status()
+    
         soup = BeautifulSoup(resp.text, "html.parser")
         table = soup.find("table", id="dataTable")
         if not table:
@@ -214,7 +220,7 @@ class QOUScraper:
         rows = table.find("tbody").find_all("tr")
         for row in rows:
             cols = row.find_all("td")
-            if len(cols) < 12:  # ✅ تحديث الشرط
+            if len(cols) < 10:  # ✅ بدل 11 لتجنب تجاهل الصفوف
                 continue
     
             date_str = cols[6].get_text(strip=True)
@@ -234,8 +240,7 @@ class QOUScraper:
                 "session": cols[7].get_text(strip=True),
                 "from_time": time_str,
                 "to_time": cols[9].get_text(strip=True),
-                "note": cols[10].get_text(strip=True),
-                "review_link": cols[11].find('a')['href'] if cols[11].find('a') else None,
+                "note": cols[10].get_text(strip=True) if len(cols) > 10 else "",
                 "datetime": exam_dt
             })
         return exams
