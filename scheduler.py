@@ -349,14 +349,16 @@ def check_today_exams():
 
 
                             for r_type, r_time, r_msg in reminders:
-                                # إذا r_time naive، حوّله لـ aware
                                 if r_time.tzinfo is None:
                                     r_time = PALESTINE_TZ.localize(r_time)
-                                
+                        
                                 if r_time > datetime.now(PALESTINE_TZ):
-                                    job_func = partial(bot.send_message, user_id, r_msg)
-                                    exam_scheduler.add_job(job_func, "date", run_date=r_time)
-                                    logger.info(f"[{user_id}] تم جدولة تذكير: {r_type} في {r_time}")
+                                    try:
+                                        job_func = partial(bot.send_message, user_id, r_msg)
+                                        exam_scheduler.add_job(job_func, "date", run_date=r_time)
+                                        logger.info(f"[{user_id}] تم جدولة تذكير: {r_type} في {r_time}")
+                                    except Exception as ex:
+                                        logger.warning(f"[{user_id}] فشل جدولة التذكير {r_type}: {ex}")
 
             logger.info(f"[{user_id}] عدد امتحانات اليوم: {exams_today_count}")
 
