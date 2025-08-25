@@ -180,7 +180,16 @@ class QOUScraper:
         options = select_term.find_all("option")
         last_two = options[:2]  # آخر فصلين
         return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
-
+    
+    def parse_exam_datetime(date_str, time_str):
+        """ يحوّل التاريخ + الوقت من النص إلى datetime جاهز """
+        try:
+            # مثال: 06/12/2025 و 13:30
+            dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M")
+            return dt.replace(tzinfo=PALESTINE_TZ)
+        except Exception as e:
+            return None
+    
     def fetch_exam_schedule(self, term_no, exam_type) -> List[dict]:
         payload = {
             "termNo": term_no,
@@ -192,12 +201,19 @@ class QOUScraper:
         table = soup.find("table", id="dataTable")
         if not table:
             return []
+    
         exams = []
         rows = table.find("tbody").find_all("tr")
         for row in rows:
             cols = row.find_all("td")
             if len(cols) < 11:
                 continue
+    
+            date_str = cols[6].get_text(strip=True)
+            time_str = cols[8].get_text(strip=True)
+    
+            exam_dt = parse_exam_datetime(date_str, time_str)
+    
             exam = {
                 "exam_kind": cols[0].get_text(strip=True),
                 "course_code": cols[1].get_text(strip=True),
@@ -205,13 +221,15 @@ class QOUScraper:
                 "lecturer": cols[3].get_text(strip=True),
                 "section": cols[4].get_text(strip=True),
                 "day": cols[5].get_text(strip=True),
-                "date": cols[6].get_text(strip=True),
+                "date": date_str,
                 "session": cols[7].get_text(strip=True),
-                "from_time": cols[8].get_text(strip=True),
+                "from_time": time_str,
                 "to_time": cols[9].get_text(strip=True),
-                "note": cols[10].get_text(strip=True)
+                "note": cols[10].get_text(strip=True),
+                "datetime": exam_dt   # 🔥 تاريخ ووقت جاهزين للجدولة
             }
             exams.append(exam)
+    
         return exams
     def fetch_gpa(self):
         stats = self.fetch_term_summary_stats()
