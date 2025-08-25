@@ -371,66 +371,60 @@ class QOUScraper:
     
         return text
 
-def import_exams_to_db():
-    users = get_all_users()  # جلب كل الطلاب
-    exam_types = ["MT&IM", "FT&IF", "FP&FP", "LE&LE"]
+def import_exams_to_db(scraper, user_id):
+    """
+    scraper: كائن فيه session + دوال get_last_two_terms و fetch_exam_schedule
+    user_id: رقم المستخدم (chat_id) من جدول users
+    """
 
-    if not users:
-        logger.error("❌ لا يوجد طلاب في قاعدة البيانات")
-        return
+    imported_exams = []
 
-    # جلب آخر فصلين باستخدام أي طالب كمثال
-    any_user = users[0]
-    scraper = QOUScraper(any_user["student_id"], any_user["password"])
     try:
-        if not scraper.login():
-            logger.error("❌ فشل تسجيل الدخول لجلب آخر فصلين")
-            return
-        last_terms = scraper.get_last_two_terms()
-    except Exception as e:
-        logger.error(f"❌ خطأ عند جلب آخر فصلين: {e}")
-        return
+        # 1️⃣ جلب آخر فصلين
+        terms = scraper.get_last_two_terms()
+        if not terms:
+            logger.warning(f"[{user_id}] لم يتم العثور على فصول دراسية")
+            return []
 
-    for user in users:
-        student_id = user.get("student_id")
-        password = user.get("password")
-        if not student_id or not password:
-            logger.warning(f"⚠️ بيانات ناقصة للطالب {student_id}")
-            continue
+        # 2️⃣ لكل فصل (midterm + final)
+        for term in terms:
+            for exam_type in ["1", "2"]:  # 1 = midterm, 2 = final (حسب البوابة)
+                exams = scraper.fetch_exam_schedule(term["value"], exam_type)
 
-        user_scraper = QOUScraper(student_id, password)
-        try:
-            if not user_scraper.login():
-                logger.error(f"❌ فشل تسجيل الدخول للطالب {student_id}")
-                continue
-        except Exception as e:
-            logger.error(f"❌ خطأ عند تسجيل الدخول للطالب {student_id}: {e}")
-            continue
-
-        for term in last_terms:
-            term_no = term["value"]
-            for exam_kind in exam_types:
-                try:
-                    exams = user_scraper.fetch_exam_schedule(term_no, exam_kind)
-                except Exception as e:
-                    logger.error(f"❌ خطأ عند جلب امتحانات الطالب {student_id}: {e}")
-                    continue
-
-                for exam in exams:
-                    exam_dt = exam.get("datetime")
-                    if not exam_dt:
-                        continue
-
-                    exam_type_text = EXAM_TYPE_MAP.get(exam["exam_kind"], exam["exam_kind"])
-
-                    # تحقق من عدم وجود الامتحان مسبقاً لنفس الطالب ونفس الكورس والتاريخ
-                    if is_exam_exists(student_id, exam["course_code"], exam_dt):
-                        logger.info(f"⚠️ الامتحان {exam['course_name']} موجود مسبقاً للطالب {student_id}")
-                        continue
-
+                for e in exams:
                     try:
-                        exam_id = add_exam(student_id, exam["course_name"], exam_dt, exam_type_text)
-                        logger.info(f"✅ تم إضافة امتحان {exam['course_name']} للطالب {student_id} برقم {exam_id} ({exam_type_text})")
-                    except Exception as e:
-                        logger.error(f"❌ خطأ عند إضافة امتحان {exam['course_name']} للطالب {student_id}: {e}")
+                        # تجهيز التاريخ والوقت
+                        date_str = e["date"].strip()
+                        time_str = e["from_time"].strip()
+
+                        # صيغة التاريخ/الوقت بالبوابة لازم تكون YYYY-MM-DD HH:MM
+                        exam_dt = datetime.strptime(
+                            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
+                        )
+                        exam_dt = PALESTINE_TZ.localize(exam_dt)
+
+                        # إدخال الامتحان في جدول exams
+                        exam_id = add_exam(
+                            user_id=user_id,
+                            course_name=e["course_name"],
+                            exam_date=exam_dt,
+                            exam_type="midterm" if exam_type == "1" else "final"
+                        )
+
+                        imported_exams.append((exam_id, e["course_name"], exam_dt))
+
+                        # إضافة التذكيرات
+                        add_exam_reminder(exam_id, "2h_before")
+                        add_exam_reminder(exam_id, "30m_before")
+                        add_exam_reminder(exam_id, "at_start")
+
+                        logger.info(f"[{user_id}] تم إضافة امتحان {e['course_name']} بتاريخ {exam_dt}")
+
+                    except Exception as ex:
+                        logger.error(f"[{user_id}] ⚠️ خطأ أثناء معالجة امتحان {e.get('course_name','?')}: {ex}")
+
+    except Exception as e:
+        logger.exception(f"[{user_id}] ❌ خطأ أثناء استيراد الامتحانات: {e}")
+
+    return imported_exams
 
