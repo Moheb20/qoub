@@ -219,7 +219,7 @@ class QOUScraper:
     
             date_str = cols[6].get_text(strip=True)
             time_str = cols[8].get_text(strip=True)
-            exam_dt = parse_exam_datetime(date_str, time_str)
+            exam_dt = self.parse_exam_datetime(date_str, time_str)  # ✅ استخدم self هنا
             if not exam_dt:
                 continue
     
