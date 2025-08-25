@@ -181,7 +181,7 @@ class QOUScraper:
         last_two = options[:2]  # آخر فصلين
         return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
     
-    def parse_exam_datetime(date_str, time_str):
+    def parse_exam_datetime(self, date_str, time_str):  # ✅ الآن صحيح
         """ يحوّل التاريخ + الوقت من النص إلى datetime جاهز """
         try:
             # مثال: 06/12/2025 و 13:30
