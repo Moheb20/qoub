@@ -102,24 +102,30 @@ def check_for_course_updates():
             users = get_all_users()
             for user in users:
                 chat_id = user['chat_id']
-                scraper = QOUScraper(user['student_id'], user['password'])
-                if scraper.login():
-                    courses = scraper.fetch_term_summary_courses()
-                    old_courses = json.loads(user.get('courses_data')) if user.get('courses_data') else []
-                    changes = []
-                    for c in courses:
-                        old_c = next((o for o in old_courses if o['course_code']==c['course_code']), None)
-                        if old_c and (c['midterm_mark'] != old_c['midterm_mark'] or c['final_mark'] != old_c['final_mark']):
-                            changes.append(c)
-                    if changes:
-                        msg = "📢 تحديث جديد في العلامات:\n\n"
-                        for c in changes:
-                            msg += f"📚 {c['course_name']}\nنصفي: {c['midterm_mark']} | نهائي: {c['final_mark']}\n\n"
-                        send_message(bot, chat_id, msg)
-                    update_user_courses(chat_id, json.dumps(courses))
+                try:
+                    scraper = QOUScraper(user['student_id'], user['password'])
+                    if scraper.login():
+                        courses = scraper.fetch_term_summary_courses()
+                        old_courses = json.loads(user.get('courses_data')) if user.get('courses_data') else []
+                        changes = []
+                        for c in courses:
+                            old_c = next((o for o in old_courses if o['course_code'] == c['course_code']), None)
+                            if old_c and (c['midterm_mark'] != old_c['midterm_mark'] or c['final_mark'] != old_c['final_mark']):
+                                changes.append(c)
+                        if changes:
+                            msg = "📢 تحديث جديد في العلامات:\n\n"
+                            for c in changes:
+                                msg += f"📚 {c['course_name']}\nنصفي: {c['midterm_mark']} | نهائي: {c['final_mark']}\n\n"
+                            send_message(bot, chat_id, msg)
+                            logger.info(f"[{chat_id}] تم إرسال رسالة تحديث العلامات للطالب: {len(changes)} مادة/مواد")
+                        else:
+                            logger.info(f"[{chat_id}] لا تغييرات في العلامات")
+                        update_user_courses(chat_id, json.dumps(courses))
+                except Exception as ex:
+                    logger.warning(f"[{chat_id}] خطأ أثناء فحص تحديث العلامات: {ex}")
             time.sleep(60*60)
         except Exception as e:
-            logger.error(f"❌ خطأ في تحديث العلامات: {e}")
+            logger.error(f"❌ خطأ عام في تحديث العلامات: {e}")
             time.sleep(60)
 
 def check_for_gpa_changes():
@@ -128,17 +134,31 @@ def check_for_gpa_changes():
             users = get_all_users()
             for user in users:
                 chat_id = user['chat_id']
-                scraper = QOUScraper(user['student_id'], user['password'])
-                old_gpa = json.loads(user.get('last_gpa')) if user.get('last_gpa') else None
-                new_gpa = scraper.fetch_gpa()
-                if new_gpa and new_gpa != old_gpa:
-                    msg = f"🎓 تم تحديث المعدل التراكمي!\n📘 معدل الفصل: {new_gpa.get('term_gpa', '-')}\n📚 المعدل التراكمي: {new_gpa.get('cumulative_gpa', '-')}"
-                    send_message(bot, chat_id, msg)
-                    update_user_gpa(chat_id, json.dumps(new_gpa))
+                try:
+                    scraper = QOUScraper(user['student_id'], user['password'])
+                    old_gpa = json.loads(user.get('last_gpa')) if user.get('last_gpa') else None
+                    new_gpa = scraper.fetch_gpa()
+                    if new_gpa:
+                        logger.info(f"[{chat_id}] المعدل الحالي: {old_gpa}, المعدل الجديد: {new_gpa}")
+                    if new_gpa and new_gpa != old_gpa:
+                        msg = (
+                            f"🎓 تم تحديث المعدل التراكمي!\n"
+                            f"📘 معدل الفصل: {new_gpa.get('term_gpa', '-')}\n"
+                            f"📚 المعدل التراكمي: {new_gpa.get('cumulative_gpa', '-')}"
+                        )
+                        send_message(bot, chat_id, msg)
+                        logger.info(f"[{chat_id}] تم إرسال رسالة تحديث GPA للطالب")
+                        update_user_gpa(chat_id, json.dumps(new_gpa))
+                    else:
+                        logger.info(f"[{chat_id}] لا تغيير في GPA")
+                except Exception as ex:
+                    logger.warning(f"[{chat_id}] خطأ أثناء متابعة GPA: {ex}")
             time.sleep(24*60*60)
         except Exception as e:
-            logger.error(f"❌ خطأ في متابعة GPA: {e}")
+            logger.error(f"❌ خطأ عام في متابعة GPA: {e}")
             time.sleep(60)
+
+
 
 def check_discussion_sessions():
     notified_today = {}
