@@ -411,11 +411,27 @@ def send_exam_reminders_live():
                                 logger.warning(f"[{user_id}] فشل إرسال التذكير {r_type}: {ex}")
 
 
+def start_live_exam_reminder_scheduler():
+    try:
+        # نفذها مرة أولى عند بداية التشغيل
+        send_exam_reminders_live()
+
+        # ثم كررها كل 5 دقائق
+        exam_scheduler.add_job(
+            send_exam_reminders_live,
+            trigger="interval",
+            minutes=5,
+            id="live_exam_reminders",
+            replace_existing=True
+        )
+        exam_scheduler.start()
+        logger.info("✅ تم بدء جدولة التذكيرات الحية كل 5 دقائق")
+    except Exception as e:
+        logger.exception(f"❌ فشل بدء جدولة التذكيرات: {e}")
 
 def start_exam_scheduler():
     check_today_exams()
     exam_scheduler.add_job(check_today_exams, "cron", hour=0, minute=1)
-    exam_scheduler.add_job(send_exam_reminders_live, "interval", minutes=5)
     exam_scheduler.start()
     logger.info("🕒 تم بدء جدولة امتحانات ")
 
@@ -434,5 +450,8 @@ def start_scheduler():
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
+    threading.Thread(target=start_live_exam_reminder_scheduler, daemon=True).start()
+
+
     start_exam_scheduler_thread()
 
