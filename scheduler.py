@@ -368,10 +368,54 @@ def check_today_exams():
     except Exception as e:
         logger.exception(f"❌ فشل أثناء فحص امتحانات اليوم: {e}")
 
+def send_exam_reminders_live():
+    now = datetime.now(PALESTINE_TZ)
+    users = get_all_users()
+
+    for user in users:
+        user_id = user['chat_id']
+        student_id = user['student_id']
+        password = user['password']
+
+        scraper = QOUScraper(student_id, password)
+        if not scraper.login():
+            continue
+
+        terms = scraper.get_last_two_terms()
+        if not terms:
+            continue
+
+        for term in terms:
+            for exam_code, exam_emoji in EXAM_TYPE_MAP.items():
+                exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                for e in exams:
+                    exam_dt = parse_exam_datetime(e["date"], e["from_time"])
+                    if not exam_dt:
+                        continue
+                    if exam_dt.date() != now.date():
+                        continue
+
+                    reminders = [
+                        ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
+                        ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
+                        ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
+                    ]
+
+                    for r_type, r_time, r_msg in reminders:
+                        # إذا الوقت الحالي قريب من التذكير (مثلاً ±5 دقائق)
+                        if abs((r_time - now).total_seconds()) <= 300:
+                            try:
+                                bot.send_message(user_id, r_msg)
+                                logger.info(f"[{user_id}] تم إرسال التذكير: {r_type} للامتحان {e['course_name']}")
+                            except Exception as ex:
+                                logger.warning(f"[{user_id}] فشل إرسال التذكير {r_type}: {ex}")
+
+
 
 def start_exam_scheduler():
     check_today_exams()
     exam_scheduler.add_job(check_today_exams, "cron", hour=0, minute=1)
+    exam_scheduler.add_job(send_exam_reminders_live, "interval", minutes=5)
     exam_scheduler.start()
     logger.info("🕒 تم بدء جدولة امتحانات ")
 
