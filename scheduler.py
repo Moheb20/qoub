@@ -397,52 +397,54 @@ def daily_exam_checker_loop():
             logger.error(f"❌ خطأ في حلقة فحص الامتحانات اليومية: {e}")
             time.sleep(60)
 
-def send_exam_reminders_live():
-    now = datetime.now(PALESTINE_TZ)
-    users = get_all_users()
+def live_exam_reminder_loop():
+    """
+    حلقة لا نهائية لإرسال التذكيرات الحية للامتحانات كل 5 دقائق.
+    """
+    while True:
+        now = datetime.now(PALESTINE_TZ)
+        try:
+            users = get_all_users()
 
-    for user in users:
-        user_id = user['chat_id']
-        student_id = user['student_id']
-        password = user['password']
+            for user in users:
+                user_id = user['chat_id']
+                student_id = user['student_id']
+                password = user['password']
 
-        scraper = QOUScraper(student_id, password)
-        if not scraper.login():
-            continue
+                scraper = QOUScraper(student_id, password)
+                if not scraper.login():
+                    continue
 
-        terms = scraper.get_last_two_terms()
-        if not terms:
-            continue
+                terms = scraper.get_last_two_terms()
+                if not terms:
+                    continue
 
-        for term in terms:
-            for exam_code, exam_emoji in EXAM_TYPE_MAP.items():
-                exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
-                for e in exams:
-                    exam_dt = parse_exam_datetime(e["date"], e["from_time"])
-                    if not exam_dt:
-                        continue
-                    if exam_dt.date() != now.date():
-                        continue
+                for term in terms:
+                    for exam_code, exam_emoji in EXAM_TYPE_MAP.items():
+                        exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                        for e in exams:
+                            exam_dt = parse_exam_datetime(e["date"], e["from_time"])
+                            if not exam_dt or exam_dt.date() != now.date():
+                                continue
 
-                    reminders = [
-                        ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
-                        ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
-                        ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
-                    ]
+                            reminders = [
+                                ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
+                                ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
+                                ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
+                            ]
 
-                    for r_type, r_time, r_msg in reminders:
-                        # إذا الوقت الحالي قريب من التذكير (مثلاً ±5 دقائق)
-                        if abs((r_time - now).total_seconds()) <= 300:
-                            try:
-                                bot.send_message(user_id, r_msg)
-                                logger.info(f"[{user_id}] تم إرسال التذكير: {r_type} للامتحان {e['course_name']}")
-                            except Exception as ex:
-                                logger.warning(f"[{user_id}] فشل إرسال التذكير {r_type}: {ex}")
-            time.sleep(5*60)  # انتظر 5 دقائق قبل الفحص التالي
+                            for r_type, r_time, r_msg in reminders:
+                                if abs((r_time - now).total_seconds()) <= 300:
+                                    try:
+                                        bot.send_message(user_id, r_msg)
+                                        logger.info(f"[{user_id}] تم إرسال التذكير: {r_type} للامتحان {e['course_name']}")
+                                    except Exception as ex:
+                                        logger.warning(f"[{user_id}] فشل إرسال التذكير {r_type}: {ex}")
         except Exception as e:
             logger.error(f"❌ خطأ في التذكيرات الحية: {e}")
-            time.sleep(60)
 
+        # انتظر 5 دقائق قبل الفحص التالي
+        time.sleep(5*60)
 
 
 
@@ -457,7 +459,7 @@ def start_scheduler():
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
 
     # شغل جدولة الامتحانات والتذكيرات
-    threading.Thread(target=send_exam_reminders_live, daemon=True).start()
+    threading.Thread(target=live_exam_reminder_loop, daemon=True).start()
     threading.Thread(target=daily_lecture_checker_loop, daemon=True).start()
     threading.Thread(target=daily_exam_checker_loop, daemon=True).start()
 
