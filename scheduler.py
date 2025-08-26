@@ -207,71 +207,85 @@ def send_reminder_for_new_deadline():
 
 
 
-def schedule_lecture_reminders_for_all():
-    now = datetime.now(PALESTINE_TZ)
-    today = now.date()
-    users = get_all_users()  # جلب كل المستخدمين من قاعدة البيانات
+def check_today_lectures():
+    """
+    فحص محاضرات اليوم لكل الطلاب وإرسال التذكيرات.
+    """
+    try:
+        logger.info("✅ بدء فحص محاضرات اليوم")
+        users = get_all_users()
+        now = datetime.now(PALESTINE_TZ)
+        today = now.date()
 
-    # تحويل أسماء الأيام العربية إلى أرقام weekday
-    days_map = {
-        "الاثنين": 0,
-        "الثلاثاء": 1,
-        "الأربعاء": 2,
-        "الخميس": 3,
-        "الجمعة": 4,
-        "السبت": 5,
-        "الأحد": 6
-    }
+        # خريطة الأيام
+        days_map = {
+            "الاثنين": 0,
+            "الثلاثاء": 1,
+            "الأربعاء": 2,
+            "الخميس": 3,
+            "الجمعة": 4,
+            "السبت": 5,
+            "الأحد": 6
+        }
 
-    for user in users:
-        chat_id = user['chat_id']
-        student_id = decrypt_text(user['student_id'])
-        password = decrypt_text(user['password'])
+        for user in users:
+            chat_id = user["chat_id"]
+            student_id = decrypt_text(user["student_id"])
+            password = decrypt_text(user["password"])
 
-        scraper = QOUScraper(student_id, password)
-        if scraper.login():
+            scraper = QOUScraper(student_id, password)
+            if not scraper.login():
+                logger.warning(f"[{chat_id}] فشل تسجيل الدخول")
+                continue
+
             lectures = scraper.fetch_lectures_schedule()
-            logger.info(f"Lectures for {student_id}: {lectures}")
-
             for lecture in lectures:
-                lecture_day = lecture['day'].strip()
+                lecture_day = lecture["day"].strip()
                 if lecture_day not in days_map:
                     continue
 
-                lecture_time_str = lecture['time']  # مثال: "08:30 - 10:00"
-                start_time_str = lecture_time_str.split('-')[0].strip()
-                hour, minute = map(int, start_time_str.split(':'))
+                # هل المحاضرة لليوم؟
+                if days_map[lecture_day] != today.weekday():
+                    continue
 
-                # احصل على تاريخ المحاضرة القادمة لهذا اليوم
-                today_weekday = today.weekday()
-                target_weekday = days_map[lecture_day]
-                delta_days = (target_weekday - today_weekday) % 7
-                lecture_date = today + timedelta(days=delta_days)
+                # وقت المحاضرة
+                start_time_str = lecture["time"].split("-")[0].strip()
+                hour, minute = map(int, start_time_str.split(":"))
+                lecture_start = datetime.combine(today, time(hour, minute))
+                lecture_start = PALESTINE_TZ.localize(lecture_start)
 
-                lecture_start = datetime.combine(lecture_date, time(hour, minute, tzinfo=PALESTINE_TZ))
-
-                # ---- أوقات التذكير ----
-                day_start = datetime.combine(lecture_date, time(2, 35, tzinfo=PALESTINE_TZ))
-                before_1h = lecture_start - timedelta(hours=1)
-                before_15m = lecture_start - timedelta(minutes=15)
-
+                # رسائل التذكير
                 reminders = [
-                    (day_start, f"🟢 بداية اليوم عندك محاضرة {lecture['course_name']} الساعة {start_time_str}"),
-                    (before_1h, f"⏰ بعد ساعة تقريبًا عندك محاضرة {lecture['course_name']}"),
-                    (before_15m, f"⚠️ قرّبت محاضرة {lecture['course_name']}، حضّر حالك!"),
-                    (lecture_start, f"🚀 بدأت الآن محاضرة {lecture['course_name']}، بالتوفيق ❤️")
+                    (lecture_start - timedelta(hours=1),
+                     f"⏰ بعد ساعة عندك محاضرة {lecture['course_name']} ({lecture['time']})"),
+                    (lecture_start - timedelta(minutes=15),
+                     f"⚡ بعد ربع ساعة محاضرة {lecture['course_name']}"),
+                    (lecture_start,
+                     f"🚀 بدأت الآن محاضرة {lecture['course_name']} بالتوفيق ❤️"),
                 ]
 
-                for remind_time, message in reminders:
+                for remind_time, msg in reminders:
                     if remind_time > now:
                         exam_scheduler.add_job(
-                            partial(send_message, bot, chat_id, message),
+                            partial(send_message, bot, chat_id, msg),
                             trigger="date",
                             run_date=remind_time,
                             id=_safe_job_id("lecture", chat_id, lecture, str(remind_time)),
                             replace_existing=True
                         )
-                        logger.info(f"⏰ جدولت تذكير: {message} في {remind_time}")
+                        logger.info(f"[{chat_id}] جدولت تذكير: {msg} في {remind_time}")
+
+        logger.info("✅ انتهى فحص محاضرات اليوم")
+
+    except Exception as e:
+        logger.exception(f"❌ خطأ أثناء فحص المحاضرات: {e}")
+
+
+def start_lecture_scheduler():
+    # أول تنفيذ عند بداية التشغيل
+    check_today_lectures()
+    # بعدين كل يوم الساعة 00:01
+    exam_scheduler.add_job(check_today_lectures, "cron", hour=0, minute=1)
 
 def check_today_exams():
     """
@@ -411,47 +425,51 @@ def send_exam_reminders_live():
                                 logger.warning(f"[{user_id}] فشل إرسال التذكير {r_type}: {ex}")
 
 
-def start_live_exam_reminder_scheduler():
+def start_schedulers():
+    """
+    تشغيل كل الجدولات: الامتحانات اليومية + التذكيرات كل 5 دقائق
+    """
     try:
-        # نفذها مرة أولى عند بداية التشغيل
+        # شغل فحص اليوم أول مرة
+        check_today_exams()
         send_exam_reminders_live()
 
-        # ثم كررها كل 5 دقائق
+        # فحص الامتحانات كل يوم الساعة 00:01
+        exam_scheduler.add_job(
+            check_today_exams,
+            "cron",
+            hour=0,
+            minute=1,
+            id="daily_exam_check",
+            replace_existing=True
+        )
+
+        # التذكيرات الحية كل 5 دقائق
         exam_scheduler.add_job(
             send_exam_reminders_live,
-            trigger="interval",
+            "interval",
             minutes=5,
             id="live_exam_reminders",
             replace_existing=True
         )
+
         exam_scheduler.start()
-        logger.info("✅ تم بدء جدولة التذكيرات الحية كل 5 دقائق")
+        logger.info("✅ تم تشغيل جدولة الامتحانات اليومية والتذكيرات كل 5 دقائق")
     except Exception as e:
-        logger.exception(f"❌ فشل بدء جدولة التذكيرات: {e}")
-
-def start_exam_scheduler():
-    check_today_exams()
-    exam_scheduler.add_job(check_today_exams, "cron", hour=0, minute=1)
-    exam_scheduler.start()
-    logger.info("🕒 تم بدء جدولة امتحانات ")
+        logger.exception(f"❌ فشل بدء الجدولة: {e}")
 
 
-
-# ---------------- بدء الـ scheduler في Thread دايم ----------------
-
-def start_exam_scheduler_thread():
-    threading.Thread(target=start_exam_scheduler, daemon=True).start()
-    logger.info("✅ Thread جدولة امتحانات اليوم بدأ")
-
-# ---------------- تشغيل كل المهام ----------------
 def start_scheduler():
+    """
+    تشغيل كل المهام الأخرى + الجدولات
+    """
     threading.Thread(target=check_for_new_messages, daemon=True).start()
     threading.Thread(target=check_for_course_updates, daemon=True).start()
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
-    threading.Thread(target=start_live_exam_reminder_scheduler, daemon=True).start()
 
-
-    start_exam_scheduler_thread()
+    # شغل جدولة الامتحانات والتذكيرات
+    threading.Thread(target=start_schedulers, daemon=True).start()
+    threading.Thread(target=start_lecture_scheduler, daemon=True).start()
 
