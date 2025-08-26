@@ -58,16 +58,16 @@ def _safe_job_id(prefix: str, chat_id, exam: dict, suffix: str):
 
 def parse_exam_datetime(date_str, time_str):
     """
-    تحويل التاريخ والوقت من البوابة إلى كائن datetime.
-    صيغة التاريخ: DD-MM-YYYY
-    صيغة الوقت: HH:MM
+    تحويل التاريخ والوقت من البوابة إلى كائن aware datetime مع المنطقة الزمنية PALESTINE_TZ.
     """
     date_str = date_str.strip()
     time_str = time_str.strip()
     try:
         date_obj = datetime.strptime(date_str, "%d-%m-%Y")
         time_obj = datetime.strptime(time_str, "%H:%M").time()
-        return datetime.combine(date_obj, time_obj)
+        dt_naive = datetime.combine(date_obj, time_obj)
+        dt_aware = PALESTINE_TZ.localize(dt_naive)  # هنا تصير aware
+        return dt_aware
     except Exception as e:
         logger.warning(f"فشل تحويل التاريخ والوقت: {date_str} {time_str} | خطأ: {e}")
         return None
