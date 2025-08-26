@@ -281,7 +281,7 @@ def daily_lecture_checker_loop():
         logger.info(f"🕛 الانتظار حتى منتصف الليل: {int(seconds_to_sleep)} ثانية")
         time.sleep(seconds_to_sleep)
         # تنفيذ فحص المحاضرات
-        check_today_lectures())
+        check_today_lectures()
 
 def check_today_exams():
     """
