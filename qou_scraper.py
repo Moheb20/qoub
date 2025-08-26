@@ -242,11 +242,17 @@ class QOUScraper:
     def fetch_gpa(self):
         stats = self.fetch_term_summary_stats()
         if not stats:
-            return None
+            return {
+                "term_gpa": 'غير متوفر',
+                "cumulative_gpa": 'غير متوفر'
+            }
+    
+        def clean(val):
+            return val if val not in [None, '', 'NA'] else 'غير متوفر'
+    
         return {
-            "term_gpa": stats.get('term', {}).get('gpa', 'غير متوفر'),
-            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر')
-
+            "term_gpa": clean(stats.get('term', {}).get('gpa')),
+            "cumulative_gpa": clean(stats.get('cumulative', {}).get('gpa'))
         }
 
 
