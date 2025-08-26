@@ -229,9 +229,9 @@ def check_today_lectures():
         }
 
         for user in users:
-            chat_id = user["chat_id"]
-            student_id = decrypt_text(user["student_id"])
-            password = decrypt_text(user["password"])
+            user_id = user['chat_id']
+            student_id = user['student_id']
+            password = user['password']
 
             scraper = QOUScraper(student_id, password)
             if not scraper.login():
