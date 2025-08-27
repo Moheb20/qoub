@@ -32,6 +32,7 @@ logger = logging.getLogger("exam_scheduler")
 # ---------------- إنشاء Scheduler ----------------
 exam_scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
 exam_scheduler.configure(job_defaults={"coalesce": True, "max_instances": 4, "misfire_grace_time": 300})
+sent_reminders = {}
 
 
 # ---------------------- Exam type labels ----------------------
@@ -419,8 +420,13 @@ def daily_exam_checker_loop():
 
 def live_exam_reminder_loop():
     """
-    حلقة لا نهائية لإرسال التذكيرات الحية للامتحانات كل 5 دقائق.
+    حلقة لا نهائية لإرسال التذكيرات الحية للامتحانات كل نصف ساعة.
+    - تفحص الامتحانات لليوم فقط
+    - ترسل التذكيرات بشكل تقريبي (±30 دقيقة)
+    - تمنع التكرار لنفس التذكير
     """
+    global sent_reminders
+
     while True:
         now = datetime.now(PALESTINE_TZ)
         try:
@@ -441,30 +447,47 @@ def live_exam_reminder_loop():
 
                 for term in terms:
                     for exam_code, exam_emoji in EXAM_TYPE_MAP.items():
-                        exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                        try:
+                            exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                        except Exception as ex:
+                            logger.warning(f"[{user_id}] خطأ بجلب الامتحانات: {ex}")
+                            continue
+
                         for e in exams:
                             exam_dt = parse_exam_datetime(e["date"], e["from_time"])
                             if not exam_dt or exam_dt.date() != now.date():
-                                continue
+                                continue  # نركز فقط على امتحانات اليوم
+
+                            # مفتاح فريد لكل امتحان (مادة + تاريخ + ساعة)
+                            exam_key = f"{e['course_name']}|{exam_dt.strftime('%Y-%m-%d %H:%M')}"
+                            if user_id not in sent_reminders:
+                                sent_reminders[user_id] = {}
+                            if exam_key not in sent_reminders[user_id]:
+                                sent_reminders[user_id][exam_key] = set()
 
                             reminders = [
                                 ("2h_before", exam_dt - timedelta(hours=2), f"⏰ امتحان {e['course_name']} بعد ساعتين"),
-                                ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة"),
+                                ("30m_before", exam_dt - timedelta(minutes=30), f"⚡ امتحان {e['course_name']} بعد 30 دقيقة أو أقل"),
                                 ("at_start", exam_dt, f"🚀 هلا بلش امتحان {e['course_name']}")
                             ]
 
                             for r_type, r_time, r_msg in reminders:
-                                if abs((r_time - now).total_seconds()) <= 300:
+                                diff = (r_time - now).total_seconds()
+
+                                # إذا الوقت بين -30 دقيقة و +30 دقيقة (تقريبياً) ولم يرسل من قبل
+                                if -1800 <= diff <= 1800 and r_type not in sent_reminders[user_id][exam_key]:
                                     try:
                                         bot.send_message(user_id, r_msg)
-                                        logger.info(f"[{user_id}] تم إرسال التذكير: {r_type} للامتحان {e['course_name']}")
+                                        sent_reminders[user_id][exam_key].add(r_type)  # علمنا إنو انبعت
+                                        logger.info(f"[{user_id}] تم إرسال التذكير ({r_type}) للامتحان {e['course_name']}")
                                     except Exception as ex:
                                         logger.warning(f"[{user_id}] فشل إرسال التذكير {r_type}: {ex}")
+
         except Exception as e:
             logger.error(f"❌ خطأ في التذكيرات الحية: {e}")
 
-        # انتظر 5 دقائق قبل الفحص التالي
-        time.sleep(5*60)
+        # انتظر نصف ساعة قبل الفحص التالي
+        time.sleep(30 * 60)
 
 
 
