@@ -118,7 +118,7 @@ def handle_start(message):
     user = get_user(chat_id)
 
     if user:
-        bot.send_message(chat_id, "👋 مرحباً! أنت قيد التسجيل بالفعل.")
+        bot.send_message(chat_id, "👋  مرحــــباً!  ")
     else:
         # أضف المستخدم إلى قاعدة البيانات (يمكن ترك student_id و password فارغين مؤقتًا)
         add_user(chat_id, student_id="", password="", registered_at=datetime.utcnow().isoformat())
@@ -310,9 +310,9 @@ def handle_all_messages(message):
 
                 text_msg += (
                     f"📘 {code} - {name}\n"
-                    f"   📝 الامتحان النصفي: {midterm}\n"
-                    f"   🏁 الامتحان النهائي: {final}\n"
-                    f"   📅 تاريخ النهائي: {final_date}\n\n"
+                    f"   📝 علامــــة النـــصفي : {midterm}\n"
+                    f"   🏁 العـــلامـــــة النهـــائية {final}\n"
+                    f"   📅 تـــــاريـــخ وضع العلامة النــــهائية{final_date}\n\n"
                 )
             bot.send_message(chat_id, text_msg, parse_mode="Markdown")
         except Exception as e:
@@ -575,17 +575,10 @@ def handle_all_messages(message):
         stats_text = (
             "📊 *إحصائيات عامة للبوت:*\n\n"
             f"- عدد المستخدمين المسجلين: {stats['total_users']}\n"
-            f"- عدد المستخدمين الذين سجلوا دخول ناجح: {stats['users_logged_in']}\n"
-            f"- عدد المستخدمين النشطين (آخر 7 أيام): {stats['active_last_7_days']}\n"
-            f"- عدد الرسائل المرسلة من البوت: {stats['messages_sent']}\n"
-            f"- عدد الرسائل المستلمة من المستخدمين: {stats['messages_received']}\n"
             f"- المستخدمين الجدد اليوم: {stats['new_today']}\n"
             f"- المستخدمين الجدد خلال الأسبوع: {stats['new_last_7_days']}\n"
             f"- المستخدمين الجدد خلال الشهر: {stats['new_last_30_days']}\n"
             f"- عدد المستخدمين غير النشطين (>7 أيام بدون تفاعل): {stats['inactive_users']}\n"
-            f"- عدد المستخدمين الذين ألغوا الاشتراك: {stats['unsubscribed']}\n"
-            f"- إجمالي الأوامر/الطلبات: {stats['total_commands']}\n"
-            "- أكثر 5 قروبات طلباً:\n"
         )
         top_groups = stats.get("top_groups", [])
         for group in top_groups:
@@ -615,26 +608,26 @@ def handle_all_messages(message):
             cumulative = stats['cumulative']
 
             msg = (
-                "📊 *بيانات الفصل الحالية:*\n"
-                f"- 🧾 النوع: {term['type']}\n"
-                f"- 🕒 المسجل: {term['registered_hours']} س.\n"
-                f"- ✅ المجتاز: {term['passed_hours']} س.\n"
-                f"- 🧮 المحتسبة: {term['counted_hours']}\n"
-                f"- ❌ الراسب: {term['failed_hours']}\n"
-                f"- 🚪 المنسحب: {term['withdrawn_hours']}\n"
-                f"- 🏅 النقاط: {term['points']}\n"
-                f"- 📈 المعدل: {term['gpa']}\n"
-                f"- 🏆 لوحة الشرف: {term['honor_list']}\n\n"
-                "📘 *البيانات التراكمية:*\n"
-                f"- 🧾 النوع: {cumulative['type']}\n"
-                f"- 🕒 المسجل: {cumulative['registered_hours']} س.\n"
-                f"- ✅ المجتاز: {cumulative['passed_hours']} س.\n"
-                f"- 🧮 المحتسبة: {cumulative['counted_hours']}\n"
-                f"- ❌ الراسب: {cumulative['failed_hours']}\n"
-                f"- 🚪 المنسحب: {cumulative['withdrawn_hours']}\n"
-                f"- 🏅 النقاط: {cumulative['points']}\n"
-                f"- 📈 المعدل: {cumulative['gpa']}\n"
-                f"- 🏆 لوحة الشرف: {cumulative['honor_list']}\n"
+                "📊 *البيانــــات الفـــصليـة والــــتراكــمية*\n"
+                f"- 🧾 النـــــوع: {term['type']}\n"
+                f"- 🕒 المسجــل: {term['registered_hours']} س.\n"
+                f"- ✅ المجتــاز: {term['passed_hours']} س.\n"
+                f"- 🧮 المحتسبــة: {term['counted_hours']}\n"
+                f"- ❌ الراســب: {term['failed_hours']}\n"
+                f"- 🚪 المنســحب: {term['withdrawn_hours']}\n"
+                f"- 🏅 النقــاط: {term['points']}\n"
+                f"- 📈 المعــدل: {term['gpa']}\n"
+                f"- 🏆 لوحــة الشــرف: {term['honor_list']}\n\n"
+                "📘 *البيانــات التراكــمية:*\n"
+                f"- 🧾 النــوع: {cumulative['type']}\n"
+                f"- 🕒 المســجل: {cumulative['registered_hours']} س.\n"
+                f"- ✅ المجــتاز: {cumulative['passed_hours']} س.\n"
+                f"- 🧮 المحتــسبة: {cumulative['counted_hours']}\n"
+                f"- ❌ الراســب: {cumulative['failed_hours']}\n"
+                f"- 🚪 المنسحـــب: {cumulative['withdrawn_hours']}\n"
+                f"- 🏅 النقــاط: {cumulative['points']}\n"
+                f"- 📈 المعــدل: {cumulative['gpa']}\n"
+                f"- 🏆 لوحــة الشــرف: {cumulative['honor_list']}\n"
             )
 
             bot.send_message(chat_id, msg, parse_mode="Markdown")
