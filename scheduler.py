@@ -28,7 +28,7 @@ from pytz import timezone  # للتوافق مع Render
 # ---------------- إعداد الوقت واللوج ----------------
 PALESTINE_TZ = pytz.timezone("Asia/Gaza")
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("exam_scheduler")
+logger = logging.getLogger("BOT : ")
 # ---------------- إنشاء Scheduler ----------------
 exam_scheduler = BackgroundScheduler(timezone=PALESTINE_TZ)
 exam_scheduler.configure(job_defaults={"coalesce": True, "max_instances": 4, "misfire_grace_time": 300})
@@ -143,8 +143,8 @@ def check_for_gpa_changes():
                         logger.info(f"[{chat_id}] المعدل الحالي: {old_gpa}, المعدل الجديد: {new_gpa}")
                     if new_gpa and new_gpa != old_gpa:
                         msg = (
-                            f"🎓 تم تحديث المعدل التراكمي!\n"
-                            f"📘 معدل الفصل: {new_gpa.get('term_gpa', '-')}\n"
+                            f"🎓 تـــم تــــحديث البــــوابة الاكــــاديـــمية!\n"
+                            f"📘 المعدل الفصلي : {new_gpa.get('term_gpa', '-')}\n"
                             f"📚 المعدل التراكمي: {new_gpa.get('cumulative_gpa', '-')}"
                         )
                         send_message(bot, chat_id, msg)
@@ -192,12 +192,40 @@ def check_discussion_sessions():
                                 send_message(bot, chat_id, msg)
                     last_known_sessions[chat_id] = current_ids
                     for s in today_sessions:
-                        start_time = datetime.strptime(f"{s['date']} {s['time'].split('-')[0].strip()}", "%d/%m/%Y %H:%M").replace(tzinfo=PALESTINE_TZ)
-                        diff = (start_time - now).total_seconds()/60
-                        key = f"{chat_id}_{s['course_code']}_{s['date']}"
-                        if 0 < diff <= 30 and key not in notified_half_hour:
-                            send_message(bot, chat_id, f"⏰ تذكير: حلقة النقاش {s['course_name']} بعد أقل من نصف ساعة")
-                            notified_half_hour[key] = True
+                        try:
+                            start_raw = s['time'].split('-')[0].strip()   # "11:00"
+                            # parse لوقت البداية
+                            start_time = datetime.strptime(
+                                f"{s['date']} {start_raw}", "%d/%m/%Y %H:%M"
+                            ).replace(tzinfo=PALESTINE_TZ)
+                        except ValueError:
+                            try:
+                                # لو فيه ثواني
+                                start_time = datetime.strptime(
+                                    f"{s['date']} {start_raw}", "%d/%m/%Y %H:%M:%S"
+                                ).replace(tzinfo=PALESTINE_TZ)
+                            except ValueError:
+                                continue  # لو فشل، يتجاوزها
+                    
+                        diff = (start_time - now).total_seconds() / 60
+                        half_hour_key = f"{chat_id}_{s['course_code']}_{s['date']}_half"
+                        start_key = f"{chat_id}_{s['course_code']}_{s['date']}_start"
+                    
+                        # ⏰ تذكير قبل نص ساعة
+                        if 0 < diff <= 30 and half_hour_key not in notified_half_hour:
+                            send_message(
+                                bot, chat_id,
+                                f"⏰ تذكير: حلقة النقاش {s['course_name']} بعد أقل من نصف ساعة"
+                            )
+                            notified_half_hour[half_hour_key] = True
+                    
+                        # 🚀 تذكير عند بداية الحلقة
+                        if -1 <= diff <= 1 and start_key not in notified_half_hour:
+                            send_message(
+                                bot, chat_id,
+                                f"🚀 بدأت الآن حلقة النقاش: {s['course_name']} ({s['course_code']})"
+                            )
+                            notified_half_hour[start_key] = True
                     if now.hour == 0 and now.minute == 0:
                         notified_today.clear()
                         notified_half_hour.clear()
@@ -253,7 +281,7 @@ def check_today_lectures():
             scraper = QOUScraper(student_id, password)
             if not scraper.login():
                 logger.warning(f"[{user_id}] فشل تسجيل الدخول")
-                continue
+                continue  # يكمل على باقي الطلاب وما يوقف
 
             lectures = scraper.fetch_lectures_schedule()
             for lecture in lectures:
@@ -264,9 +292,12 @@ def check_today_lectures():
                 if days_map[lecture_day] != today.weekday():
                     continue
 
+                # وقت بداية المحاضرة
                 start_time_str = lecture["time"].split("-")[0].strip()
                 hour, minute = map(int, start_time_str.split(":"))
-                lecture_start = datetime.combine(today, datetime.min.time()).replace(hour=hour, minute=minute, tzinfo=PALESTINE_TZ)
+                lecture_start = datetime.combine(
+                    today, datetime.min.time()
+                ).replace(hour=hour, minute=minute, tzinfo=PALESTINE_TZ)
 
                 # رسائل التذكير
                 reminders = [
@@ -278,10 +309,17 @@ def check_today_lectures():
                      f"🚀 بدأت الآن محاضرة {lecture['course_name']} بالتوفيق ❤️"),
                 ]
 
+                # جدولة التذكيرات
                 for remind_time, msg in reminders:
                     if remind_time > now:
-                        # إرسال الرسالة مباشرة لو الوقت قريب جدًا أو جدولة APScheduler
-                        send_message(bot, user_id, msg)
+                        scheduler.add_job(
+                            send_message,
+                            'date',
+                            run_date=remind_time,
+                            args=[bot, user_id, msg],
+                            id=f"lec_{user_id}_{lecture['course_code']}_{remind_time}",
+                            replace_existing=True
+                        )
                         logger.info(f"[{user_id}] جدولت تذكير: {msg} في {remind_time}")
 
         logger.info("✅ انتهى فحص محاضرات اليوم")
@@ -361,13 +399,13 @@ def check_today_exams():
                             exams_today_count += 1
                             # رسالة اليوم
                             msg = (
-                                f"📌 عندك امتحان اليوم:\n"
-                                f"المادة: {e['course_name']}\n"
-                                f"النوع: {exam_emoji} ({e['exam_kind']})\n"
-                                f"الساعة: {e['from_time']} - {e['to_time']}\n"
-                                f"المحاضر: {e['lecturer']}\n"
-                                f"القسم: {e['section']}\n"
-                                f"ملاحظة: {e['note']}"
+                                f"📌 عـنـــدك امـتـحــان اليــــوم:\n"
+                                f"المــادة: {e['course_name']}\n"
+                                f"الــنوع: {exam_emoji} ({e['exam_kind']})\n"
+                                f"الســاعة: {e['from_time']} - {e['to_time']}\n"
+                                f"المحــاضر: {e['lecturer']}\n"
+                                f"الشــعبة: {e['section']}\n"
+                                f"ملاحظــة: {e['note']}"
                             )
                             logger.info(f"[{user_id}] جاري إرسال رسالة الامتحان: {e['course_name']}")
 
