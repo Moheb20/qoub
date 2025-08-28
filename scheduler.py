@@ -84,7 +84,7 @@ def check_for_new_messages():
                     latest = scraper.fetch_latest_message()
                     if latest and latest['msg_id'] != user.get('last_msg_id'):
                         msg = (
-                            f"📥 رسالة جديدة!\n"
+                            f"📥 رســـالــــة جـديــدة!\n"
                             f"📧 {latest['subject']}\n"
                             f"📝 {latest['sender']}\n"
                             f"🕒 {latest['date']}\n\n"
@@ -114,9 +114,9 @@ def check_for_course_updates():
                             if old_c and (c['midterm_mark'] != old_c['midterm_mark'] or c['final_mark'] != old_c['final_mark']):
                                 changes.append(c)
                         if changes:
-                            msg = "📢 تحديث جديد في العلامات:\n\n"
+                            msg = "📢 تحــديـــث جـديـد فـي الـعـلامــات:\n\n"
                             for c in changes:
-                                msg += f"📚 {c['course_name']}\nنصفي: {c['midterm_mark']} | نهائي: {c['final_mark']}\n\n"
+                                msg += f"📚 {c['course_name']}\nعلامـــة النـــــصــفي : {c['midterm_mark']} | العــــلامـــة النــــهائيـــة: {c['final_mark']}\n\n"
                             send_message(bot, chat_id, msg)
                             logger.info(f"[{chat_id}] تم إرسال رسالة تحديث العلامات للطالب: {len(changes)} مادة/مواد")
                         else:
@@ -144,8 +144,8 @@ def check_for_gpa_changes():
                     if new_gpa and new_gpa != old_gpa:
                         msg = (
                             f"🎓 تـــم تــــحديث البــــوابة الاكــــاديـــمية!\n"
-                            f"📘 المعدل الفصلي : {new_gpa.get('term_gpa', '-')}\n"
-                            f"📚 المعدل التراكمي: {new_gpa.get('cumulative_gpa', '-')}"
+                            f"📘 المــعدل الـــفـصـلي : {new_gpa.get('term_gpa', '-')}\n"
+                            f"📚 المــعدل الـتـراكـمـي: {new_gpa.get('cumulative_gpa', '-')}"
                         )
                         send_message(bot, chat_id, msg)
                         logger.info(f"[{chat_id}] تم إرسال رسالة تحديث GPA للطالب")
@@ -177,7 +177,7 @@ def check_discussion_sessions():
                     sessions = scraper.fetch_discussion_sessions()
                     today_sessions = [s for s in sessions if s['date'] == today_str]
                     if today_sessions and chat_id not in notified_today:
-                        msg = "📅 حلقات النقاش اليوم:\n\n"
+                        msg = "📅 حــلقـــات الـــنقـــاش الـــيـــوم:\n\n"
                         for s in today_sessions:
                             msg += f"📘 {s['course_name']} ({s['course_code']}) - {s['time']}\n"
                         send_message(bot, chat_id, msg)
@@ -188,7 +188,7 @@ def check_discussion_sessions():
                     for new_id in new_ids:
                         for s in sessions:
                             if f"{s['course_code']}_{s['date']}_{s['time']}" == new_id:
-                                msg = f"🆕 تمت إضافة حلقة نقاش جديدة:\n📘 {s['course_name']} ({s['course_code']}) - {s['time']}"
+                                msg = f"🆕 تمـــت إضـــافـــة حـــلـقـة نــقــاش جــديـــدة:\n📘 {s['course_name']} ({s['course_code']}) - {s['time']}"
                                 send_message(bot, chat_id, msg)
                     last_known_sessions[chat_id] = current_ids
                     for s in today_sessions:
@@ -215,7 +215,7 @@ def check_discussion_sessions():
                         if 0 < diff <= 30 and half_hour_key not in notified_half_hour:
                             send_message(
                                 bot, chat_id,
-                                f"⏰ تذكير: حلقة النقاش {s['course_name']} بعد أقل من نصف ساعة"
+                                f"⏰ تـــذكــــيـر: حـــلقـــة الـــنقــاش {s['course_name']} بعـد أقــل مـن نـصــف ســاعــة"
                             )
                             notified_half_hour[half_hour_key] = True
                     
@@ -223,7 +223,7 @@ def check_discussion_sessions():
                         if -1 <= diff <= 1 and start_key not in notified_half_hour:
                             send_message(
                                 bot, chat_id,
-                                f"🚀 بدأت الآن حلقة النقاش: {s['course_name']} ({s['course_code']})"
+                                f"🚀 بــــدأت الآن حــلقــة الــــنقـــاش: {s['course_name']} ({s['course_code']})"
                             )
                             notified_half_hour[start_key] = True
                     if now.hour == 0 and now.minute == 0:
