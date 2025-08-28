@@ -228,7 +228,7 @@ def handle_all_messages(message):
                     if latest:
                         update_last_msg(chat_id, latest["msg_id"])
                         text_msg = (
-                            f"📬 آخر رسالة في البريد:\n"
+                            f"📬 آخـــر رســالـــة في البـــريـــد:\n"
                             f"📧 {latest['subject']}\n"
                             f"📝 {latest['sender']}\n"
                             f"🕒 {latest['date']}\n\n"
@@ -311,8 +311,8 @@ def handle_all_messages(message):
                 text_msg += (
                     f"📘 {code} - {name}\n"
                     f"   📝 علامــــة النـــصفي : {midterm}\n"
-                    f"   🏁 العـــلامـــــة النهـــائية {final}\n"
-                    f"   📅 تـــــاريـــخ وضع العلامة النــــهائية{final_date}\n\n"
+                    f"   🏁 العـــلامـــــة النهـــائية : {final}\n"
+                    f"   📅 تـــــاريـــخ وضع العلامة النــــهائية : {final_date}\n\n"
                 )
             bot.send_message(chat_id, text_msg, parse_mode="Markdown")
         except Exception as e:
@@ -792,7 +792,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "📭 لا يوجد حلقات نقاش حالياً.")
             return
     
-        msg = "🎙️ *جميع حلقات النقاش:*\n\n"
+        msg = "🎙️ *جــــميـــع حـلـقـات الــنـقـاش:*\n\n"
         for s in sessions:
             msg += (
                 f"📘 {s['course_name']} ({s['course_code']})\n"
