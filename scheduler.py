@@ -124,7 +124,7 @@ def check_for_course_updates():
                         update_user_courses(chat_id, json.dumps(courses))
                 except Exception as ex:
                     logger.warning(f"[{chat_id}] خطأ أثناء فحص تحديث العلامات: {ex}")
-            time.sleep(60*60)
+            time.sleep(5*60)
         except Exception as e:
             logger.error(f"❌ خطأ عام في تحديث العلامات: {e}")
             time.sleep(60)
