@@ -253,7 +253,7 @@ class QOUScraper:
     
         return {
             "term_gpa": stats.get('term', {}).get('gpa', 'غير متوفر'),
-            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر')
+            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر'),
 
             "term_gpa": clean(stats.get('term', {}).get('gpa')),
             "cumulative_gpa": clean(stats.get('cumulative', {}).get('gpa'))
