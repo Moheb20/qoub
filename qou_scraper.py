@@ -115,40 +115,44 @@ class QOUScraper:
         return hidden_fields
 
     def login(self) -> bool:
-        """تسجيل الدخول مع تحسينات لتجاوز الحماية"""
+        """تسجيل الدخول مع تحسينات إضافية"""
         try:
-            self._simulate_human_delay()
+            # تنظيف الجلسة أولاً
+            self.session = self._create_session()
+            self.is_logged_in = False
             
-            # 1. تغيير User-Agent
-            self.session.headers.update({
-                "User-Agent": self._get_random_user_agent()
-            })
+            # إضافة تأخير عشوائي
+            time.sleep(random.uniform(2, 5))
             
-            # 2. زيارة الصفحة الرئيسية أولاً للحصول على الكوكيز
-            logger.info(f"Visiting main page for {self.student_id}")
-            main_resp = self.session.get(BASE_URL, timeout=30)
-            main_resp.raise_for_status()
-            
-            # 3. زيارة صفحة Login
-            logger.info(f"Visiting login page for {self.student_id}")
+            # 1. الحصول على صفحة Login أولاً
+            logger.info(f"جلب صفحة Login لـ {self.student_id}")
             login_page_resp = self.session.get(LOGIN_URL, timeout=30)
             login_page_resp.raise_for_status()
             
             soup = BeautifulSoup(login_page_resp.text, 'html.parser')
             
-            # 4. استخراج الحقول المخفية
-            payload = self._extract_hidden_fields(soup)
+            # 2. البحث عن نموذج Login بشكل دقيق
+            login_form = soup.find('form', {'name': 'loginForm'})
+            if not login_form:
+                logger.error("لم يتم العثور على نموذج التسجيل")
+                return False
             
-            # 5. إضافة بيانات المستخدم (بناءً على تحليل البايلود)
+            # 3. استخراج جميع الحقول المخفية
+            payload = {}
+            for input_tag in login_form.find_all('input', type='hidden'):
+                name = input_tag.get('name')
+                value = input_tag.get('value', '')
+                if name:
+                    payload[name] = value
+            
+            # 4. إضافة بيانات المستخدم
             payload.update({
-                "uip": payload.get("uip", "162.158.23.52"),
-                "defaultUserSettingMode": payload.get("defaultUserSettingMode", "light"),
                 "userId": self.student_id,
                 "password": self.password,
                 "logBtn": "دخول"
             })
             
-            # 6. إعداد headers للطلب POST
+            # 5. إعداد الـ headers بشكل دقيق
             headers = {
                 "User-Agent": self._get_random_user_agent(),
                 "Referer": LOGIN_URL,
@@ -156,10 +160,12 @@ class QOUScraper:
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                 "Accept-Language": "ar,en-US;q=0.7,en;q=0.3",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
             }
             
-            # 7. إرسال طلب Login
-            logger.info(f"Posting login for {self.student_id}")
+            # 6. إرسال طلب Login
+            logger.info(f"إرسال بيانات التسجيل لـ {self.student_id}")
             login_resp = self.session.post(
                 LOGIN_URL,
                 data=payload,
@@ -167,49 +173,64 @@ class QOUScraper:
                 timeout=30,
                 allow_redirects=True
             )
-            login_resp.raise_for_status()
             
-            # 8. التحقق من نجاح Login
+            # 7. التحقق من النجاح بدقة أكبر
             if self._check_login_success(login_resp.text):
-                logger.info(f"Login successful for {self.student_id}")
+                logger.info(f"✅ تسجيل الدخول ناجح لـ {self.student_id}")
                 self.is_logged_in = True
                 return True
             else:
-                logger.warning(f"Login failed for {self.student_id}")
+                logger.warning(f"❌ فشل تسجيل الدخول لـ {self.student_id}")
+                # حفظ HTML للتحليل
+                with open(f"login_failed_{self.student_id}.html", "w", encoding="utf-8") as f:
+                    f.write(login_resp.text)
                 return False
                 
         except Exception as e:
-            logger.error(f"Error during login for {self.student_id}: {str(e)}")
+            logger.error(f"خطأ في التسجيل لـ {self.student_id}: {str(e)}")
             return False
 
     def _check_login_success(self, html_content: str) -> bool:
-        """التحقق من نجاح تسجيل الدخول من محتوى HTML"""
+        """تحقق دقيق من نجاح تسجيل الدخول"""
+        # مؤشرات النجاح
         success_indicators = [
-            "studentPortal",
-            "مرحبا",
-            "طالب",
-            "الرئيسية",
-            "logout",
-            "تسجيل الخروج"
+            "studentPortal", "portalHome", "student/home",
+            "مرحبا", "أهلاً", "طالب", "الرئيسية", 
+            "تسجيل الخروج", "logout", "log out",
+            "الجدول الدراسي", "الدرجات", "الرصيد"
         ]
         
-        # التحقق من وجود أي من المؤشرات
-        content_lower = html_content.lower()
-        for indicator in success_indicators:
-            if indicator.lower() in content_lower:
-                return True
-        
-        # التحقق من عدم وجود رسالة خطأ
+        # مؤشرات الفشل
         error_indicators = [
             "الرجاء التأكد من اسم المستخدم و كلمة المرور",
-            "خطأ في التسجيل",
-            "invalid",
-            "error"
+            "خطأ في التسجيل", "كلمة مرور خاطئة",
+            "اسم مستخدم غير صحيح", "invalid", "error",
+            "فشل", "failed", "غير مصرح"
         ]
         
+        content_lower = html_content.lower()
+        
+        # التحقق من وجود مؤشرات الخطأ أولاً
         for error in error_indicators:
             if error.lower() in content_lower:
+                logger.warning(f"تم اكتشاف خطأ في التسجيل: {error}")
                 return False
+        
+        # التحقق من مؤشرات النجاح
+        for success in success_indicators:
+            if success.lower() in content_lower:
+                return True
+        
+        # إذا لم يتم العثور على أي مؤشر، نتحقق من وجود عناصر واجهة المستخدم
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # التحقق من وجود قوائم الطالب
+        student_menus = soup.find_all(['a', 'div'], string=lambda text: text and any(
+            x in (text.lower() if text else '') for x in ['الجدول', 'الدرجات', 'الرصيد', 'الرسائل']
+        ))
+        
+        if student_menus:
+            return True
         
         return False
 
@@ -299,6 +320,37 @@ class QOUScraper:
             logger.error(f"Error fetching message for {self.student_id}: {str(e)}")
             return None
 
+
+    def validate_credentials(self) -> Dict[str, Any]:
+        """التحقق من صحة بيانات الاعتماد"""
+        result = {
+            "valid": False,
+            "message": "❌ فشل تسجيل الدخول. تأكد من صحة البيانات.",
+            "details": {}
+        }
+        
+        # التحقق من تنسيق رقم الطالب
+        if not self.student_id.isdigit() or len(self.student_id) != 13:
+            result["message"] = "❌ رقم الطالب غير صحيح (يجب أن يكون 13 رقمًا)"
+            return result
+        
+        # التحقق من كلمة المرور
+        if not self.password or len(self.password) < 6:
+            result["message"] = "❌ كلمة المرور غير صحيحة"
+            return result
+        
+        # محاولة التسجيل
+        if self.login():
+            result["valid"] = True
+            result["message"] = "✅ تسجيل الدخول ناجح"
+            # جلب بعض المعلومات للتأكد
+            student_info = self.fetch_student_info()
+            if student_info:
+                result["details"] = student_info
+        else:
+            result["message"] = "❌ فشل تسجيل الدخول. تأكد من صحة البيانات."
+        
+        return result
     def fetch_term_summary_courses(self) -> List[Dict[str, Any]]:
         """جلب مواد الفصل"""
         if not self.ensure_login():
