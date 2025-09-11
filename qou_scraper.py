@@ -1,241 +1,418 @@
 import requests
 from bs4 import BeautifulSoup
+import os
+from typing import Optional, List
+from datetime import datetime
 import logging
-import time
-import random
-from urllib.parse import urljoin
-import cloudscraper
-from typing import Optional, List, Dict, Any
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+import arabic_reshaper
+from bidi.algorithm import get_display
+from io import BytesIO
+from database import get_all_users
 
-# إعدادات logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("qou_bot.log", encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger('qou_scraper')
-
-# URLs
-BASE_URL = 'https://portal.qou.edu'
+font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
+pdfmetrics.registerFont(TTFont('Arial', font_path))
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
+WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 BALANCE_URL = 'https://portal.qou.edu/student/getSasStudFtermCardList.do'
-
-# User Agents rotating
-USER_AGENTS = [
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
-    "Mozilla/5.0 (Linux; Android 12; SM-S906N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
-]
+EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
+logger = logging.getLogger(__name__)
+EXAM_TYPE_MAP = {
+    "MT&IM": "📝 النصفي",
+    "FT&IF": "🏁 النهائي النظري",
+    "FP&FP": "🧪 النهائي العملي",
+    "LE&LE": "📈 امتحان المستوى",
+}
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
+        self.session = requests.Session()
         self.student_id = student_id
         self.password = password
-        self.session = self._create_session()
-        self.is_logged_in = False
-        logger.info(f"Initialized scraper for student: {student_id}")
 
-    def _create_session(self):
-        scraper = cloudscraper.create_scraper(
-            browser={'browser': 'chrome', 'platform': 'android', 'mobile': True, 'desktop': False},
-            delay=10, interpreter='nodejs'
-        )
-        scraper.headers.update({
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "ar,en-US;q=0.7,en;q=0.3",
-            "Accept-Encoding": "gzip, deflate, br",
-            "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
+class QOUScraper:
+    def __init__(self, student_id: str, password: str):
+        self.session = requests.Session()
+        self.student_id = student_id
+        self.password = password
+
+    def login(self) -> bool:
+        # الهيدرز المحدثة لتسجيل الدخول
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Language": "ar,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
+            "Cache-Control": "max-age=0",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": "https://portal.qou.edu",
+            "Referer": "https://portal.qou.edu/login.do",
+            "Sec-CH-UA": '"Chromium";v="140", "Not=A?Brand";v="24", "Microsoft Edge";v="140"',
+            "Sec-CH-UA-Mobile": "?1",
+            "Sec-CH-UA-Platform": '"Android"',
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-User": "?1",
-        })
-        return scraper
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
+        }
 
-    def _get_random_user_agent(self):
-        return random.choice(USER_AGENTS)
+        # بيانات POST
+        payload = {
+            'userId': self.student_id,
+            'password': self.password,
+            'logBtn': 'Login'
+        }
 
-    def _simulate_human_delay(self):
-        time.sleep(random.uniform(1, 3))
+        # أولاً نعمل GET للصفحة لجلب أي كوكيز أولية
+        self.session.get(LOGIN_URL, headers=headers)
 
-    def login(self) -> bool:
-        try:
-            self.session = self._create_session()
-            self.is_logged_in = False
-            self._simulate_human_delay()
+        # إرسال POST لتسجيل الدخول مع السماح بإعادة التوجيه
+        resp = self.session.post(LOGIN_URL, data=payload, headers=headers, allow_redirects=True)
 
-            headers = {
-                "User-Agent": self._get_random_user_agent(),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Origin": "https://portal.qou.edu",
-                "Referer": "https://portal.qou.edu/login.do",
-                "Upgrade-Insecure-Requests": "1"
-            }
-
-            payload = {
-                "uip": "172.68.234.77",
-                "defaultUserSettingMode": "light",
-                "userId": self.student_id,
-                "password": self.password,
-                "logBtn": "Login"
-            }
-
-            login_resp = self.session.post(LOGIN_URL, data=payload, headers=headers, timeout=30, allow_redirects=True)
-
-            if self._check_login_success(login_resp.text):
-                logger.info(f"✅ تسجيل الدخول ناجح لـ {self.student_id}")
-                self.is_logged_in = True
-                return True
-            else:
-                logger.warning(f"❌ فشل تسجيل الدخول لـ {self.student_id}")
-                return False
-        except Exception as e:
-            logger.error(f"خطأ في التسجيل لـ {self.student_id}: {str(e)}")
-            return False
-
-    def _check_login_success(self, html_content: str) -> bool:
-        success_indicators = ["studentPortal", "portalHome", "student/home", "مرحبا", "تسجيل الخروج", "الرصيد", "inbox"]
-        error_indicators = ["الرجاء التأكد من اسم المستخدم و كلمة المرور", "خطأ", "غير مصرح", "failed", "invalid"]
-
-        content_lower = html_content.lower()
-        for error in error_indicators:
-            if error.lower() in content_lower:
-                return False
-        for success in success_indicators:
-            if success.lower() in content_lower:
-                return True
+        # التحقق من نجاح تسجيل الدخول عبر وجود رابط main.do
+        if "student/main.do" in resp.url:
+            return True
         return False
 
-    def ensure_login(self):
-        if not self.is_logged_in:
-            return self.login()
-        return True
 
-    def fetch_student_info(self) -> Optional[Dict[str, str]]:
-        if not self.ensure_login():
-            return None
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(BASE_URL, timeout=30)
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            name_element = (soup.find('span', class_='student-name') or 
-                            soup.find('div', class_='user-info') or
-                            soup.find('span', string=lambda text: text and 'مرحبا' in text))
-            if name_element:
-                return {"name": name_element.get_text(strip=True)}
-            return None
-        except Exception as e:
-            logger.error(f"Error fetching student info: {str(e)}")
+    def fetch_latest_message(self) -> Optional[dict]:
+        resp = self.session.get(INBOX_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        row = soup.select_one("tbody tr")
+        if not row:
             return None
 
-    def fetch_latest_message(self) -> Optional[Dict[str, Any]]:
-        if not self.ensure_login():
-            return None
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(INBOX_URL, timeout=30)
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            table = soup.find('table')
-            if not table:
-                return None
-            rows = table.find_all('tr')
-            if len(rows) < 2:
-                return None
-            first_row = rows[1]
-            cols = first_row.find_all('td')
-            if len(cols) < 5:
-                return None
-            link_tag = cols[3].find('a') if len(cols) > 3 else None
-            if not link_tag or not link_tag.get('href'):
-                return None
-            msg_id = link_tag['href'].split('msgId=')[-1] if 'msgId=' in link_tag['href'] else 'unknown'
-            full_link = urljoin(INBOX_URL, link_tag['href'])
-            subject = link_tag.get_text(strip=True)
-            sender = cols[6].get_text(strip=True) if len(cols) > 6 else ''
-            date = cols[4].get_text(strip=True) if len(cols) > 4 else ''
-            msg_resp = self.session.get(full_link, timeout=30)
-            msg_resp.raise_for_status()
-            soup_msg = BeautifulSoup(msg_resp.text, 'html.parser')
-            body = soup_msg.find('div') or soup_msg.find('body')
-            body_text = body.get_text(strip=True) if body else ''
-            return {'msg_id': msg_id, 'subject': subject, 'sender': sender, 'date': date, 'body': body_text}
-        except Exception as e:
-            logger.error(f"Error fetching message: {str(e)}")
+        link_tag = row.select_one("td[col_4] a[href*='msgId=']")
+        if not link_tag:
             return None
 
-    def fetch_term_summary_courses(self) -> List[Dict[str, Any]]:
-        if not self.ensure_login():
-            return []
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(TERM_SUMMARY_URL, timeout=30)
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            courses = []
-            table = soup.find('table')
-            if not table:
-                return courses
-            rows = table.find_all('tr')[1:]
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) < 7:
-                    continue
-                course = {
-                    'course_code': cols[0].get_text(strip=True),
-                    'course_name': cols[1].get_text(strip=True),
-                    'credit_hours': cols[2].get_text(strip=True),
-                    'status': cols[3].get_text(strip=True),
-                    'midterm_mark': cols[4].get_text(strip=True) or "-",
-                    'final_mark': cols[5].get_text(strip=True) or "-",
-                    'final_mark_date': cols[6].get_text(strip=True) or "-"
-                }
-                courses.append(course)
+        msg_id = link_tag['href'].split('msgId=')[-1]
+        full_link = requests.compat.urljoin(INBOX_URL, link_tag['href'])
+        subject = link_tag.get_text(strip=True)
+
+        sender = row.select_one("td[col_7]")
+        sender_text = sender.get_text(strip=True) if sender else ''
+
+        date = row.select_one("td[col_5]")
+        date_text = date.get_text(strip=True) if date else ''
+
+        resp_msg = self.session.get(full_link)
+        resp_msg.raise_for_status()
+        soup_msg = BeautifulSoup(resp_msg.text, 'html.parser')
+
+        body = soup_msg.find('div', class_='message-body')
+        body_text = body.get_text(strip=True) if body else ''
+
+        return {
+            'msg_id': msg_id,
+            'subject': subject,
+            'sender': sender_text,
+            'date': date_text,
+            'body': body_text
+        }
+
+    def fetch_term_summary_courses(self) -> List[dict]:
+        resp = self.session.get(TERM_SUMMARY_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        courses = []
+        table = soup.find('table', id='dataTable')
+        if not table:
             return courses
-        except Exception as e:
-            logger.error(f"Error fetching courses: {str(e)}")
+
+        rows = table.find('tbody').find_all('tr')
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) < 7:
+                continue
+
+            course = {
+                'course_code': cols[0].get_text(strip=True),
+                'course_name': cols[1].get_text(strip=True),
+                'credit_hours': cols[2].get_text(strip=True),
+                'status': cols[3].get_text(strip=True),
+                'midterm_mark': cols[4].get_text(strip=True) or "-",
+                'final_mark': cols[5].get_text(strip=True) or "-",
+                'final_mark_date': cols[6].get_text(strip=True) or "-"
+            }
+            courses.append(course)
+        return courses
+
+    def fetch_lectures_schedule(self) -> List[dict]:
+        resp = self.session.get(WEEKLY_MEETINGS_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        meetings = []
+        table = soup.find('table', class_='table table-hover table-condensed table-striped table-curved')
+        if not table:
+            return meetings
+
+        rows = table.find('tbody').find_all('tr')
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) < 12:
+                continue
+
+            meeting = {
+                'course_code': cols[0].get_text(strip=True),
+                'course_name': cols[1].get_text(strip=True),
+                'credit_hours': cols[2].get_text(strip=True),
+                'section': cols[3].get_text(strip=True),
+                'day': cols[4].get_text(strip=True),
+                'time': cols[5].get_text(strip=True),
+                'building': cols[6].get_text(strip=True),
+                'room': cols[7].get_text(strip=True),
+                'lecturer': cols[8].get_text(strip=True),
+                'office_hours': cols[9].get_text(strip=True),
+                'course_content_link': cols[10].find('a')['href'] if cols[10].find('a') else '',
+                'study_plan_link': cols[11].find('a')['href'] if cols[11].find('a') else ''
+            }
+            meetings.append(meeting)
+
+        return meetings
+
+    def fetch_term_summary_stats(self) -> dict:
+        resp = self.session.get(TERM_SUMMARY_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        stats_table = soup.find('table', id='dataTable3')
+        if not stats_table:
+            return {}
+
+        rows = stats_table.find('tbody').find_all('tr')
+        if len(rows) < 2:
+            return {}
+
+        def parse_row(row):
+            cols = row.find_all('td')
+            return {
+                'type': cols[0].get_text(strip=True),
+                'registered_hours': cols[1].get_text(strip=True),
+                'passed_hours': cols[2].get_text(strip=True),
+                'counted_hours': cols[3].get_text(strip=True),
+                'failed_hours': cols[4].get_text(strip=True),
+                'withdrawn_hours': cols[5].get_text(strip=True),
+                'points': cols[6].get_text(strip=True),
+                'gpa': cols[7].get_text(strip=True),
+                'honor_list': cols[8].get_text(strip=True)
+            }
+
+        return {
+            'term': parse_row(rows[0]),
+            'cumulative': parse_row(rows[1])
+        }
+
+    def parse_exam_datetime(self, date_str, time_str):
+        """يحوّل التاريخ + الوقت من النص إلى datetime جاهز"""
+        try:
+            # دعم 23-08-2025 بدل 23/08/2025
+            dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M")
+            return dt.replace(tzinfo=PALESTINE_TZ)
+        except Exception:
+            return None
+    # ------------------- جلب آخر فصلين -------------------
+    def get_last_two_terms(self):
+        resp = self.session.get(EXAMS_SCHEDULE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        select_term = soup.find("select", {"name": "termNo"})
+        if not select_term:
+            return []
+        options = select_term.find_all("option")
+        # عادةً يكون أول خيار هو الفصل الحالي، الثاني السابق
+        last_two = options[:2]
+        return [{'value': opt['value'], 'label': opt.get_text(strip=True)} for opt in last_two]
+
+    # ------------------- جلب جدول الامتحانات من البوابة -------------------
+    def fetch_exam_schedule(self, term_no, exam_type) -> List[dict]:
+        payload = {
+            "termNo": term_no,
+            "examType": exam_type
+        }
+
+        resp = self.session.post(EXAMS_SCHEDULE_URL, data=payload)
+        resp.raise_for_status()
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        table = soup.find("table", id="dataTable")
+        if not table:
             return []
 
-    def fetch_balance_totals(self) -> Dict[str, Any]:
-        if not self.ensure_login():
-            return {"error": "لم يتم تسجيل الدخول"}
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(BALANCE_URL, timeout=30)
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            rows = soup.select("table#dataTable tbody tr")
-            if not rows:
-                return {"error": "لم يتم العثور على بيانات الرصيد"}
-            total_required = total_paid = total_grants = total_balance = 0.0
-            for row in rows:
-                cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
-                if len(cols) < 7:
-                    continue
-                try:
-                    total_required += float(cols[1])
-                    total_paid     += float(cols[2])
-                    total_grants   += float(cols[4])
-                    total_balance  += float(cols[5])
-                except ValueError:
-                    continue
-            return {
-                "total_required": total_required,
-                "total_paid": total_paid,
-                "total_grants": total_grants,
-                "total_balance": total_balance,
-                "formatted_text": f"📌 الإجمالي الكلي للرصيد:\n💰 المطلوب: {total_required:,.2f}\n✅ المدفوع: {total_paid:,.2f}\n🎓 المنح: {total_grants:,.2f}\n📊 رصيد الفصل: {total_balance:,.2f}"
+        exams = []
+        rows = table.find("tbody").find_all("tr")
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) < 11:
+                continue
+
+            exam = {
+                "exam_kind": cols[0].get_text(strip=True),
+                "course_code": cols[1].get_text(strip=True),
+                "course_name": cols[2].get_text(strip=True),
+                "lecturer": cols[3].get_text(strip=True),
+                "section": cols[4].get_text(strip=True),
+                "day": cols[5].get_text(strip=True),
+                "date": cols[6].get_text(strip=True),
+                "session": cols[7].get_text(strip=True),
+                "from_time": cols[8].get_text(strip=True),
+                "to_time": cols[9].get_text(strip=True),
+                "note": cols[10].get_text(strip=True)
             }
-        except Exception as e:
-            logger.error(f"Error fetching balance: {str(e)}")
-            return {"error": "❌ خطأ في جلب بيانات الرصيد"}
+            exams.append(exam)
+
+        return exams
+
+    def fetch_gpa(self):
+        stats = self.fetch_term_summary_stats()
+        if not stats:
+            return None
+            return {
+                "term_gpa": 'غير متوفر',
+                "cumulative_gpa": 'غير متوفر'
+            }
+    
+        def clean(val):
+            return val if val not in [None, '', 'NA'] else 'غير متوفر'
+    
+        return {
+            "term_gpa": stats.get('term', {}).get('gpa', 'غير متوفر'),
+            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر')
+
+            "term_gpa": clean(stats.get('term', {}).get('gpa')),
+            "cumulative_gpa": clean(stats.get('cumulative', {}).get('gpa'))
+        }
+
+
+    def fetch_discussion_sessions(self) -> List[dict]:
+        resp = self.session.get(WEEKLY_MEETINGS_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        sessions = []
+        table = soup.find("table", {"id": "dataTable"})
+        if not table:
+            return sessions
+
+        rows = table.find("tbody").find_all("tr")
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) < 5:
+                continue
+            session = {
+                "course_code": cols[0].get_text(strip=True),
+                "course_name": cols[1].get_text(strip=True),
+                "section": cols[2].get_text(strip=True),
+                "date": cols[3].get_text(strip=True),  # 17/08/2025
+                "time": cols[4].get_text(strip=True)   # 11:00 - 12:00
+            }
+            sessions.append(session)
+        return sessions
+    def fetch_balance_table_pdf(self) -> BytesIO:
+        resp = self.session.get(BALANCE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        rows = soup.select("table#dataTable tbody tr")
+        if not rows:
+            return None
+
+        # الأعمدة والبيانات
+        columns = ["الفصل", " المطلوب", " المدفوع", " المنح", "المبلغ المتبقي"]
+        data = [columns]
+
+        for row in rows:
+            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
+            if len(cols) < 7:
+                continue
+            data.append([cols[0], cols[1], cols[2], cols[4], cols[5]])
+
+        if len(data) == 1:
+            return None
+
+        # معالجة النص العربي لكل خلية في الجدول
+        for i in range(1, len(data)):
+            for j in range(len(data[i])):
+                data[i][j] = get_display(arabic_reshaper.reshape(data[i][j]))
+
+        # معالجة عناوين الأعمدة
+        data[0] = [get_display(arabic_reshaper.reshape(col)) for col in data[0]]
+
+        output = BytesIO()
+        pdf = SimpleDocTemplate(output, pagesize=A4)
+        elements = []
+
+        style_sheet = getSampleStyleSheet()
+        arabic_style = style_sheet['Normal']
+        arabic_style.fontName = 'Arial'
+        arabic_style.fontSize = 12
+
+        # عنوان الصفحة
+        title_text = get_display(arabic_reshaper.reshape("رصيد الطالب"))
+        elements.append(Paragraph(title_text, arabic_style))
+        elements.append(Spacer(1, 12))
+
+        # إنشاء الجدول
+        table = Table(data, repeatRows=1, hAlign='CENTER')
+        style = TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), 'Arial'),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('BACKGROUND', (0,1), (-1,-1), colors.whitesmoke),
+        ])
+        table.setStyle(style)
+
+        # تلوين الصفوف بالتناوب
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
+
+        elements.append(table)
+        pdf.build(elements)
+        output.seek(0)
+        return output
+
+    def fetch_balance_totals(self) -> str:
+        """
+        يحسب الإجمالي لكل الأعمدة ويعرضه بشكل مرتب على Telegram
+        """
+        resp = self.session.get(BALANCE_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        rows = soup.select("table#dataTable tbody tr")
+        if not rows:
+            return "❌ لم يتم العثور على بيانات الرصيد"
+
+        total_required = total_paid = total_grants = total_balance = 0.0
+
+        for row in rows:
+            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
+            if len(cols) < 7:
+                continue
+            total_required += float(cols[1])
+            total_paid     += float(cols[2])
+            total_grants   += float(cols[4])
+            total_balance  += float(cols[5])
+
+        text = "📌 الإجمالي الكلي للرصيد:\n\n"
+        text += f"💰 المطلوب: {total_required}\n"
+        text += f"✅ المدفوع: {total_paid}\n"
+        text += f"🎓 المنح: {total_grants}\n"
+        text += f"📊 رصيد الفصل: {total_balance}\n"
+
+        return text
