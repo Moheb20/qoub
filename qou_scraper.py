@@ -13,6 +13,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 import arabic_reshaper
 from bidi.algorithm import get_display
 from io import BytesIO
+import cloudscraper
+
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
 pdfmetrics.registerFont(TTFont('Arial', font_path))
@@ -39,7 +41,7 @@ logger.setLevel(logging.INFO)
 
 class QOUScraper:
     def __init__(self, student_id, password):
-        self.session = requests.Session()
+        self.scraper = cloudscraper.create_scraper()
         self.login_url = "https://portal.qou.edu/login.do"
         self.student_id = student_id
         self.password = password
@@ -48,17 +50,15 @@ class QOUScraper:
         payload = {
             "userId": self.student_id,
             "password": self.password,
-            "logBtn": "دخول"   # نفس اسم زر الإدخال
+            "logBtn": "دخول"
         }
-
         try:
-            response = self.session.post(self.login_url, data=payload, timeout=20)
+            response = self.scraper.post(self.login_url, data=payload, timeout=20)
 
             logger.info("====== Login Response (first 2000 chars) ======")
             logger.info(response.text[:2000])
             logger.info("==============================================")
 
-            # نجاح لو ظهر رابط أو كلمة مميزة بالصفحة بعد الدخول
             if "تسجيل الخروج" in response.text or "الطالب" in response.text:
                 return True
             return False
@@ -66,7 +66,6 @@ class QOUScraper:
         except Exception as e:
             logger.exception(f"Login request failed: {e}")
             return False
-
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL, headers=self.headers)
