@@ -42,7 +42,7 @@ class QOUScraper:
         params = {
             'userId': self.student_id,
             'password': self.password,
-            'logBtn': 'Login'
+            'logBtn': 'دخول'
         }
         resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
         return 'student' in resp.url
