@@ -37,19 +37,43 @@ EXAM_TYPE_MAP = {
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
-        self.session = cloudscraper.create_scraper()  # بدل requests.Session
         self.student_id = student_id
         self.password = password
+        self.scraper = cloudscraper.create_scraper()  # bypass Cloudflare
+
+        # لتخزين قيم hidden تلقائيًا
+        self.uip = None
+        self.default_mode = 'light'
+
+    def get_login_page(self):
+        """جلب الصفحة الرئيسية للحصول على أي hidden inputs"""
+        resp = self.scraper.get(LOGIN_URL)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        uip_input = soup.find('input', {'name': 'uip'})
+        if uip_input:
+            self.uip = uip_input.get('value')
+        mode_input = soup.find('input', {'name': 'defaultUserSettingMode'})
+        if mode_input:
+            self.default_mode = mode_input.get('value', 'light')
 
     def login(self) -> bool:
-        self.session.get(LOGIN_URL)
+        self.get_login_page()
         payload = {
             'userId': self.student_id,
             'password': self.password,
-            'logBtn': 'Login'
+            'logBtn': 'Login',
+            'uip': self.uip or '',
+            'defaultUserSettingMode': self.default_mode
         }
-        resp = self.session.post(LOGIN_URL, data=payload, allow_redirects=True)
-        return 'student' in resp.url
+
+        resp = self.scraper.post(LOGIN_URL, data=payload, allow_redirects=True)
+        if "student" in resp.url:
+            logger.info(f"Login successful for {self.student_id}")
+            return True
+        logger.warning(f"Login failed for {self.student_id}")
+        return False
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
