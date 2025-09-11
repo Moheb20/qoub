@@ -31,11 +31,7 @@ EXAM_TYPE_MAP = {
     "LE&LE": "📈 امتحان المستوى",
 }
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-    "Referer": LOGIN_URL,
-    "Origin": "https://portal.qou.edu",
-}
+
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
@@ -43,21 +39,14 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        # أولاً نحصل على الصفحة الرئيسية للحصول على أي كوكيز أولية
         self.session.get(LOGIN_URL)
-
-        payload = {
-            "userId": self.student_id,
-            "password": self.password,
-            "logBtn": "Login"
+        params = {
+            'userId': self.student_id,
+            'password': self.password,
+            'logBtn': 'Login'
         }
-
-        resp = self.session.post(LOGIN_URL, data=payload, allow_redirects=True)
-        
-        # نتحقق من نجاح تسجيل الدخول عن طريق وجود رابط خاص بالطالب
-        if "student" in resp.url or "portalHome.do" in resp.url:
-            return True
-        return False
+        resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        return 'student' in resp.url
 
 
     def fetch_latest_message(self) -> Optional[dict]:
