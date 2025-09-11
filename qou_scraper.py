@@ -38,14 +38,29 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
+        # جلب الصفحة الأصلية أولاً للحصول على cookies
         self.session.get(LOGIN_URL)
-        params = {
+        
+        # بيانات الدخول
+        payload = {
             'userId': self.student_id,
             'password': self.password,
-            'logBtn': 'دخول'
+            'logBtn': 'دخول'  # مهم استخدام نفس النص الموجود في الزر
         }
-        resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
-        return 'student' in resp.url
+        
+        # إرسال بيانات الدخول
+        resp = self.session.post(LOGIN_URL, data=payload, allow_redirects=True)
+        
+        # تحليل الصفحة للتحقق من نجاح تسجيل الدخول
+        soup = BeautifulSoup(resp.text, "html.parser")
+        
+        # البحث عن رسالة خطأ
+        error_div = soup.find("div", class_="alert-danger")
+        if error_div and "الرجاء تسجيل الدخول" in error_div.text:
+            return False  # فشل تسجيل الدخول
+        
+        # إذا لم نجد رسالة خطأ، نفترض تسجيل الدخول ناجح
+        return True
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
