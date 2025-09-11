@@ -56,7 +56,7 @@ class QOUScraper:
             response = self.scraper.post(self.login_url, data=payload, timeout=20)
 
             logger.info("====== Login Response (first 2000 chars) ======")
-            logger.info(response.text[:2000])
+            logger.info(response.text[:5000])
             logger.info("==============================================")
 
             if "تسجيل الخروج" in response.text or "الطالب" in response.text:
@@ -91,6 +91,30 @@ class QOUScraper:
         body_text = body.get_text(strip=True) if body else ''
         return {'msg_id': msg_id, 'subject': subject, 'sender': sender_text, 'date': date_text, 'body': body_text}
 
+
+
+    
+    def fetch_gpa(self):
+        stats = self.fetch_term_summary_stats()
+        if not stats:
+            return None
+            return {
+                "term_gpa": 'غير متوفر',
+                "cumulative_gpa": 'غير متوفر'
+            }
+    
+        def clean(val):
+            return val if val not in [None, '', 'NA'] else 'غير متوفر'
+    
+        return {
+            "term_gpa": stats.get('term', {}).get('gpa', 'غير متوفر'),
+            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر')
+
+            "term_gpa": clean(stats.get('term', {}).get('gpa')),
+            "cumulative_gpa": clean(stats.get('cumulative', {}).get('gpa'))
+        }
+
+    
     def fetch_term_summary_courses(self) -> List[dict]:
         resp = self.session.get(TERM_SUMMARY_URL, headers=self.headers)
         resp.raise_for_status()
