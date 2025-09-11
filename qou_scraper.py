@@ -40,6 +40,7 @@ class QOUScraper:
         self.student_id = student_id
         self.password = password
         self.scraper = cloudscraper.create_scraper()  # bypass Cloudflare
+        self.session = self.scraper
 
         # لتخزين قيم hidden تلقائيًا
         self.uip = None
