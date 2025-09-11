@@ -129,7 +129,7 @@ class QOUScraper:
                 "defaultUserSettingMode": "light",  # قيمة ثابتة
                 "userId": self.student_id,
                 "password": self.password,
-                "logBtn": "دخول"
+                "logBtn": "Login"
             }
             
             # 3. إضافة cookies أساسية إذا لزم الأمر
