@@ -32,45 +32,41 @@ EXAM_TYPE_MAP = {
     "LE&LE": "📈 امتحان المستوى",
 }
 
+
+
+logger = logging.getLogger("qou_scraper")
+logger.setLevel(logging.INFO)
+
 class QOUScraper:
-    def __init__(self, student_id: str, password: str):
+    def __init__(self, student_id, password):
         self.session = requests.Session()
+        self.login_url = "https://edu.qou.edu/login/index.php"  # غيّر الرابط إذا لازم
         self.student_id = student_id
         self.password = password
-        self.headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Accept-Language": "ar,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
-            "Cache-Control": "max-age=0",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Origin": "https://portal.qou.edu",
-            "Referer": "https://portal.qou.edu/login.do",
-            "Sec-CH-UA": '"Chromium";v="140", "Not=A?Brand";v="24", "Microsoft Edge";v="140"',
-            "Sec-CH-UA-Mobile": "?1",
-            "Sec-CH-UA-Platform": '"Android"',
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
-        }
 
-    def login(self) -> bool:
-        """تسجيل الدخول مع معالجة إعادة التوجيه والكوكيز"""
-        # أولاً نعمل GET للصفحة لجلب أي كوكيز أولية
-        self.session.get(LOGIN_URL, headers=self.headers)
-
-        # بيانات POST
+    def login(self):
         payload = {
-            'userId': self.student_id,
-            'password': self.password,
-            'logBtn': 'Login'
+            "username": self.student_id,
+            "password": self.password
         }
 
-        resp = self.session.post(LOGIN_URL, data=payload, headers=self.headers, allow_redirects=True)
-        # التحقق من نجاح تسجيل الدخول
-        return "student/main.do" in resp.url
+        try:
+            response = self.session.post(self.login_url, data=payload, timeout=15)
+
+            # نطبع جزء من الاستجابة بالـ logs عشان يظهر في Render
+            logger.info("====== Login Response (first 2000 chars) ======")
+            logger.info(response.text[:2000])
+            logger.info("==============================================")
+
+            #判定 نجاح: لو الصفحة فيها كلمة dashboard أو بالعربي "لوحة التحكم"
+            if "Dashboard" in response.text or "لوحة التحكم" in response.text:
+                return True
+            return False
+
+        except Exception as e:
+            logger.exception(f"Login request failed: {e}")
+            return False
+
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL, headers=self.headers)
