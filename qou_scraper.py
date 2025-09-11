@@ -54,7 +54,7 @@ class QOUScraper:
     def login(self) -> bool:
         try:
             # 1️⃣ جلب الصفحة لتهيئة الكوكيز واستخراج القيم المخفية
-            resp = self.session.get(PORTAL_URL, headers={
+            resp = self.session.get(LOGIN_URL, headers={
                 "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
                               "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
                 "Accept-Language": "ar,en;q=0.9",
