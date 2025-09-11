@@ -29,6 +29,7 @@ from database import (
     get_categories,
     get_groups_by_category,
     get_deadline_by_id,
+    remove_user,
  
 )
 from scheduler import start_scheduler
@@ -82,19 +83,28 @@ def run_flask():
 def send_main_menu(chat_id):
     """إرسال القائمة الرئيسية مع زر الأدمن للمستخدم المناسب"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add(
-        types.KeyboardButton("👤 تسجيل الدخول"),
-        types.KeyboardButton("📚 عرض القروبات"),
-        types.KeyboardButton("📖 عرض المقررات والعلامات"),
-        types.KeyboardButton("🗓️ جدول المحاضرات"),
-        types.KeyboardButton("📊 عرض بيانات الفصل"),
-        types.KeyboardButton("📅 جدول الامتحانات"),
-        types.KeyboardButton("🎙️ حلقات النقاش"),
-        types.KeyboardButton("📚 الخطط الدراسية"),
-        types.KeyboardButton("💰 رصيد الطالب"),
-    )
-    if chat_id in ADMIN_CHAT_ID:
-        markup.add(types.KeyboardButton("admin"))
+    user = get_user(chat_id)
+    if not (user and user.get("student_id") and user.get("password")):
+
+        markup.add(
+            types.KeyboardButton("👤 تسجيل الدخول"),
+            types.KeyboardButton("📚 عرض القروبات"),
+            types.KeyboardButton("📖 عرض المقررات والعلامات"),
+            types.KeyboardButton("🗓️ جدول المحاضرات"),
+            types.KeyboardButton("📊 عرض بيانات الفصل"),
+            types.KeyboardButton("📅 جدول الامتحانات"),
+            types.KeyboardButton("🎙️ حلقات النقاش"),
+            types.KeyboardButton("📚 الخطط الدراسية"),
+            types.KeyboardButton("💰 رصيد الطالب"),
+            types.KeyboardButton("🚪 تسجيل خروج"),
+        )
+        if chat_id in ADMIN_CHAT_ID:
+            markup.add(types.KeyboardButton("admin"))
+
+    else:
+        
+        markup.add(types.KeyboardButton("👤 تسجيل الدخول"))
+    
     bot.send_message(chat_id, "⬇️ القائمة الرئيسية:", reply_markup=markup)
 
 
@@ -117,12 +127,9 @@ def handle_start(message):
     username = message.from_user.username or "بدون اسم مستخدم"
     user = get_user(chat_id)
 
-    if user:
-        bot.send_message(chat_id, "👋  مرحــــباً!  ")
+    if user and user.get("student_id") and user.get("password"):
+        bot.send_message(chat_id, "👋 مرحباً بك مجدداً! ✅ أنت مسجل دخول.")
     else:
-        # أضف المستخدم إلى قاعدة البيانات (يمكن ترك student_id و password فارغين مؤقتًا)
-        add_user(chat_id, student_id="", password="", registered_at=datetime.utcnow().isoformat())
-        
         bot.send_message(chat_id, "👤 لم يتم تسجيلك بعد. الرجاء تسجيل الدخول.")
         
         admin_message = (
@@ -252,6 +259,12 @@ def handle_all_messages(message):
     # تسجيل الدخول
     if text == "👤 تسجيل الدخول":
         start_login(chat_id)
+        return
+
+    elif text == "🚪 تسجيل خروج":
+        remove_user(chat_id)  # تكتب دالة تحذف بيانات المستخدم من DB
+        bot.send_message(chat_id, "✅ تم تسجيل الخروج بنجاح.")
+        send_main_menu(chat_id)
         return
 
     # عرض القروبات
