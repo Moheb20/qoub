@@ -455,7 +455,4 @@ class QOUScraper:
 
             return text
             
-        except Exception as e:
-            logger.error(f"Error fetching balance for {self.student_id}: {str(e)}")
-            return "❌ خطأ في جلب بيانات الرصيد"
-
+    
