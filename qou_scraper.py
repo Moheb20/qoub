@@ -20,7 +20,14 @@ from urllib.parse import urljoin
 import re
 
 # إعدادات logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("qou_bot.log", encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger('qou_scraper')
 
 # URLs
@@ -32,6 +39,7 @@ TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 BALANCE_URL = 'https://portal.qou.edu/student/getSasStudFtermCardList.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
+GRADES_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 
 # User Agents rotating
 USER_AGENTS = [
@@ -41,12 +49,23 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
 ]
 
+# تهيئة الخطوط للـ PDF
+try:
+    font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
+    if os.path.exists(font_path):
+        pdfmetrics.registerFont(TTFont('Arial', font_path))
+    else:
+        logger.warning("Font file not found, PDF generation may not work properly")
+except Exception as e:
+    logger.error(f"Error loading font: {e}")
+
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.student_id = student_id
         self.password = password
         self.session = self._create_session()
         self.is_logged_in = False
+        logger.info(f"Initialized scraper for student: {student_id}")
 
     def _create_session(self):
         """إنشاء session مع إعدادات متقدمة لتجاوز الحماية"""
@@ -122,7 +141,7 @@ class QOUScraper:
             
             # 5. إضافة بيانات المستخدم (بناءً على تحليل البايلود)
             payload.update({
-                "uip": payload.get("uip", "162.158.23.52"),  # استخدام القيمة من النموذج
+                "uip": payload.get("uip", "162.158.23.52"),
                 "defaultUserSettingMode": payload.get("defaultUserSettingMode", "light"),
                 "userId": self.student_id,
                 "password": self.password,
@@ -157,7 +176,6 @@ class QOUScraper:
                 return True
             else:
                 logger.warning(f"Login failed for {self.student_id}")
-                logger.debug(f"Response content: {login_resp.text[:500]}")
                 return False
                 
         except Exception as e:
@@ -198,8 +216,38 @@ class QOUScraper:
     def ensure_login(self):
         """التأكد من أن المستخدم مسجل الدخول"""
         if not self.is_logged_in:
-            return self.login()
+            success = self.login()
+            if not success:
+                logger.error(f"Failed to login for student: {self.student_id}")
+            return success
         return True
+
+    def fetch_student_info(self) -> Optional[Dict[str, str]]:
+        """جلب معلومات الطالب الأساسية"""
+        if not self.ensure_login():
+            return None
+            
+        try:
+            self._simulate_human_delay()
+            resp = self.session.get(BASE_URL, timeout=30)
+            resp.raise_for_status()
+            
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            # البحث عن معلومات الطالب في الصفحة
+            student_info = {}
+            
+            # مثال: البحث عن اسم الطالب
+            name_element = soup.find('span', class_='student-name') or soup.find('div', class_='user-info')
+            if name_element:
+                student_info['name'] = name_element.get_text(strip=True)
+            
+            # إضافة المزيد من الحقول حسب هيكل الموقع
+            return student_info if student_info else None
+            
+        except Exception as e:
+            logger.error(f"Error fetching student info for {self.student_id}: {str(e)}")
+            return None
 
     def fetch_latest_message(self) -> Optional[Dict[str, Any]]:
         """جلب آخر رسالة"""
@@ -291,9 +339,6 @@ class QOUScraper:
             logger.error(f"Error fetching courses for {self.student_id}: {str(e)}")
             return []
 
-    # باقي الدوال بنفس النمط مع إضافة التحسينات...
-    # fetch_lectures_schedule, fetch_term_summary_stats, etc.
-
     def fetch_lectures_schedule(self) -> List[Dict[str, Any]]:
         """جلب جدول المحاضرات"""
         if not self.ensure_login():
@@ -339,70 +384,45 @@ class QOUScraper:
             logger.error(f"Error fetching lectures for {self.student_id}: {str(e)}")
             return []
 
-    def fetch_term_summary_stats(self) -> Dict[str, Any]:
-        """جلب إحصائيات الفصل"""
+    def fetch_grades(self) -> List[Dict[str, Any]]:
+        """جلب الدرجات"""
         if not self.ensure_login():
-            return {}
+            return []
             
         try:
             self._simulate_human_delay()
-            resp = self.session.get(TERM_SUMMARY_URL, timeout=30)
+            resp = self.session.get(GRADES_URL, timeout=30)
             resp.raise_for_status()
             
             soup = BeautifulSoup(resp.text, 'html.parser')
-            stats_table = soup.find('table', id='dataTable3')
+            grades = []
             
-            if not stats_table:
-                return {}
-
-            rows = stats_table.find('tbody').find_all('tr')
-            if len(rows) < 2:
-                return {}
-
-            def parse_row(row):
-                cols = row.find_all('td')
-                return {
-                    'type': cols[0].get_text(strip=True),
-                    'registered_hours': cols[1].get_text(strip=True),
-                    'passed_hours': cols[2].get_text(strip=True),
-                    'counted_hours': cols[3].get_text(strip=True),
-                    'failed_hours': cols[4].get_text(strip=True),
-                    'withdrawn_hours': cols[5].get_text(strip=True),
-                    'points': cols[6].get_text(strip=True),
-                    'gpa': cols[7].get_text(strip=True),
-                    'honor_list': cols[8].get_text(strip=True)
-                }
-
-            return {
-                'term': parse_row(rows[0]),
-                'cumulative': parse_row(rows[1])
-            }
+            # البحث عن جدول الدرجات (يحتاج إلى تعديل حسب الهيكل الفعلي)
+            table = soup.find('table', {'class': 'grades-table'}) or soup.find('table', id='dataTable')
+            
+            if table:
+                rows = table.find_all('tr')[1:]  # تخطي رأس الجدول
+                for row in rows:
+                    cols = row.find_all('td')
+                    if len(cols) >= 4:
+                        grade = {
+                            'course': cols[0].get_text(strip=True),
+                            'grade': cols[1].get_text(strip=True),
+                            'points': cols[2].get_text(strip=True),
+                            'status': cols[3].get_text(strip=True)
+                        }
+                        grades.append(grade)
+            
+            return grades
             
         except Exception as e:
-            logger.error(f"Error fetching stats for {self.student_id}: {str(e)}")
-            return {}
+            logger.error(f"Error fetching grades for {self.student_id}: {str(e)}")
+            return []
 
-    def fetch_gpa(self) -> Dict[str, str]:
-        """جلب المعدل التراكمي"""
-        stats = self.fetch_term_summary_stats()
-        if not stats:
-            return {
-                "term_gpa": 'غير متوفر',
-                "cumulative_gpa": 'غير متوفر'
-            }
-
-        def clean(val):
-            return val if val not in [None, '', 'NA'] else 'غير متوفر'
-
-        return {
-            "term_gpa": clean(stats.get('term', {}).get('gpa')),
-            "cumulative_gpa": clean(stats.get('cumulative', {}).get('gpa'))
-        }
-
-    def fetch_balance_totals(self) -> str:
+    def fetch_balance_totals(self) -> Dict[str, Any]:
         """جلب إجمالي الرصيد"""
         if not self.ensure_login():
-            return "❌ لم يتم تسجيل الدخول"
+            return {"error": "لم يتم تسجيل الدخول"}
             
         try:
             self._simulate_human_delay()
@@ -413,7 +433,7 @@ class QOUScraper:
             rows = soup.select("table#dataTable tbody tr")
             
             if not rows:
-                return "❌ لم يتم العثور على بيانات الرصيد"
+                return {"error": "لم يتم العثور على بيانات الرصيد"}
 
             total_required = total_paid = total_grants = total_balance = 0.0
 
@@ -421,10 +441,11 @@ class QOUScraper:
                 cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
                 if len(cols) < 7:
                     continue
-                total_required += float(cols[1])
-                total_paid     += float(cols[2])
-                total_grants   += float(cols[4])
-                total_balance  += float(cols[5])
+                try:
+                    total_required += float(cols[1])
+                    total_paid     += float(cols[2])
+                    total_grants   += float(cols[4])
+                    total_balance  += float(cols[5])
 
             text = "📌 الإجمالي الكلي للرصيد:\n\n"
             text += f"💰 المطلوب: {total_required:,.2f}\n"
@@ -438,5 +459,3 @@ class QOUScraper:
             logger.error(f"Error fetching balance for {self.student_id}: {str(e)}")
             return "❌ خطأ في جلب بيانات الرصيد"
 
-# تهيئة الخطوط للـ PDF
-font_path = os.path.join(os.path.dirname(__file__), 'fonts
