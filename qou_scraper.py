@@ -40,26 +40,26 @@ logger.setLevel(logging.INFO)
 class QOUScraper:
     def __init__(self, student_id, password):
         self.session = requests.Session()
-        self.login_url = "https://edu.qou.edu/login/index.php"  # غيّر الرابط إذا لازم
+        self.login_url = "https://portal.qou.edu/login.do"
         self.student_id = student_id
         self.password = password
 
     def login(self):
         payload = {
-            "username": self.student_id,
-            "password": self.password
+            "userId": self.student_id,
+            "password": self.password,
+            "logBtn": "دخول"   # نفس اسم زر الإدخال
         }
 
         try:
-            response = self.session.post(self.login_url, data=payload, timeout=15)
+            response = self.session.post(self.login_url, data=payload, timeout=20)
 
-            # نطبع جزء من الاستجابة بالـ logs عشان يظهر في Render
             logger.info("====== Login Response (first 2000 chars) ======")
             logger.info(response.text[:2000])
             logger.info("==============================================")
 
-            #判定 نجاح: لو الصفحة فيها كلمة dashboard أو بالعربي "لوحة التحكم"
-            if "Dashboard" in response.text or "لوحة التحكم" in response.text:
+            # نجاح لو ظهر رابط أو كلمة مميزة بالصفحة بعد الدخول
+            if "تسجيل الخروج" in response.text or "الطالب" in response.text:
                 return True
             return False
 
