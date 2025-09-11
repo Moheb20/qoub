@@ -419,40 +419,46 @@ class QOUScraper:
             logger.error(f"Error fetching grades for {self.student_id}: {str(e)}")
             return []
 
-    def fetch_balance_totals(self) -> Dict[str, Any]:
-        """جلب إجمالي الرصيد"""
-        if not self.ensure_login():
-            return {"error": "لم يتم تسجيل الدخول"}
-            
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(BALANCE_URL, timeout=30)
-            resp.raise_for_status()
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            rows = soup.select("table#dataTable tbody tr")
-            
-            if not rows:
-                return {"error": "لم يتم العثور على بيانات الرصيد"}
+def fetch_balance_totals(self) -> Dict[str, Any]:
+    """جلب إجمالي الرصيد"""
+    if not self.ensure_login():
+        return {"error": "لم يتم تسجيل الدخول"}
+        
+    try:
+        self._simulate_human_delay()
+        resp = self.session.get(BALANCE_URL, timeout=30)
+        resp.raise_for_status()
+        
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        rows = soup.select("table#dataTable tbody tr")
+        
+        if not rows:
+            return {"error": "لم يتم العثور على بيانات الرصيد"}
 
-            total_required = total_paid = total_grants = total_balance = 0.0
+        total_required = total_paid = total_grants = total_balance = 0.0
 
-            for row in rows:
-                cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
-                if len(cols) < 7:
-                    continue
-                try:
-                    total_required += float(cols[1])
-                    total_paid     += float(cols[2])
-                    total_grants   += float(cols[4])
-                    total_balance  += float(cols[5])
+        for row in rows:
+            cols = [c.get_text(strip=True).replace(',', '') for c in row.find_all("td")]
+            if len(cols) < 7:
+                continue
+            try:
+                total_required += float(cols[1])
+                total_paid     += float(cols[2])
+                total_grants   += float(cols[4])
+                total_balance  += float(cols[5])
+            except ValueError:
+                continue
 
-            text = "📌 الإجمالي الكلي للرصيد:\n\n"
-            text += f"💰 المطلوب: {total_required:,.2f}\n"
-            text += f"✅ المدفوع: {total_paid:,.2f}\n"
-            text += f"🎓 المنح: {total_grants:,.2f}\n"
-            text += f"📊 رصيد الفصل: {total_balance:,.2f}\n"
-
-            return text
+        return {
+            "total_required": total_required,
+            "total_paid": total_paid,
+            "total_grants": total_grants,
+            "total_balance": total_balance,
+            "formatted_text": f"📌 الإجمالي الكلي للرصيد:\n\n💰 المطلوب: {total_required:,.2f}\n✅ المدفوع: {total_paid:,.2f}\n🎓 المنح: {total_grants:,.2f}\n📊 رصيد الفصل: {total_balance:,.2f}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching balance for {self.student_id}: {str(e)}")
+        return {"error": "❌ خطأ في جلب بيانات الرصيد"}
             
     
