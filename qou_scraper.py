@@ -14,6 +14,8 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from io import BytesIO
 from database import get_all_users
+import cloudscraper
+
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
 pdfmetrics.registerFont(TTFont('Arial', font_path))
@@ -32,22 +34,22 @@ EXAM_TYPE_MAP = {
 }
 
 
+
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
-        self.session = requests.Session()
+        self.session = cloudscraper.create_scraper()  # بدل requests.Session
         self.student_id = student_id
         self.password = password
 
     def login(self) -> bool:
         self.session.get(LOGIN_URL)
-        params = {
+        payload = {
             'userId': self.student_id,
             'password': self.password,
             'logBtn': 'Login'
         }
-        resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
+        resp = self.session.post(LOGIN_URL, data=payload, allow_redirects=True)
         return 'student' in resp.url
-
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
