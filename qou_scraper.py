@@ -33,7 +33,6 @@ logger = logging.getLogger('qou_scraper')
 # URLs
 BASE_URL = 'https://portal.qou.edu'
 LOGIN_URL = 'https://portal.qou.edu/login.do'
-PORTAL_URL = 'https://portal.qou.edu/portalLogin.do?reLogin=y'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
@@ -48,16 +47,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
 ]
-
-# تهيئة الخطوط للـ PDF
-try:
-    font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
-    if os.path.exists(font_path):
-        pdfmetrics.registerFont(TTFont('Arial', font_path))
-    else:
-        logger.warning("Font file not found, PDF generation may not work properly")
-except Exception as e:
-    logger.error(f"Error loading font: {e}")
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
@@ -104,67 +93,52 @@ class QOUScraper:
         """محاكاة التأخير البشري"""
         time.sleep(random.uniform(1, 3))
 
-    def _extract_hidden_fields(self, soup):
-        """استخراج الحقول المخفية من النموذج"""
-        hidden_fields = {}
-        for input_tag in soup.find_all('input', type='hidden'):
-            name = input_tag.get('name')
-            value = input_tag.get('value', '')
-            if name:
-                hidden_fields[name] = value
-        return hidden_fields
-
     def login(self) -> bool:
-        """تسجيل الدخول مع تحسينات إضافية"""
+        """تسجيل الدخول مبسط - إرسال البيانات الأساسية فقط"""
         try:
             # تنظيف الجلسة أولاً
             self.session = self._create_session()
             self.is_logged_in = False
             
-            # إضافة تأخير عشوائي
-            time.sleep(random.uniform(2, 5))
+            time.sleep(random.uniform(2, 4))
             
-            # 1. الحصول على صفحة Login أولاً
-            logger.info(f"جلب صفحة Login لـ {self.student_id}")
-            login_page_resp = self.session.get(LOGIN_URL, timeout=30)
-            login_page_resp.raise_for_status()
+            # 1. إعداد headers كاملة كما في الطلب الأصلي
+            headers = {
+                "User-Agent": self._get_random_user_agent(),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br, zstd",
+                "Accept-Language": "ar,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
+                "Cache-Control": "max-age=0",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": "https://portal.qou.edu",
+                "Referer": "https://portal.qou.edu/login.do",
+                "Sec-Ch-Ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Microsoft Edge";v="140"',
+                "Sec-Ch-Ua-Mobile": "?1",
+                "Sec-Ch-Ua-Platform": '"Android"',
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+                "Priority": "u=0, i"
+            }
             
-            soup = BeautifulSoup(login_page_resp.text, 'html.parser')
-            
-            # 2. البحث عن نموذج Login بشكل دقيق
-            login_form = soup.find('form', {'name': 'loginForm'})
-            if not login_form:
-                logger.error("لم يتم العثور على نموذج التسجيل")
-                return False
-            
-            # 3. استخراج جميع الحقول المخفية
-            payload = {}
-            for input_tag in login_form.find_all('input', type='hidden'):
-                name = input_tag.get('name')
-                value = input_tag.get('value', '')
-                if name:
-                    payload[name] = value
-            
-            # 4. إضافة بيانات المستخدم
-            payload.update({
+            # 2. إعداد payload مباشرة بدون الحاجة لجلب الصفحة أولاً
+            payload = {
+                "uip": "172.68.234.77",  # قيمة ثابتة من النموذج
+                "defaultUserSettingMode": "light",  # قيمة ثابتة
                 "userId": self.student_id,
                 "password": self.password,
                 "logBtn": "دخول"
-            })
-            
-            # 5. إعداد الـ headers بشكل دقيق
-            headers = {
-                "User-Agent": self._get_random_user_agent(),
-                "Referer": LOGIN_URL,
-                "Origin": BASE_URL,
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "ar,en-US;q=0.7,en;q=0.3",
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
             }
             
-            # 6. إرسال طلب Login
+            # 3. إضافة cookies أساسية إذا لزم الأمر
+            self.session.cookies.update({
+                "_ga": "GA1.1.1230287084.1753970669",
+                "_gid": "GA1.2.1283861126.1757582758",
+            })
+            
+            # 4. إرسال طلب Login مباشرة
             logger.info(f"إرسال بيانات التسجيل لـ {self.student_id}")
             login_resp = self.session.post(
                 LOGIN_URL,
@@ -174,16 +148,18 @@ class QOUScraper:
                 allow_redirects=True
             )
             
-            # 7. التحقق من النجاح بدقة أكبر
+            # 5. التحقق من النجاح
             if self._check_login_success(login_resp.text):
                 logger.info(f"✅ تسجيل الدخول ناجح لـ {self.student_id}")
                 self.is_logged_in = True
                 return True
             else:
                 logger.warning(f"❌ فشل تسجيل الدخول لـ {self.student_id}")
-                # حفظ HTML للتحليل
-                with open(f"login_failed_{self.student_id}.html", "w", encoding="utf-8") as f:
-                    f.write(login_resp.text)
+                # تحليل سبب الفشل
+                if "الرجاء التأكد من اسم المستخدم و كلمة المرور" in login_resp.text:
+                    logger.error("سبب الفشل: بيانات دخول غير صحيحة")
+                elif "error" in login_resp.text.lower():
+                    logger.error("سبب الفشل: خطأ في الخادم")
                 return False
                 
         except Exception as e:
@@ -197,7 +173,7 @@ class QOUScraper:
             "studentPortal", "portalHome", "student/home",
             "مرحبا", "أهلاً", "طالب", "الرئيسية", 
             "تسجيل الخروج", "logout", "log out",
-            "الجدول الدراسي", "الدرجات", "الرصيد"
+            "الجدول الدراسي", "الدرجات", "الرصيد", "inbox"
         ]
         
         # مؤشرات الفشل
@@ -221,15 +197,23 @@ class QOUScraper:
             if success.lower() in content_lower:
                 return True
         
-        # إذا لم يتم العثور على أي مؤشر، نتحقق من وجود عناصر واجهة المستخدم
+        # التحقق من وجود عناصر واجهة المستخدم للطالب
         soup = BeautifulSoup(html_content, 'html.parser')
         
         # التحقق من وجود قوائم الطالب
         student_menus = soup.find_all(['a', 'div'], string=lambda text: text and any(
-            x in (text.lower() if text else '') for x in ['الجدول', 'الدرجات', 'الرصيد', 'الرسائل']
+            x in (text.lower() if text else '') for x in ['الجدول', 'الدرجات', 'الرصيد', 'الرسائل', 'inbox', 'grades']
         ))
         
         if student_menus:
+            return True
+        
+        # التحقق من الروابط الداخلية للطالب
+        student_links = soup.find_all('a', href=lambda href: href and any(
+            x in (href.lower() if href else '') for x in ['/student/', 'inbox', 'grades', 'schedule']
+        ))
+        
+        if student_links:
             return True
         
         return False
@@ -258,12 +242,14 @@ class QOUScraper:
             # البحث عن معلومات الطالب في الصفحة
             student_info = {}
             
-            # مثال: البحث عن اسم الطالب
-            name_element = soup.find('span', class_='student-name') or soup.find('div', class_='user-info')
+            # البحث عن اسم الطالب
+            name_element = (soup.find('span', class_='student-name') or 
+                          soup.find('div', class_='user-info') or
+                          soup.find('span', string=lambda text: text and 'مرحبا' in text))
+            
             if name_element:
                 student_info['name'] = name_element.get_text(strip=True)
             
-            # إضافة المزيد من الحقول حسب هيكل الموقع
             return student_info if student_info else None
             
         except Exception as e:
@@ -281,45 +267,59 @@ class QOUScraper:
             resp.raise_for_status()
             
             soup = BeautifulSoup(resp.text, 'html.parser')
-            row = soup.select_one("tbody tr")
             
-            if not row:
+            # البحث عن الجدول بطرق مختلفة
+            table = (soup.find('table', id='dataTable') or 
+                   soup.find('table', class_='table') or
+                   soup.find('table'))
+            
+            if not table:
                 return None
 
-            link_tag = row.select_one("td[col_4] a[href*='msgId=']")
-            if not link_tag:
+            rows = table.find_all('tr')
+            if len(rows) < 2:  # رأس الجدول + صف واحد على الأقل
                 return None
 
-            msg_id = link_tag['href'].split('msgId=')[-1]
+            # أخذ أول صف بعد الرأس
+            first_row = rows[1]
+            cols = first_row.find_all('td')
+            
+            if len(cols) < 5:
+                return None
+
+            # استخراج البيانات
+            link_tag = cols[3].find('a') if len(cols) > 3 else None
+            if not link_tag or not link_tag.get('href'):
+                return None
+
+            msg_id = link_tag['href'].split('msgId=')[-1] if 'msgId=' in link_tag['href'] else 'unknown'
             full_link = urljoin(INBOX_URL, link_tag['href'])
             
             subject = link_tag.get_text(strip=True)
-            sender = row.select_one("td[col_7]")
-            sender_text = sender.get_text(strip=True) if sender else ''
-            
-            date = row.select_one("td[col_5]")
-            date_text = date.get_text(strip=True) if date else ''
+            sender = cols[6].get_text(strip=True) if len(cols) > 6 else ''
+            date = cols[4].get_text(strip=True) if len(cols) > 4 else ''
 
             # جلب محتوى الرسالة
             msg_resp = self.session.get(full_link, timeout=30)
             msg_resp.raise_for_status()
             soup_msg = BeautifulSoup(msg_resp.text, 'html.parser')
 
-            body = soup_msg.find('div', class_='message-body')
+            body = (soup_msg.find('div', class_='message-body') or 
+                   soup_msg.find('div', id='messageContent') or
+                   soup_msg.find('body'))
             body_text = body.get_text(strip=True) if body else ''
 
             return {
                 'msg_id': msg_id,
                 'subject': subject,
-                'sender': sender_text,
-                'date': date_text,
+                'sender': sender,
+                'date': date,
                 'body': body_text
             }
             
         except Exception as e:
             logger.error(f"Error fetching message for {self.student_id}: {str(e)}")
             return None
-
 
     def validate_credentials(self) -> Dict[str, Any]:
         """التحقق من صحة بيانات الاعتماد"""
@@ -351,6 +351,7 @@ class QOUScraper:
             result["message"] = "❌ فشل تسجيل الدخول. تأكد من صحة البيانات."
         
         return result
+
     def fetch_term_summary_courses(self) -> List[Dict[str, Any]]:
         """جلب مواد الفصل"""
         if not self.ensure_login():
@@ -363,12 +364,16 @@ class QOUScraper:
             
             soup = BeautifulSoup(resp.text, 'html.parser')
             courses = []
-            table = soup.find('table', id='dataTable')
+            
+            # البحث عن الجدول بطرق مختلفة
+            table = (soup.find('table', id='dataTable') or 
+                   soup.find('table', class_='table') or
+                   soup.find('table'))
             
             if not table:
                 return courses
 
-            rows = table.find('tbody').find_all('tr')
+            rows = table.find_all('tr')[1:]  # تخطي رأس الجدول
             for row in rows:
                 cols = row.find_all('td')
                 if len(cols) < 7:
@@ -389,86 +394,6 @@ class QOUScraper:
             
         except Exception as e:
             logger.error(f"Error fetching courses for {self.student_id}: {str(e)}")
-            return []
-
-    def fetch_lectures_schedule(self) -> List[Dict[str, Any]]:
-        """جلب جدول المحاضرات"""
-        if not self.ensure_login():
-            return []
-            
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(WEEKLY_MEETINGS_URL, timeout=30)
-            resp.raise_for_status()
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            meetings = []
-            table = soup.find('table', class_='table table-hover table-condensed table-striped table-curved')
-            
-            if not table:
-                return meetings
-
-            rows = table.find('tbody').find_all('tr')
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) < 12:
-                    continue
-
-                meeting = {
-                    'course_code': cols[0].get_text(strip=True),
-                    'course_name': cols[1].get_text(strip=True),
-                    'credit_hours': cols[2].get_text(strip=True),
-                    'section': cols[3].get_text(strip=True),
-                    'day': cols[4].get_text(strip=True),
-                    'time': cols[5].get_text(strip=True),
-                    'building': cols[6].get_text(strip=True),
-                    'room': cols[7].get_text(strip=True),
-                    'lecturer': cols[8].get_text(strip=True),
-                    'office_hours': cols[9].get_text(strip=True),
-                    'course_content_link': cols[10].find('a')['href'] if cols[10].find('a') else '',
-                    'study_plan_link': cols[11].find('a')['href'] if cols[11].find('a') else ''
-                }
-                meetings.append(meeting)
-
-            return meetings
-            
-        except Exception as e:
-            logger.error(f"Error fetching lectures for {self.student_id}: {str(e)}")
-            return []
-
-    def fetch_grades(self) -> List[Dict[str, Any]]:
-        """جلب الدرجات"""
-        if not self.ensure_login():
-            return []
-            
-        try:
-            self._simulate_human_delay()
-            resp = self.session.get(GRADES_URL, timeout=30)
-            resp.raise_for_status()
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            grades = []
-            
-            # البحث عن جدول الدرجات (يحتاج إلى تعديل حسب الهيكل الفعلي)
-            table = soup.find('table', {'class': 'grades-table'}) or soup.find('table', id='dataTable')
-            
-            if table:
-                rows = table.find_all('tr')[1:]  # تخطي رأس الجدول
-                for row in rows:
-                    cols = row.find_all('td')
-                    if len(cols) >= 4:
-                        grade = {
-                            'course': cols[0].get_text(strip=True),
-                            'grade': cols[1].get_text(strip=True),
-                            'points': cols[2].get_text(strip=True),
-                            'status': cols[3].get_text(strip=True)
-                        }
-                        grades.append(grade)
-            
-            return grades
-            
-        except Exception as e:
-            logger.error(f"Error fetching grades for {self.student_id}: {str(e)}")
             return []
 
 def fetch_balance_totals(self) -> Dict[str, Any]:
