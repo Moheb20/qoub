@@ -31,6 +31,11 @@ EXAM_TYPE_MAP = {
     "LE&LE": "📈 امتحان المستوى",
 }
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "Referer": LOGIN_URL,
+    "Origin": "https://portal.qou.edu",
+}
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.session = requests.Session()
@@ -38,29 +43,22 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        # جلب الصفحة الأصلية أولاً للحصول على cookies
-        self.session.get(LOGIN_URL)
-        
-        # بيانات الدخول
+        # أولاً نجلب الصفحة الرئيسية للحصول على أي كوكيز أولية
+        self.session.get(LOGIN_URL, headers=HEADERS)
+
+        # بيانات تسجيل الدخول
         payload = {
             'userId': self.student_id,
             'password': self.password,
-            'logBtn': 'دخول'  # مهم استخدام نفس النص الموجود في الزر
+            'logBtn': 'Login'
         }
-        
-        # إرسال بيانات الدخول
-        resp = self.session.post(LOGIN_URL, data=payload, allow_redirects=True)
-        
-        # تحليل الصفحة للتحقق من نجاح تسجيل الدخول
-        soup = BeautifulSoup(resp.text, "html.parser")
-        
-        # البحث عن رسالة خطأ
-        error_div = soup.find("div", class_="alert-danger")
-        if error_div and "الرجاء تسجيل الدخول" in error_div.text:
-            return False  # فشل تسجيل الدخول
-        
-        # إذا لم نجد رسالة خطأ، نفترض تسجيل الدخول ناجح
-        return True
+
+        resp = self.session.post(LOGIN_URL, data=payload, headers=HEADERS, allow_redirects=True)
+
+        # نتحقق من نجاح تسجيل الدخول
+        if "student" in resp.url:
+            return True
+        return False
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
