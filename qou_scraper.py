@@ -46,44 +46,52 @@ class QOUScraper:
         self.student_id = student_id
         self.password = password
         # cloudscraper session تحاكي المتصفح وتتجاوز Cloudflare
-        self.session = cloudscraper.create_scraper()
+        self.session = cloudscraper.create_scraper(
+            browser={'custom': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
+                               '(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0'}
+        )
 
     def login(self) -> bool:
         try:
-            # أولاً نجيب الصفحة لتهيئة الكوكيز
-            resp = self.session.get(LOGIN_URL, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+            # 1️⃣ جلب الصفحة لتهيئة الكوكيز واستخراج القيم المخفية
+            resp = self.session.get(PORTAL_URL, headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
                 "Accept-Language": "ar,en;q=0.9",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             })
             resp.raise_for_status()
 
-            # بيانات الفورم كاملة كما تظهر في الصفحة
+            # هنا ممكن تحتاج استخراج قيمة uip أو أي hidden input إذا كانت تتغير
+            uip_value = "172.70.108.144"  # مثال، عدل إذا تغيّرت
+
+            # 2️⃣ إعداد بيانات الفورم
             payload = {
-                'uip': '',  # لو فيه قيمة ثابتة من الفورم ضعها
+                'uip': uip_value,
                 'defaultUserSettingMode': 'light',
                 'userId': self.student_id,
                 'password': self.password,
                 'logBtn': 'دخول'
             }
 
+            # 3️⃣ إرسال طلب POST لتسجيل الدخول
             login_resp = self.session.post(LOGIN_URL, data=payload, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
                 "Accept-Language": "ar,en;q=0.9",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Referer": LOGIN_URL
+                "Referer": PORTAL_URL,
+                "Content-Type": "application/x-www-form-urlencoded"
             }, allow_redirects=True)
-
             login_resp.raise_for_status()
 
-            # التحقق من نجاح تسجيل الدخول
-            if "student" in login_resp.url:
+            # 4️⃣ التحقق من نجاح تسجيل الدخول
+            if "studentPortal" in login_resp.text or "مرحبا" in login_resp.text:
                 logger.info(f"Login successful for {self.student_id}")
                 return True
             else:
                 logger.warning(f"Login failed for {self.student_id}")
+                logger.debug(f"Response HTML: {login_resp.text[:500]}")  # لمعاينة أول 500 حرف
                 return False
 
         except Exception as e:
