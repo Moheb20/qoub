@@ -55,7 +55,7 @@ class QOUScraper:
         payload = {x["name"]: x.get("value", "") for x in hidden_inputs}
         payload["userId"] = self.student_id
         payload["password"] = self.password
-        payload["logBtn"] = "submit"
+        payload["logBtn"] = "دخول"
     
         # إرسال طلب POST لتسجيل الدخول
         login_resp = self.session.post(LOGIN_URL, data=payload, headers=HEADERS, allow_redirects=True)
