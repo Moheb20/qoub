@@ -227,7 +227,9 @@ def handle_all_messages(message):
 
             try:
                 scraper = QOUScraper(student_id, password)
+                logger.info(f"Attempting login for chat_id={chat_id}, student_id={student_id}")
                 if scraper.login():
+                    logger.info(f"Login successful for chat_id={chat_id}")
                     add_user(chat_id, student_id, password)
                     bot.send_message(chat_id, "✅ تم تسجيلك بنجاح!\n🔍 جاري البحث عن آخر رسالة...")
 
@@ -247,6 +249,8 @@ def handle_all_messages(message):
                         bot.send_message(chat_id, "📭 لم يتم العثور على رسائل حالياً.")
                 else:
                     bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة البيانات.")
+                    logger.warning(f"Login failed for chat_id={chat_id}, student_id={student_id}")
+
             except Exception as e:
                 logger.exception(f"Error during login for {chat_id}: {e}")
                 bot.send_message(chat_id, "❌ حدث خطأ أثناء محاولة تسجيل الدخول. حاول مرة أخرى لاحقاً.")
