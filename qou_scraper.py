@@ -43,27 +43,20 @@ class QOUScraper:
         self.password = password
 
     def login(self) -> bool:
-        # نجلب الصفحة الرئيسية للحصول على أي كوكيز وحقول مخفية
-        resp = self.session.get(LOGIN_URL, headers=HEADERS)
-    
-        # استخدام BeautifulSoup لاستخراج الحقول المخفية
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(resp.text, "html.parser")
-        hidden_inputs = soup.find_all("input", type="hidden")
-    
-        # تحضير بيانات POST
-        payload = {x["name"]: x.get("value", "") for x in hidden_inputs}
-        payload["userId"] = self.student_id
-        payload["password"] = self.password
-        payload["logBtn"] = "دخول"
-    
-        # إرسال طلب POST لتسجيل الدخول
-        login_resp = self.session.post(LOGIN_URL, data=payload, headers=HEADERS, allow_redirects=True)
-    
-        # التحقق من نجاح تسجيل الدخول
-        if "student" in login_resp.url or "inbox" in login_resp.url:
+        # أولاً نحصل على الصفحة الرئيسية للحصول على أي كوكيز أولية
+        self.session.get(LOGIN_URL)
+
+        payload = {
+            "userId": self.student_id,
+            "password": self.password,
+            "logBtn": "Login"
+        }
+
+        resp = self.session.post(LOGIN_URL, data=payload, allow_redirects=True)
+        
+        # نتحقق من نجاح تسجيل الدخول عن طريق وجود رابط خاص بالطالب
+        if "student" in resp.url or "portalHome.do" in resp.url:
             return True
-    
         return False
 
 
