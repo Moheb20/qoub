@@ -15,6 +15,12 @@ from bidi.algorithm import get_display
 from io import BytesIO
 from database import get_all_users
 import cloudscraper
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "Accept-Language": "ar,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+}
 
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
@@ -39,29 +45,50 @@ class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.student_id = student_id
         self.password = password
-        self.scraper = cloudscraper.create_scraper()  # يحاكي المتصفح + يتجاوز Cloudflare
+        # cloudscraper session تحاكي المتصفح وتتجاوز Cloudflare
+        self.session = cloudscraper.create_scraper()
 
     def login(self) -> bool:
-        self.scraper.get(LOGIN_URL)
-        payload = {
-            'uip': '172.68.234.76',
-            'defaultUserSettingMode': 'light',
-            'userId': self.student_id,
-            'password': self.password,
-            'logBtn': 'Login'
-        }
+        try:
+            # أولاً نجيب الصفحة لتهيئة الكوكيز
+            resp = self.session.get(LOGIN_URL, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                "Accept-Language": "ar,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            })
+            resp.raise_for_status()
 
-        resp = self.scraper.post(LOGIN_URL, data=payload, allow_redirects=True)
-        logger.info(f"Login status code: {resp.status_code}")
-        logger.info(f"Final URL after login: {resp.url}")
+            # بيانات الفورم كاملة كما تظهر في الصفحة
+            payload = {
+                'uip': '',  # لو فيه قيمة ثابتة من الفورم ضعها
+                'defaultUserSettingMode': 'light',
+                'userId': self.student_id,
+                'password': self.password,
+                'logBtn': 'دخول'
+            }
 
-        if 'student' in resp.url:
-            logger.info("✅ Login successful!")
-            return True
-        else:
-            logger.warning("❌ Login failed!")
+            login_resp = self.session.post(LOGIN_URL, data=payload, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                "Accept-Language": "ar,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer": LOGIN_URL
+            }, allow_redirects=True)
+
+            login_resp.raise_for_status()
+
+            # التحقق من نجاح تسجيل الدخول
+            if "student" in login_resp.url:
+                logger.info(f"Login successful for {self.student_id}")
+                return True
+            else:
+                logger.warning(f"Login failed for {self.student_id}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error during login for {self.student_id}: {e}")
             return False
-
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
         resp.raise_for_status()
