@@ -39,42 +39,28 @@ class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.student_id = student_id
         self.password = password
-        self.scraper = cloudscraper.create_scraper()  # bypass Cloudflare
-        self.session = self.scraper
-
-        # لتخزين قيم hidden تلقائيًا
-        self.uip = None
-        self.default_mode = 'light'
-
-    def get_login_page(self):
-        """جلب الصفحة الرئيسية للحصول على أي hidden inputs"""
-        resp = self.scraper.get(LOGIN_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-
-        uip_input = soup.find('input', {'name': 'uip'})
-        if uip_input:
-            self.uip = uip_input.get('value')
-        mode_input = soup.find('input', {'name': 'defaultUserSettingMode'})
-        if mode_input:
-            self.default_mode = mode_input.get('value', 'light')
+        self.scraper = cloudscraper.create_scraper()  # يحاكي المتصفح + يتجاوز Cloudflare
 
     def login(self) -> bool:
-        self.get_login_page()
+        self.scraper.get(LOGIN_URL)
         payload = {
+            'uip': '172.68.234.76',
+            'defaultUserSettingMode': 'light',
             'userId': self.student_id,
             'password': self.password,
-            'logBtn': 'Login',
-            'uip': self.uip or '',
-            'defaultUserSettingMode': self.default_mode
+            'logBtn': 'Login'
         }
 
         resp = self.scraper.post(LOGIN_URL, data=payload, allow_redirects=True)
-        if "student" in resp.url:
-            logger.info(f"Login successful for {self.student_id}")
+        logger.info(f"Login status code: {resp.status_code}")
+        logger.info(f"Final URL after login: {resp.url}")
+
+        if 'student' in resp.url:
+            logger.info("✅ Login successful!")
             return True
-        logger.warning(f"Login failed for {self.student_id}")
-        return False
+        else:
+            logger.warning("❌ Login failed!")
+            return False
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
