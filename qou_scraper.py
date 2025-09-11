@@ -40,44 +40,53 @@ EXAM_TYPE_MAP = {
 }
 
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+LOGIN_URL = "https://portal.qou.edu/login.do"
+PORTAL_URL = "https://portal.qou.edu/portalLogin.do?reLogin=y"
 
 class QOUScraper:
     def __init__(self, student_id: str, password: str):
         self.student_id = student_id
         self.password = password
-        # cloudscraper session تحاكي المتصفح وتتجاوز Cloudflare
+        # إنشاء session مع cloudscraper لتجاوز Cloudflare
         self.session = cloudscraper.create_scraper(
-            browser={'custom': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
-                               '(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0'}
+            browser={'custom': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) '
+                               'AppleWebKit/537.36 (KHTML, like Gecko) '
+                               'Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0'}
         )
 
     def login(self) -> bool:
         try:
-            # 1️⃣ جلب الصفحة لتهيئة الكوكيز واستخراج القيم المخفية
-            resp = self.session.get(LOGIN_URL, headers={
-                "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
+            # 1️⃣ GET الصفحة لتهيئة الكوكيز وجلب HTML
+            resp = self.session.get(PORTAL_URL, headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
                 "Accept-Language": "ar,en;q=0.9",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             })
             resp.raise_for_status()
+            html_content = resp.text
 
-            # هنا ممكن تحتاج استخراج قيمة uip أو أي hidden input إذا كانت تتغير
-            uip_value = "172.70.108.144"  # مثال، عدل إذا تغيّرت
+            # 2️⃣ استخراج كل hidden inputs
+            soup = BeautifulSoup(html_content, "html.parser")
+            hidden_inputs = soup.find_all("input", type="hidden")
+            payload = {inp.get("name"): inp.get("value", "") for inp in hidden_inputs}
 
-            # 2️⃣ إعداد بيانات الفورم
-            payload = {
-                'uip': uip_value,
-                'defaultUserSettingMode': 'light',
-                'userId': self.student_id,
-                'password': self.password,
-                'logBtn': 'دخول'
-            }
+            # 3️⃣ إضافة بيانات المستخدم
+            payload.update({
+                "userId": self.student_id,
+                "password": self.password,
+                "logBtn": "دخول"
+            })
 
-            # 3️⃣ إرسال طلب POST لتسجيل الدخول
+            # 4️⃣ إرسال POST لتسجيل الدخول
             login_resp = self.session.post(LOGIN_URL, data=payload, headers={
-                "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
+                "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/140.0.0.0 Mobile Safari/537.36 Edg/140.0.0.0",
                 "Accept-Language": "ar,en;q=0.9",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Referer": PORTAL_URL,
@@ -85,13 +94,13 @@ class QOUScraper:
             }, allow_redirects=True)
             login_resp.raise_for_status()
 
-            # 4️⃣ التحقق من نجاح تسجيل الدخول
+            # 5️⃣ التحقق من نجاح تسجيل الدخول
             if "studentPortal" in login_resp.text or "مرحبا" in login_resp.text:
                 logger.info(f"Login successful for {self.student_id}")
                 return True
             else:
                 logger.warning(f"Login failed for {self.student_id}")
-                logger.debug(f"Response HTML: {login_resp.text[:500]}")  # لمعاينة أول 500 حرف
+                logger.debug(f"Response HTML: {login_resp.text[:500]}")
                 return False
 
         except Exception as e:
