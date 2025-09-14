@@ -92,6 +92,7 @@ def send_main_menu(chat_id):
         types.KeyboardButton("🎙️ حلقات النقاش"),
         types.KeyboardButton("📚 الخطط الدراسية"),
         types.KeyboardButton("💰 رصيد الطالب"),
+        types.KeyboardButton("📞 أرقام الأقسام وأعضاء الهيئة التدريسية"),
     )
     if chat_id in ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
@@ -939,6 +940,175 @@ def handle_all_messages(message):
         else:
             bot.send_message(chat_id, "⚠️ الرجاء اختيار النسخة من القائمة.")
         return
+
+        # ---------- زر أرقام الأقسام وأعضاء الهيئة ----------
+    elif text == "📞 أرقام الأقسام وأعضاء الهيئة التدريسية":
+        branches = get_branches_list()  # جلب كل الفروع
+        if not branches:
+            bot.send_message(chat_id, "📭 لا توجد فروع حالياً.")
+            return
+    
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        for branch_id, branch_name in branches:
+            markup.add(types.KeyboardButton(branch_name))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+        
+        branch_selection_states[chat_id] = {"stage": "awaiting_branch"}
+        bot.send_message(chat_id, "🏢 اختر فرع:", reply_markup=markup)
+        return
+    
+    # ---------- استقبال اختيار الفرع ----------
+    if chat_id in branch_selection_states and branch_selection_states[chat_id].get("stage") == "awaiting_branch":
+        if text == "العودة للرئيسية":
+            branch_selection_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+    
+        branches = get_branches_list()
+        selected_branch = next(((b_id, b_name) for b_id, b_name in branches if b_name == text), None)
+        if not selected_branch:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار فرع صحيح.")
+            return
+    
+        branch_id, branch_name = selected_branch
+        departments = get_departments_list(branch_id)
+        if not departments:
+            bot.send_message(chat_id, "📭 لا توجد أقسام في هذا الفرع.")
+            return
+    
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        for dept_id, dept_name in departments:
+            markup.add(types.KeyboardButton(dept_name))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
+        department_selection_states[chat_id] = {
+            "stage": "awaiting_department",
+            "branch_id": branch_id
+        }
+        branch_selection_states.pop(chat_id, None)
+        bot.send_message(chat_id, f"🏢 اختر قسم في '{branch_name}':", reply_markup=markup)
+        return
+    
+    # ---------- استقبال اختيار القسم ----------
+    if chat_id in department_selection_states and department_selection_states[chat_id].get("stage") == "awaiting_department":
+        if text == "العودة للرئيسية":
+            department_selection_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+    
+        branch_id = department_selection_states[chat_id]["branch_id"]
+        departments = get_departments_list(branch_id)
+        selected_dept = next(((d_id, d_name) for d_id, d_name in departments if d_name == text), None)
+        if not selected_dept:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار قسم صحيح.")
+            return
+    
+        dept_id, dept_name = selected_dept
+        contacts = get_contacts_list(dept_id)
+        if not contacts:
+            bot.send_message(chat_id, "📭 لا توجد بيانات في هذا القسم.")
+            return
+    
+        markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
+        for c_id, c_name, c_number in contacts:
+            markup.add(types.KeyboardButton(c_name))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
+        department_selection_states[chat_id]["stage"] = "awaiting_contact"
+        department_selection_states[chat_id]["dept_id"] = dept_id
+        bot.send_message(chat_id, f"👥 اختر اسم لمشاهدة الرقم في '{dept_name}':", reply_markup=markup)
+        return
+    
+    # ---------- استقبال اختيار الاسم ----------
+    if chat_id in department_selection_states and department_selection_states[chat_id].get("stage") == "awaiting_contact":
+        if text == "العودة للرئيسية":
+            department_selection_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+    
+        dept_id = department_selection_states[chat_id]["dept_id"]
+        contacts = get_contacts_list(dept_id)
+        selected_contact = next(((c_id, c_name, c_number) for c_id, c_name, c_number in contacts if c_name == text), None)
+        if not selected_contact:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار اسم صحيح.")
+            return
+    
+        c_id, c_name, c_number = selected_contact
+        bot.send_message(chat_id, f"📞 رقم '{c_name}': {c_number}")
+        return
+    
+    # ---------- مسار إضافة رقم للأدمن ----------
+    elif text == "إضافة رقم" and chat_id in ADMIN_CHAT_ID:
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        branches = get_branches_list()
+        for branch_id, branch_name in branches:
+            markup.add(types.KeyboardButton(branch_name))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
+        add_number_states[chat_id] = {"stage": "awaiting_branch"}
+        bot.send_message(chat_id, "🏢 اختر فرع لإضافة رقم:", reply_markup=markup)
+        return
+    
+    # ---------- استقبال فرع لإضافة رقم للأدمن ----------
+    if chat_id in add_number_states and add_number_states[chat_id].get("stage") == "awaiting_branch":
+        if text == "العودة للرئيسية":
+            add_number_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+    
+        branches = get_branches_list()
+        selected_branch = next(((b_id, b_name) for b_id, b_name in branches if b_name == text), None)
+        if not selected_branch:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار فرع صحيح.")
+            return
+    
+        branch_id, branch_name = selected_branch
+        departments = get_departments_list(branch_id)
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        for dept_id, dept_name in departments:
+            markup.add(types.KeyboardButton(dept_name))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
+        add_number_states[chat_id]["stage"] = "awaiting_department"
+        add_number_states[chat_id]["branch_id"] = branch_id
+        bot.send_message(chat_id, f"🏢 اختر قسم لإضافة رقم في '{branch_name}':", reply_markup=markup)
+        return
+    
+    # ---------- استقبال قسم لإضافة رقم للأدمن ----------
+    if chat_id in add_number_states and add_number_states[chat_id].get("stage") == "awaiting_department":
+        if text == "العودة للرئيسية":
+            add_number_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+    
+        branch_id = add_number_states[chat_id]["branch_id"]
+        departments = get_departments_list(branch_id)
+        selected_dept = next(((d_id, d_name) for d_id, d_name in departments if d_name == text), None)
+        if not selected_dept:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار قسم صحيح.")
+            return
+    
+        dept_id, dept_name = selected_dept
+        add_number_states[chat_id]["stage"] = "awaiting_contact_info"
+        add_number_states[chat_id]["dept_id"] = dept_id
+        bot.send_message(chat_id, "✍️ اكتب الاسم والرقم بصيغة: الاسم - الرقم")
+        return
+    
+    # ---------- استقبال الاسم والرقم للأدمن ----------
+    if chat_id in add_number_states and add_number_states[chat_id].get("stage") == "awaiting_contact_info":
+        try:
+            name, number = map(str.strip, text.split("-"))
+        except Exception:
+            bot.send_message(chat_id, "⚠️ صيغة خاطئة. استخدم: الاسم - الرقم")
+            return
+    
+        dept_id = add_number_states[chat_id]["dept_id"]
+        add_contact(dept_id, name, number)
+        bot.send_message(chat_id, f"✅ تم إضافة الرقم '{number}' باسم '{name}' بنجاح.")
+        add_number_states.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return
+
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
