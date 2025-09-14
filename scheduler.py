@@ -8,6 +8,7 @@ import threading
 import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from suggestion_bot import run_suggestion_bot
 
 from database import (
     get_all_users,
@@ -510,6 +511,7 @@ def start_scheduler():
     threading.Thread(target=check_discussion_sessions, daemon=True).start()
     threading.Thread(target=check_for_gpa_changes, daemon=True).start()
     threading.Thread(target=send_reminder_for_new_deadline, daemon=True).start()
+    threading.Thread(target=run_suggestion_bot, daemon=True).start()
 
     # شغل جدولة الامتحانات والتذكيرات
     threading.Thread(target=live_exam_reminder_loop, daemon=True).start()
