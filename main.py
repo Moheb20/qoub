@@ -416,7 +416,7 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("إرسال رسالة"))
         markup.add(types.KeyboardButton("إدارة المواعيد"))
         markup.add(types.KeyboardButton("إضافة قروب"))
-        markup.add(types.KeyboardButton("إضافة رقم"))  
+        markup.add(types.KeyboardButton("🛠️ إدارة الأرقام"))  
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
         return
