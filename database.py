@@ -40,6 +40,7 @@ def decrypt_text(token):
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # جدول المستخدمين
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     chat_id BIGINT PRIMARY KEY,
@@ -55,15 +56,18 @@ def init_db():
                 )
             ''')
 
+            # جدول السجلات (logs)
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS logs (
                     id SERIAL PRIMARY KEY,
-                    chat_id BIGINT UNIQUE,  -- ✅ أضف UNIQUE هنا
+                    chat_id BIGINT,   -- شلنا UNIQUE
                     event_type TEXT,
                     event_value TEXT,
                     created_at TEXT
                 )
             ''')
+
+            # جدول المواعيد النهائية
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS deadlines (
                     id SERIAL PRIMARY KEY,
@@ -71,6 +75,8 @@ def init_db():
                     date DATE NOT NULL
                 )
             ''')
+
+            # جدول المجموعات
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS groups (
                     id SERIAL PRIMARY KEY,
@@ -78,10 +84,37 @@ def init_db():
                     name TEXT NOT NULL UNIQUE,
                     link TEXT NOT NULL
                 )
-            ''')      
+            ''')
 
-            
+            # جدول الفروع
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS branches (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE
+                )
+            ''')
+
+            # جدول الأقسام
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS departments (
+                    id SERIAL PRIMARY KEY,
+                    branch_id INT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL
+                )
+            ''')
+
+            # جدول الأرقام/الأسماء
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS contacts (
+                    id SERIAL PRIMARY KEY,
+                    department_id INT NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    phone TEXT NOT NULL
+                )
+            ''')
+
         conn.commit()
+)
 
 # ---------- إدارة المستخدمين ----------
 def add_user(chat_id, student_id, password, registered_at=None):
@@ -417,3 +450,85 @@ def get_group_link(name):
             row = cur.fetchone()
             return row[0] if row else None
 
+# ===============================
+# الفروع
+# ===============================
+def add_branch(name: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO branches (name) VALUES (%s) ON CONFLICT DO NOTHING", (name,))
+        conn.commit()
+
+def get_branches():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name FROM branches ORDER BY name")
+            return cur.fetchall()
+
+def update_branch(branch_id: int, new_name: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE branches SET name = %s WHERE id = %s", (new_name, branch_id))
+        conn.commit()
+
+def delete_branch(branch_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM branches WHERE id = %s", (branch_id,))
+        conn.commit()
+
+# ===============================
+# الأقسام
+# ===============================
+def add_department(branch_id: int, name: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO departments (branch_id, name) VALUES (%s, %s)", (branch_id, name))
+        conn.commit()
+
+def get_departments(branch_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name FROM departments WHERE branch_id = %s ORDER BY name", (branch_id,))
+            return cur.fetchall()
+
+def update_department(dept_id: int, new_name: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE departments SET name = %s WHERE id = %s", (new_name, dept_id))
+        conn.commit()
+
+def delete_department(dept_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM departments WHERE id = %s", (dept_id,))
+        conn.commit()
+
+# ===============================
+# الأسماء + الأرقام
+# ===============================
+def add_contact(department_id: int, name: str, phone: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO contacts (department_id, name, phone) VALUES (%s, %s, %s)",
+                        (department_id, name, phone))
+        conn.commit()
+
+def get_contacts(department_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name, phone FROM contacts WHERE department_id = %s ORDER BY name", (department_id,))
+            return cur.fetchall()
+
+def update_contact(contact_id: int, new_name: str, new_phone: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE contacts SET name = %s, phone = %s WHERE id = %s",
+                        (new_name, new_phone, contact_id))
+        conn.commit()
+
+def delete_contact(contact_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM contacts WHERE id = %s", (contact_id,))
+        conn.commit()
