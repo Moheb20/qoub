@@ -29,7 +29,22 @@ from database import (
     get_categories,
     get_groups_by_category,
     get_deadline_by_id,
- 
+    add_branch,
+    get_branches,
+    get_branches_list,
+    update_branch,
+    delete_branch,
+    add_department,
+    get_departments,
+    get_departments_list,
+    update_department,
+    delete_department,
+    add_contact,
+    get_contacts,
+    get_contacts_list,
+    update_contact,
+    delete_contact,
+
 )
 from scheduler import start_scheduler
 from scheduler import send_reminder_for_new_deadline
@@ -389,7 +404,8 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("التحليلات"))
         markup.add(types.KeyboardButton("إرسال رسالة"))
         markup.add(types.KeyboardButton("إدارة المواعيد"))
-        markup.add(types.KeyboardButton("إضافة قروب"))       
+        markup.add(types.KeyboardButton("إضافة قروب"))
+        markup.add(types.KeyboardButton("إضافة رقم"))  
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
         return
