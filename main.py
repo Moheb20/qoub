@@ -111,6 +111,8 @@ def send_main_menu(chat_id):
         types.KeyboardButton("📚 الخطط الدراسية"),
         types.KeyboardButton("💰 رصيد الطالب"),
         types.KeyboardButton("📞 أرقام الأقسام وأعضاء الهيئة التدريسية"),
+        types.KeyboardButton("✉️ إرسال اقتراح")  
+
     )
     if chat_id in ADMIN_CHAT_ID:
         markup.add(types.KeyboardButton("admin"))
@@ -338,7 +340,13 @@ def handle_all_messages(message):
             logger.exception(f"Error fetching courses for {chat_id}: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب البيانات. حاول مرة أخرى لاحقاً.")
         return
-
+    elif text == "✉️ إرسال اقتراح":
+        bot.send_message(
+            chat_id,
+            "📬 لإرسال اقتراح، اضغط على الرابط التالي للتواصل عبر بوت الاقتراحات:\n"
+            "https://t.me/QOUSUGBOT"
+        )
+        return 
     # جدول المحاضرات
     elif text == "🗓️ جدول المحاضرات":
         user = get_user(chat_id)
