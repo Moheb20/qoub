@@ -100,6 +100,96 @@ def run_flask():
 
 # ---------- دوال مساعدة ----------
 
+
+# ---------- الدوال المساعدة ----------
+
+def handle_branch_selection(chat_id, text, state_dict):
+    if text == "العودة للرئيسية":
+        state_dict.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return None
+
+    branches = get_branches_list()
+    selected_branch = next(((b_id, b_name) for b_id, b_name in branches if b_name == text), None)
+    if not selected_branch:
+        bot.send_message(chat_id, "⚠️ الرجاء اختيار فرع صحيح.")
+        return None
+
+    branch_id, branch_name = selected_branch
+    state_dict[chat_id]["stage"] = "awaiting_department"
+    state_dict[chat_id]["branch_id"] = branch_id
+
+    departments = get_departments_list(branch_id)
+    if not departments:
+        bot.send_message(chat_id, "📭 لا توجد أقسام في هذا الفرع.")
+        return None
+
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+    for d_id, d_name in departments:
+        markup.add(types.KeyboardButton(d_name))
+    markup.add(types.KeyboardButton("العودة للرئيسية"))
+
+    bot.send_message(chat_id, f"🏢 اختر القسم في '{branch_name}':", reply_markup=markup)
+    return branch_id
+
+
+def handle_department_selection(chat_id, text, state_dict):
+    if text == "العودة للرئيسية":
+        state_dict.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return None
+
+    branch_id = state_dict[chat_id]["branch_id"]
+    departments = get_departments_list(branch_id)
+    selected_dept = next(((d_id, d_name) for d_id, d_name in departments if d_name == text), None)
+    if not selected_dept:
+        bot.send_message(chat_id, "⚠️ الرجاء اختيار قسم صحيح.")
+        return None
+
+    dept_id, dept_name = selected_dept
+    state_dict[chat_id]["stage"] = "awaiting_contact"
+    state_dict[chat_id]["dept_id"] = dept_id
+
+    contacts = get_contacts_list(dept_id)
+    if not contacts:
+        bot.send_message(chat_id, "📭 لا توجد بيانات في هذا القسم.")
+        return None
+
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+    for c_id, c_name, c_phone in contacts:
+        markup.add(types.KeyboardButton(c_name))
+    markup.add(types.KeyboardButton("العودة للرئيسية"))
+
+    bot.send_message(chat_id, f"👤 اختر الاسم:", reply_markup=markup)
+    return dept_id
+
+
+def handle_contact_selection(chat_id, text, state_dict, action):
+    if text == "العودة للرئيسية":
+        state_dict.pop(chat_id, None)
+        send_main_menu(chat_id)
+        return None
+
+    dept_id = state_dict[chat_id]["dept_id"]
+    contacts = get_contacts_list(dept_id)
+    selected_contact = next(((c_id, c_name, c_phone) for c_id, c_name, c_phone in contacts if c_name == text), None)
+    if not selected_contact:
+        bot.send_message(chat_id, "⚠️ الرجاء اختيار اسم صحيح.")
+        return None
+
+    c_id, c_name, c_phone = selected_contact
+
+    if action == "edit":
+        state_dict[chat_id]["stage"] = "awaiting_new_info"
+        state_dict[chat_id]["contact_id"] = c_id
+        bot.send_message(chat_id, f"✍️ أدخل الاسم والرقم الجديد بصيغة: الاسم - الرقم لـ '{c_name}':")
+    elif action == "delete":
+        delete_contact(c_id)
+        bot.send_message(chat_id, f"✅ تم حذف '{c_name}' بنجاح.")
+        state_dict.pop(chat_id, None)
+        send_main_menu(chat_id)
+
+
 def send_main_menu(chat_id):
     """إرسال القائمة الرئيسية مع زر الأدمن للمستخدم المناسب"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
@@ -165,83 +255,6 @@ def handle_start(message):
 
 
 @bot.message_handler(func=lambda message: True)
-def handle_branch_selection(chat_id, text, state_dict):
-    if text == "العودة للرئيسية":
-        state_dict.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return None
-
-    branches = get_branches_list()
-    selected_branch = next(((b_id, b_name) for b_id, b_name in branches if b_name == text), None)
-    if not selected_branch:
-        bot.send_message(chat_id, "⚠️ الرجاء اختيار فرع صحيح.")
-        return None
-
-    branch_id, branch_name = selected_branch
-    state_dict[chat_id]["stage"] = "awaiting_department"
-    state_dict[chat_id]["branch_id"] = branch_id
-
-    departments = get_departments_list(branch_id)
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-    for d_id, d_name in departments:
-        markup.add(types.KeyboardButton(d_name))
-    markup.add(types.KeyboardButton("العودة للرئيسية"))
-    bot.send_message(chat_id, f"🏢 اختر القسم في '{branch_name}':", reply_markup=markup)
-    return branch_id
-
-def handle_department_selection(chat_id, text, state_dict):
-    if text == "العودة للرئيسية":
-        state_dict.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return None
-
-    branch_id = state_dict[chat_id]["branch_id"]
-    departments = get_departments_list(branch_id)
-    selected_dept = next(((d_id, d_name) for d_id, d_name in departments if d_name == text), None)
-    if not selected_dept:
-        bot.send_message(chat_id, "⚠️ الرجاء اختيار قسم صحيح.")
-        return None
-
-    dept_id, dept_name = selected_dept
-    state_dict[chat_id]["stage"] = "awaiting_contact"
-    state_dict[chat_id]["dept_id"] = dept_id
-
-    contacts = get_contacts_list(dept_id)
-    if not contacts:
-        bot.send_message(chat_id, "📭 لا توجد بيانات في هذا القسم.")
-        return None
-
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-    for c_id, c_name, c_phone in contacts:
-        markup.add(types.KeyboardButton(c_name))
-    markup.add(types.KeyboardButton("العودة للرئيسية"))
-    bot.send_message(chat_id, f"👤 اختر الاسم:", reply_markup=markup)
-    return dept_id
-
-def handle_contact_selection(chat_id, text, state_dict, action):
-    if text == "العودة للرئيسية":
-        state_dict.pop(chat_id, None)
-        send_main_menu(chat_id)
-        return None
-
-    dept_id = state_dict[chat_id]["dept_id"]
-    contacts = get_contacts_list(dept_id)
-    selected_contact = next(((c_id, c_name, c_phone) for c_id, c_name, c_phone in contacts if c_name == text), None)
-    if not selected_contact:
-        bot.send_message(chat_id, "⚠️ الرجاء اختيار اسم صحيح.")
-        return None
-
-    c_id, c_name, c_phone = selected_contact
-
-    if action == "edit":
-        state_dict[chat_id]["stage"] = "awaiting_new_info"
-        state_dict[chat_id]["contact_id"] = c_id
-        bot.send_message(chat_id, f"✍️ أدخل الاسم والرقم الجديد بصيغة: الاسم - الرقم لـ '{c_name}':")
-    elif action == "delete":
-        delete_contact(c_id)
-        bot.send_message(chat_id, f"✅ تم حذف '{c_name}' بنجاح.")
-        state_dict.pop(chat_id, None)
-        send_main_menu(chat_id)
 def handle_all_messages(message):
     chat_id = message.chat.id
     text = (message.text or "").strip()
@@ -1144,10 +1157,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, f"📞 رقم '{c_name}': {c_number}")
         return
     
-    # ---------- مسار إضافة رقم للأدمن ----------
-# ---------- بدء إضافة رقم للأدمن ----------
-# ---------- حالة اختيار إدارة الأرقام ----------
-# ========== إدارة الأرقام للأدمن ==========
+    # ---------- إدارة الأرقام ----------
     elif text == "🛠️ إدارة الأرقام" and chat_id in ADMIN_CHAT_ID:
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         markup.add(
@@ -1159,41 +1169,130 @@ def handle_all_messages(message):
         )
         bot.send_message(chat_id, "اختر العملية التي تريد تنفيذها:", reply_markup=markup)
         return
-    
+
     # ---------- عرض الفروع ----------
-    if text == "عرض الفروع" and chat_id in ADMIN_CHAT_ID:
+    elif text == "عرض الفروع" and chat_id in ADMIN_CHAT_ID:
         branches = get_branches_list()
         if not branches:
             bot.send_message(chat_id, "📭 لا توجد فروع حالياً.")
             return
-    
+
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         for b_id, b_name in branches:
             markup.add(types.KeyboardButton(b_name))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "🏢 الفروع الحالية:", reply_markup=markup)
         return
-    
+
     # ---------- إضافة رقم ----------
     elif text == "إضافة رقم" and chat_id in ADMIN_CHAT_ID:
         add_number_states[chat_id] = {"stage": "awaiting_branch"}
         bot.send_message(chat_id, "🏢 اكتب اسم الفرع لإضافة الرقم (سيتم إضافته تلقائيًا إذا لم يكن موجودًا):")
         return
-    
+
     # ---------- تعديل رقم ----------
     elif text == "تعديل رقم" and chat_id in ADMIN_CHAT_ID:
         edit_contact_states[chat_id] = {"stage": "awaiting_branch"}
         bot.send_message(chat_id, "🏢 اختر الفرع لتعديل الرقم:")
         return
-    
+
     # ---------- حذف رقم ----------
     elif text == "حذف رقم" and chat_id in ADMIN_CHAT_ID:
         delete_contact_states[chat_id] = {"stage": "awaiting_branch"}
         bot.send_message(chat_id, "🏢 اختر الفرع لحذف الرقم:")
         return
-    
-    # ---------- الدوال المساعدة لاختيار فرع / قسم / اسم ----------
 
+    # ---------- متابعة الإضافة ----------
+    if chat_id in add_number_states:
+        stage = add_number_states[chat_id]["stage"]
+
+        if stage == "awaiting_branch":
+            branch_name = text.strip()
+            branches = dict(get_branches_list())
+            branch_id = None
+            for b_id, b_name in branches.items():
+                if b_name == branch_name:
+                    branch_id = b_id
+                    break
+            if not branch_id:
+                add_branch(branch_name)
+                branches = dict(get_branches_list())
+                branch_id = [b_id for b_id, b_name in branches.items() if b_name == branch_name][0]
+
+            add_number_states[chat_id] = {"stage": "awaiting_department", "branch_id": branch_id}
+            bot.send_message(chat_id, "📂 اكتب اسم القسم:")
+            return
+
+        elif stage == "awaiting_department":
+            dept_name = text.strip()
+            branch_id = add_number_states[chat_id]["branch_id"]
+            departments = dict(get_departments_list(branch_id))
+            dept_id = None
+            for d_id, d_name in departments.items():
+                if d_name == dept_name:
+                    dept_id = d_id
+                    break
+            if not dept_id:
+                add_department(branch_id, dept_name)
+                departments = dict(get_departments_list(branch_id))
+                dept_id = [d_id for d_id, d_name in departments.items() if d_name == dept_name][0]
+
+            add_number_states[chat_id] = {"stage": "awaiting_contact", "branch_id": branch_id, "dept_id": dept_id}
+            bot.send_message(chat_id, "👤 اكتب الاسم والرقم بالصيغة: الاسم - الرقم")
+            return
+
+        elif stage == "awaiting_contact":
+            if "-" not in text:
+                bot.send_message(chat_id, "⚠️ الرجاء إدخال البيانات بالصيغة الصحيحة: الاسم - الرقم")
+                return
+            name, number = map(str.strip, text.split("-", 1))
+            dept_id = add_number_states[chat_id]["dept_id"]
+            add_contact(dept_id, name, number)
+            bot.send_message(chat_id, f"✅ تم إضافة الرقم: {name} - {number}")
+            add_number_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+
+    # ---------- متابعة التعديل ----------
+    if chat_id in edit_contact_states:
+        stage = edit_contact_states[chat_id]["stage"]
+
+        if stage == "awaiting_branch":
+            handle_branch_selection(chat_id, text, edit_contact_states)
+            return
+        elif stage == "awaiting_department":
+            handle_department_selection(chat_id, text, edit_contact_states)
+            return
+        elif stage == "awaiting_contact":
+            handle_contact_selection(chat_id, text, edit_contact_states, action="edit")
+            return
+        elif stage == "awaiting_new_info":
+            if "-" not in text:
+                bot.send_message(chat_id, "⚠️ الرجاء إدخال البيانات بالصيغة الصحيحة: الاسم - الرقم")
+                return
+            name, number = map(str.strip, text.split("-", 1))
+            contact_id = edit_contact_states[chat_id]["contact_id"]
+            update_contact(contact_id, name, number)
+            bot.send_message(chat_id, f"✅ تم تحديث البيانات إلى: {name} - {number}")
+            edit_contact_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return
+
+    # ---------- متابعة الحذف ----------
+    if chat_id in delete_contact_states:
+        stage = delete_contact_states[chat_id]["stage"]
+
+        if stage == "awaiting_branch":
+            handle_branch_selection(chat_id, text, delete_contact_states)
+            return
+        elif stage == "awaiting_department":
+            handle_department_selection(chat_id, text, delete_contact_states)
+            return
+        elif stage == "awaiting_contact":
+            handle_contact_selection(chat_id, text, delete_contact_states, action="delete")
+            return
+
+    # ---------- الرد الافتراضي ----------
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 
