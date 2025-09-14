@@ -1059,6 +1059,8 @@ def handle_all_messages(message):
     # ---------- مسار إضافة رقم للأدمن ----------
 # ---------- بدء إضافة رقم للأدمن ----------
     elif text == "إضافة رقم" and chat_id in ADMIN_CHAT_ID:
+        branch_selection_states.pop(chat_id, None)
+        department_selection_states.pop(chat_id, None)
         add_number_states[chat_id] = {"stage": "awaiting_branch"}
         bot.send_message(chat_id, "🏢 اكتب اسم الفرع لإضافة الرقم (سيتم إضافته تلقائيًا إذا لم يكن موجودًا):")
         return
