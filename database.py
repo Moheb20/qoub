@@ -114,7 +114,7 @@ def init_db():
             ''')
 
         conn.commit()
-)
+
 
 # ---------- إدارة المستخدمين ----------
 def add_user(chat_id, student_id, password, registered_at=None):
