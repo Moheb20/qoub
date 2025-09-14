@@ -68,6 +68,9 @@ session_states = {}       # لحالات الجلسة بعد التسجيل (ا�
 admin_states = {}
 # حفظ حالة الأدمن عند إضافة/تعديل/حذف القروبات
 admin_group_states = {}
+branch_selection_states = {}      # لتخزين حالة اختيار الفرع لكل مستخدم
+department_selection_states = {}  # لتخزين حالة اختيار القسم لكل مستخدم
+add_number_states = {}
 
 
 plans_file_path = os.path.join(os.path.dirname(__file__), "qou.json")
