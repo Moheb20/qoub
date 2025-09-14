@@ -1203,29 +1203,17 @@ def handle_all_messages(message):
         return
 
     # ---------- متابعة الإضافة ----------
+    # ---------- متابعة إضافة رقم ----------
     if chat_id in add_number_states:
         stage = add_number_states[chat_id]["stage"]
-
+    
         if stage == "awaiting_branch":
-            branch_name = text.strip()
-            branches = dict(get_branches_list())
-            branch_id = None
-            for b_id, b_name in branches.items():
-                if b_name == branch_name:
-                    branch_id = b_id
-                    break
-            if not branch_id:
-                add_branch(branch_name)
-                branches = dict(get_branches_list())
-                branch_id = [b_id for b_id, b_name in branches.items() if b_name == branch_name][0]
-
-            add_number_states[chat_id] = {"stage": "awaiting_department", "branch_id": branch_id}
-            bot.send_message(chat_id, "📂 اكتب اسم القسم:")
+            handle_branch_selection(chat_id, text, add_number_states)
             return
-
+    
         elif stage == "awaiting_department":
-            dept_name = text.strip()
             branch_id = add_number_states[chat_id]["branch_id"]
+            dept_name = text.strip()
             departments = dict(get_departments_list(branch_id))
             dept_id = None
             for d_id, d_name in departments.items():
@@ -1236,12 +1224,13 @@ def handle_all_messages(message):
                 add_department(branch_id, dept_name)
                 departments = dict(get_departments_list(branch_id))
                 dept_id = [d_id for d_id, d_name in departments.items() if d_name == dept_name][0]
-
-            add_number_states[chat_id] = {"stage": "awaiting_contact", "branch_id": branch_id, "dept_id": dept_id}
+    
+            add_number_states[chat_id]["stage"] = "awaiting_new_contact"
+            add_number_states[chat_id]["dept_id"] = dept_id
             bot.send_message(chat_id, "👤 اكتب الاسم والرقم بالصيغة: الاسم - الرقم")
             return
-
-        elif stage == "awaiting_contact":
+    
+        elif stage == "awaiting_new_contact":
             if "-" not in text:
                 bot.send_message(chat_id, "⚠️ الرجاء إدخال البيانات بالصيغة الصحيحة: الاسم - الرقم")
                 return
@@ -1253,19 +1242,24 @@ def handle_all_messages(message):
             send_main_menu(chat_id)
             return
 
-    # ---------- متابعة التعديل ----------
+
+# ---------- متابعة تعديل رقم ----------
     if chat_id in edit_contact_states:
         stage = edit_contact_states[chat_id]["stage"]
-
+    
         if stage == "awaiting_branch":
             handle_branch_selection(chat_id, text, edit_contact_states)
             return
+    
         elif stage == "awaiting_department":
             handle_department_selection(chat_id, text, edit_contact_states)
             return
+    
         elif stage == "awaiting_contact":
+            # اختيار الاسم/الرقم من القائمة
             handle_contact_selection(chat_id, text, edit_contact_states, action="edit")
             return
+    
         elif stage == "awaiting_new_info":
             if "-" not in text:
                 bot.send_message(chat_id, "⚠️ الرجاء إدخال البيانات بالصيغة الصحيحة: الاسم - الرقم")
@@ -1277,18 +1271,22 @@ def handle_all_messages(message):
             edit_contact_states.pop(chat_id, None)
             send_main_menu(chat_id)
             return
-
-    # ---------- متابعة الحذف ----------
+    
+    
+    # ---------- متابعة حذف رقم ----------
     if chat_id in delete_contact_states:
         stage = delete_contact_states[chat_id]["stage"]
-
+    
         if stage == "awaiting_branch":
             handle_branch_selection(chat_id, text, delete_contact_states)
             return
+    
         elif stage == "awaiting_department":
             handle_department_selection(chat_id, text, delete_contact_states)
             return
+    
         elif stage == "awaiting_contact":
+            # اختيار الاسم/الرقم من القائمة
             handle_contact_selection(chat_id, text, delete_contact_states, action="delete")
             return
 
