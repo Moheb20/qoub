@@ -10,16 +10,21 @@ import threading
 import logging
 from flask import Flask
 from telebot import types
-from scheduler import start_scheduler
+
 # استيراد المكونات الخاصة بنا
 from bot_instance import bot
-from database import init_db, get_all_users
+from database import init_db, get_all_users, start_scheduler
 from config import PLANS_FILE_PATH
-from handlers.admin_handlers import setup_admin_handlers
-from handlers.user_handlers import setup_user_handlers
-from handlers.contact_handlers import setup_contact_handlers
-from handlers.deadline_handlers import setup_deadline_handlers
-from handlers.group_handlers import setup_group_handlers
+
+# استيراد معالجات البوت من المجلدات
+from handlers import (
+    setup_admin_handlers,
+    setup_user_handlers,
+    setup_contact_handlers,
+    setup_deadline_handlers,
+    setup_group_handlers
+)
+
 from states.user_states import study_plan_states
 
 # ---------- إعداد السجل (logging) ----------
