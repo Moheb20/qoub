@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from bot_instance import bot
 from database import (
     get_bot_stats,
@@ -35,7 +35,7 @@ def api_stats():
 
 @app.route("/dashboard")
 def dashboard():
-    return app.send_static_file("dashboard.html")
+    return render_template("dashboard.html")  # سيأخذ الملف من مجلد templates
 
 # -------------------- إرسال رسالة جماعية --------------------
 @app.route("/api/broadcast", methods=["POST"])
@@ -97,4 +97,5 @@ def api_add_group():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
