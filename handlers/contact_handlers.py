@@ -22,10 +22,18 @@ def setup_contact_handlers():
         
         branch_selection_states[chat_id] = {"stage": "awaiting_branch"}
         bot.send_message(chat_id, "🏢 اختر فرع:", reply_markup=markup)
-
+    
     @bot.message_handler(func=lambda message: message.text == "🛠️ إدارة الأرقام" and message.chat.id in ADMIN_CHAT_ID)
     def handle_contact_management(message):
         chat_id = message.chat.id
+    
+        # 🧹 تنظيف أي حالات قديمة
+        add_number_states.pop(chat_id, None)
+        edit_contact_states.pop(chat_id, None)
+        delete_contact_states.pop(chat_id, None)
+        branch_selection_states.pop(chat_id, None)
+        department_selection_states.pop(chat_id, None)
+    
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         markup.add(
             types.KeyboardButton("عرض الفروع"),
@@ -35,6 +43,7 @@ def setup_contact_handlers():
             types.KeyboardButton("العودة للرئيسية")
         )
         bot.send_message(chat_id, "اختر العملية التي تريد تنفيذها:", reply_markup=markup)
+
 
     @bot.message_handler(func=lambda message: message.text == "عرض الفروع" and message.chat.id in ADMIN_CHAT_ID)
     def handle_show_branches(message):
