@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard الأدمن</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+        h1 { text-align: center; }
+        .section { background: #fff; padding: 15px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        label { display: block; margin-top: 10px; }
+        input, textarea, select, button { width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; }
+        button { background: #007bff; color: white; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>لوحة تحكم الأدمن</h1>
+
+    <div class="section" id="analytics-section">
+        <h2>📊 التحليلات</h2>
+        <label>أدخل Chat ID للأدمن:</label>
+        <input type="number" id="admin-chat-id" placeholder="مثال: 6292405444">
+        <button onclick="loadStats()">عرض الإحصائيات</button>
+        <pre id="stats-output"></pre>
+    </div>
+
+    <div class="section" id="broadcast-section">
+        <h2>✉️ إرسال رسالة جماعية</h2>
+        <label>نص الرسالة:</label>
+        <textarea id="broadcast-text" rows="4"></textarea>
+        <button onclick="sendBroadcast()">إرسال</button>
+        <pre id="broadcast-output"></pre>
+    </div>
+
+    <div class="section" id="deadlines-section">
+        <h2>🗓️ إدارة المواعيد</h2>
+        <button onclick="loadDeadlines()">عرض كل المواعيد</button>
+        <table id="deadlines-table">
+            <thead>
+                <tr>
+                    <th>ID</th><th>الاسم</th><th>التاريخ</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <h3>➕ إضافة موعد</h3>
+        <label>الاسم:</label><input type="text" id="new-deadline-name">
+        <label>التاريخ (YYYY-MM-DD):</label><input type="text" id="new-deadline-date">
+        <button onclick="addDeadline()">إضافة الموعد</button>
+        <pre id="deadline-output"></pre>
+    </div>
+
+    <div class="section" id="groups-section">
+        <h2>📚 إضافة قروب</h2>
+        <label>اسم القروب:</label><input type="text" id="group-name">
+        <label>التصنيف:</label><input type="text" id="group-category">
+        <label>رابط القروب:</label><input type="text" id="group-link">
+        <button onclick="addGroup()">إضافة القروب</button>
+        <pre id="group-output"></pre>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:5000/api"; // عدّل إذا استعملت سيرفر آخر
+
+        function getAdminChatId() {
+            return document.getElementById("admin-chat-id").value;
+        }
+
+        async function loadStats() {
+            const chat_id = getAdminChatId();
+            const res = await fetch(`${API_URL}/stats?chat_id=${chat_id}`);
+            const data = await res.json();
+            document.getElementById("stats-output").textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function sendBroadcast() {
+            const chat_id = getAdminChatId();
+            const message = document.getElementById("broadcast-text").value;
+            const res = await fetch(`${API_URL}/broadcast`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id, message })
+            });
+            const data = await res.json();
+            document.getElementById("broadcast-output").textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function loadDeadlines() {
+            const chat_id = getAdminChatId();
+            const res = await fetch(`${API_URL}/deadlines?chat_id=${chat_id}`);
+            const data = await res.json();
+            const tbody = document.querySelector("#deadlines-table tbody");
+            tbody.innerHTML = "";
+            data.forEach(d => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `<td>${d.id}</td><td>${d.name}</td><td>${d.date}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function addDeadline() {
+            const chat_id = getAdminChatId();
+            const name = document.getElementById("new-deadline-name").value;
+            const date = document.getElementById("new-deadline-date").value;
+            const res = await fetch(`${API_URL}/deadlines/add`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id, name, date })
+            });
+            const data = await res.json();
+            document.getElementById("deadline-output").textContent = JSON.stringify(data, null, 2);
+            loadDeadlines();
+        }
+
+        async function addGroup() {
+            const chat_id = getAdminChatId();
+            const name = document.getElementById("group-name").value;
+            const category = document.getElementById("group-category").value;
+            const link = document.getElementById("group-link").value;
+            const res = await fetch(`${API_URL}/groups/add`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id, name, category, link })
+            });
+            const data = await res.json();
+            document.getElementById("group-output").textContent = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
