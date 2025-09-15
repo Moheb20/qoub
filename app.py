@@ -23,6 +23,7 @@ ADMIN_CHAT_ID = [6292405444, 1851786931]
 def is_admin(chat_id):
     return chat_id in ADMIN_CHAT_ID
 
+
 # -------------------- الإحصائيات --------------------
 @app.route("/api/stats", methods=["GET"])
 def api_stats():
@@ -31,6 +32,10 @@ def api_stats():
         return jsonify({"error": "غير مصرح"}), 403
     stats = get_bot_stats()
     return jsonify(stats)
+
+@app.route("/dashboard")
+def dashboard():
+    return app.send_static_file("dashboard.html")
 
 # -------------------- إرسال رسالة جماعية --------------------
 @app.route("/api/broadcast", methods=["POST"])
@@ -92,3 +97,4 @@ def api_add_group():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
