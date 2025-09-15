@@ -8,6 +8,7 @@ from bidi.algorithm import get_display
 load_dotenv()
 import threading
 import logging
+import app
 from flask import Flask
 from telebot import types
 from bot_instance import bot
@@ -79,7 +80,8 @@ app = Flask(__name__)
 def home():
     return "✅ البوت يعمل بنجاح!"
 
-
+def run_dashboard():
+    app.run(host="0.0.0.0", port=8080)
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
@@ -960,6 +962,8 @@ def handle_all_messages(message):
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
+    dashboard_thread = Thread(target=run_dashboard)
+    dashboard_thread.start()
     try:
         bot.remove_webhook()
     except Exception:
