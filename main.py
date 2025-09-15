@@ -6,6 +6,7 @@ import json
 import arabic_reshaper
 from bidi.algorithm import get_display
 load_dotenv()
+from threading import Thread
 import threading
 import logging
 import app
