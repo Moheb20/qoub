@@ -52,7 +52,7 @@ def setup_deadline_handlers():
         bot.send_message(chat_id, msg)
         admin_deadline_states[chat_id] = {"stage": "awaiting_edit_id"}
 
-    @bot.message_handler(func=lambda message: chat_id in admin_deadline_states and admin_deadline_states[chat_id].get("stage") == "awaiting_name")
+    @bot.message_handler(func=lambda message: message.chat.id in admin_deadline_states and admin_deadline_states[message.chat.id].get("stage") == "awaiting_name")
     def handle_deadline_name(message):
         chat_id = message.chat.id
         text = message.text.strip()
@@ -177,4 +177,5 @@ def setup_deadline_handlers():
         update_deadline(deadline_id, new_name, new_date)
         bot.send_message(chat_id, f"✅ تم تعديل الموعد بنجاح: '{new_name}' بتاريخ {new_date.strftime('%d/%m/%Y')}")
         admin_deadline_states.pop(chat_id, None)
+
         send_main_menu(chat_id)
