@@ -10,10 +10,10 @@ import threading
 import logging
 from flask import Flask
 from telebot import types
-
+from scheduler import start_scheduler
 # استيراد المكونات الخاصة بنا
 from bot_instance import bot
-from database import init_db, get_all_users, start_scheduler
+from database import init_db, get_all_users
 from config import PLANS_FILE_PATH
 from handlers.admin_handlers import setup_admin_handlers
 from handlers.user_handlers import setup_user_handlers
