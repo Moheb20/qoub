@@ -10,7 +10,7 @@ import threading
 import logging
 from flask import Flask
 from telebot import types
-import scheduler
+from scheduler import start_scheduler
 # استيراد المكونات الخاصة بنا
 from bot_instance import bot
 from database import init_db, get_all_users
