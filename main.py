@@ -54,12 +54,7 @@ session_states = {}       # لحالات الجلسة بعد التسجيل (ا�
 admin_states = {}
 # حفظ حالة الأدمن عند إضافة/تعديل/حذف القروبات
 admin_group_states = {}
-branch_selection_states = {}      # لتخزين حالة اختيار الفرع لكل مستخدم
-department_selection_states = {}  # لتخزين حالة اختيار القسم لكل مستخدم
-add_number_states = {}
-edit_contact_states = {}
-delete_contact_states = {}
-
+user_sessions = {}
 
 
 plans_file_path = os.path.join(os.path.dirname(__file__), "qou.json")
@@ -85,11 +80,34 @@ def run_flask():
 
 
 def send_main_menu(chat_id):
-    """إرسال القائمة الرئيسية مع زر الأدمن للمستخدم المناسب"""
+    """إرسال القائمة الرئيسية مع مراعاة حالة تسجيل الدخول"""
+    logged_in = user_sessions.get(chat_id, {}).get("logged_in", False)
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+
+    if not logged_in:
+        # المستخدم غير مسجل → يظهر فقط زر تسجيل الدخول
+        markup.add(types.KeyboardButton("👤 تسجيل الدخول"))
+        bot.send_message(chat_id, "⬇️ الرجاء تسجيل الدخول أولاً:", reply_markup=markup)
+    else:
+        # المستخدم مسجل → يظهر كل الأزرار
+        markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
+
+        # زر الخدمات الأكاديمية (قائمة فرعية)
+        markup.add(types.KeyboardButton("📖 الخدمات الأكاديمية"))
+
+        # زر أخرى (قائمة فرعية)
+        markup.add(types.KeyboardButton("📚 أخرى"))
+        if chat_id in ADMIN_CHAT_ID:
+            markup.add(types.KeyboardButton("admin"))
+
+        bot.send_message(chat_id, "⬇️ القائمة الرئيسية:", reply_markup=markup)
+        
+
+
+def send_academic_services(chat_id):
+    """القائمة الفرعية للخدمات الأكاديمية"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(
-        types.KeyboardButton("👤 تسجيل الدخول"),
-        types.KeyboardButton("📚 عرض القروبات"),
         types.KeyboardButton("📖 عرض المقررات والعلامات"),
         types.KeyboardButton("🗓️ جدول المحاضرات"),
         types.KeyboardButton("📊 عرض بيانات الفصل"),
@@ -97,12 +115,22 @@ def send_main_menu(chat_id):
         types.KeyboardButton("🎙️ حلقات النقاش"),
         types.KeyboardButton("📚 الخطط الدراسية"),
         types.KeyboardButton("💰 رصيد الطالب"),
-        types.KeyboardButton("✉️ إرسال اقتراح")  
-
+        types.KeyboardButton("⬅️ عودة للرئيسية")
     )
-    if chat_id in ADMIN_CHAT_ID:
-        markup.add(types.KeyboardButton("admin"))
-    bot.send_message(chat_id, "⬇️ القائمة الرئيسية:", reply_markup=markup)
+    bot.send_message(chat_id, "⬇️ اختر خدمة أكاديمية:", reply_markup=markup)
+
+
+def send_other_services(chat_id):
+    """القائمة الفرعية للخدمات الأخرى"""
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add(
+        types.KeyboardButton("📚 عرض القروبات"),
+        types.KeyboardButton("✉️ إرسال اقتراح"),
+        types.KeyboardButton("⬅️ عودة للرئيسية")
+    )
+    bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
+    
+
 
 
 def start_login(chat_id):
