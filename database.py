@@ -30,9 +30,10 @@ def encrypt_text(text):
     return fernet.encrypt(text.encode()).decode()
 
 def decrypt_text(token):
-    if token is None:
+    if not token:  # يشمل None و "" وكل النصوص الفارغة
         return None
     return fernet.decrypt(token.encode()).decode()
+
 
 
 
