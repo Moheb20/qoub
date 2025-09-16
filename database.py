@@ -157,11 +157,14 @@ def get_user(chat_id):
                 return user
             return None
 
-def remove_user(chat_id):
+def logout_user(chat_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute('DELETE FROM users WHERE chat_id = %s', (chat_id,))
+            # مسح بيانات تسجيل الدخول فقط، مع بقاء المستخدم موجود
+            cur.execute('UPDATE users SET student_id = %s, password = %s WHERE chat_id = %s',
+                        ("", "", chat_id))
         conn.commit()
+
 
 def update_last_msg(chat_id, msg_id):
     with get_conn() as conn:
