@@ -80,8 +80,12 @@ def run_flask():
 
 
 def send_main_menu(chat_id):
-    """إرسال القائمة الرئيسية مع مراعاة حالة تسجيل الدخول"""
-    logged_in = user_sessions.get(chat_id, {}).get("logged_in", False)
+    """إرسال القائمة الرئيسية مع مراعاة حالة تسجيل الدخول من قاعدة البيانات"""
+    user = get_user(chat_id)  # استدعاء دالة تجيب بيانات المستخدم من DB
+
+    # تحقق إذا المستخدم مسجل
+    logged_in = bool(user and user.get("student_id"))
+
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
 
     if not logged_in:
