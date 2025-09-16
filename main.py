@@ -94,14 +94,12 @@ def send_main_menu(chat_id):
         markup.add(types.KeyboardButton("👤 تسجيل الدخول"))
         bot.send_message(chat_id, "⬇️ الرجاء تسجيل الدخول أولاً:", reply_markup=markup)
     else:
-        # المستخدم مسجل → يظهر كل الأزرار
-        markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
-
         # زر الخدمات الأكاديمية (قائمة فرعية)
         markup.add(types.KeyboardButton("📖 الخدمات الأكاديمية"))
 
         # زر أخرى (قائمة فرعية)
         markup.add(types.KeyboardButton("📚 أخرى"))
+          markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
         if chat_id in ADMIN_CHAT_ID:
             markup.add(types.KeyboardButton("admin"))
 
