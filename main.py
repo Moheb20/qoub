@@ -257,6 +257,7 @@ def handle_all_messages(message):
                 scraper = QOUScraper(student_id, password)
                 if scraper.login():
                     add_user(chat_id, student_id, password)
+                    user_sessions[chat_id] = {"logged_in": True}
                     bot.send_message(chat_id, "✅ تم تسجيلك بنجاح!\n🔍 جاري البحث عن آخر رسالة...")
 
                     latest = scraper.fetch_latest_message()
