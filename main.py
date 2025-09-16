@@ -317,7 +317,22 @@ def handle_all_messages(message):
         bot.send_message(chat_id, f"🔗 رابط قروب '{text}':\n{link}")
         return
 
-    
+    elif text == "🚪 تسجيل الخروج":
+        user_sessions[chat_id]["logged_in"] = False
+        bot.send_message(chat_id, "✅ تم تسجيل الخروج!")
+        send_main_menu(chat_id)
+
+    # الخدمات الأكاديمية
+    elif text == "📖 الخدمات الأكاديمية":
+        send_academic_services(chat_id)
+
+    # الخدمات الأخرى
+    elif text == "📚 أخرى":
+        send_other_services(chat_id)
+
+    # العودة للرئيسية
+    elif text == "⬅️ عودة للرئيسية":
+        send_main_menu(chat_id)
     # عرض المقررات والعلامات
     elif text == "📖 عرض المقررات والعلامات":
         user = get_user(chat_id)
