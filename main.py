@@ -99,7 +99,7 @@ def send_main_menu(chat_id):
 
         # زر أخرى (قائمة فرعية)
         markup.add(types.KeyboardButton("📚 أخرى"))
-          markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
+        markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
         if chat_id in ADMIN_CHAT_ID:
             markup.add(types.KeyboardButton("admin"))
 
