@@ -322,8 +322,8 @@ def handle_all_messages(message):
         return
 
     elif text == "🚪 تسجيل الخروج":
-        user_sessions[chat_id]["logged_in"] = False
-        bot.send_message(chat_id, "✅ تم تسجيل الخروج!")
+        logout_user(chat_id)
+        bot.send_message(chat_id, "✅ تم تسجيل الخروج بنجاح!")
         send_main_menu(chat_id)
 
     # الخدمات الأكاديمية
