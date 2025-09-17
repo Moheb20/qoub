@@ -751,7 +751,6 @@ class QOUScraper:
     # دوال التكامل مع قاعدة البيانات
     def update_student_data(chat_id: int) -> bool:
         """تحديث بيانات الطالب في قاعدة البيانات"""
-        scraper = None
         try:
             # جلب بيانات المستخدم من قاعدة البيانات
             user = get_user(chat_id)
@@ -772,6 +771,22 @@ class QOUScraper:
             student_id = user['student_id'].strip()
             password = user['password'].strip()
             
+            logger.info(f"Attempting to update data for student: {student_id}")
+            
+            # إنشاء واستخدام السكرابر بدون حفظ المرجع
+            success = update_with_scraper(student_id, password, chat_id)
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return False
+    
+    def update_with_scraper(student_id, password, chat_id):
+        """دالة منفصلة للتعامل مع السكرابر"""
+        scraper = None
+        try:
             # إنشاء السكرابر
             scraper = QOUScraper(student_id, password)
             
@@ -783,8 +798,13 @@ class QOUScraper:
             # جلب البيانات
             study_plan_data = scraper.fetch_study_plan()
             
-            if not study_plan_data or study_plan_data.get('status') != 'success':
-                logger.error(f"Failed to fetch study plan for student: {student_id}")
+            if not study_plan_data:
+                logger.error(f"No study plan data returned for student: {student_id}")
+                return False
+            
+            if study_plan_data.get('status') != 'success':
+                error_msg = study_plan_data.get('error', 'Unknown error')
+                logger.error(f"Failed to fetch study plan for student {student_id}: {error_msg}")
                 return False
             
             # حفظ في قاعدة البيانات
@@ -795,7 +815,7 @@ class QOUScraper:
             return True
             
         except Exception as e:
-            logger.error(f"Error updating student data for chat_id {chat_id}: {e}")
+            logger.error(f"Error in update_with_scraper for student {student_id}: {str(e)}")
             return False
         finally:
             # تنظيف الموارد
@@ -803,8 +823,6 @@ class QOUScraper:
                 try:
                     if hasattr(scraper, 'close'):
                         scraper.close()
-                    elif hasattr(scraper, 'session'):
-                        scraper.session.close()
                 except Exception as cleanup_error:
                     logger.error(f"Error during cleanup: {cleanup_error}")
     
