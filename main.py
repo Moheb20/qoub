@@ -94,10 +94,8 @@ def send_main_menu(chat_id):
         markup.add(types.KeyboardButton("👤 تسجيل الدخول"))
         bot.send_message(chat_id, "⬇️ الرجاء تسجيل الدخول أولاً:", reply_markup=markup)
     else:
-        # زر الخدمات الأكاديمية (قائمة فرعية)
         markup.add(types.KeyboardButton("📖 الخدمات الأكاديمية"))
-
-        # زر أخرى (قائمة فرعية)
+        markup.add(types.KeyboardButton("📅 التقويم الحالي"))
         markup.add(types.KeyboardButton("📚 أخرى"))
         markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
         if chat_id in ADMIN_CHAT_ID:
@@ -116,7 +114,6 @@ def send_academic_services(chat_id):
         types.KeyboardButton("📊 عرض بيانات الفصل"),
         types.KeyboardButton("📅 جدول الامتحانات"),
         types.KeyboardButton("🎙️ حلقات النقاش"),
-        types.KeyboardButton("📅 التقويم الحالي"),
         types.KeyboardButton("📚 الخطط الدراسية"),
         types.KeyboardButton("💰 رصيد الطالب"),
         types.KeyboardButton("⬅️ عودة للرئيسية")
