@@ -96,6 +96,8 @@ def send_main_menu(chat_id):
     else:
         markup.add(types.KeyboardButton("📖 الخدمات الأكاديمية"))
         markup.add(types.KeyboardButton("📅 التقويم الحالي"))
+        current_week_text = get_current_week_type()
+        markup.add(types.KeyboardButton(current_week_text))
         markup.add(types.KeyboardButton("📚 أخرى"))
         markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
         if chat_id in ADMIN_CHAT_ID:
