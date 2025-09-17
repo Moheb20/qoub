@@ -741,8 +741,8 @@ class QOUScraper:
     
     
     # دوال التكامل مع قاعدة البيانات
-    async def update_student_data(chat_id: int) -> bool:
-        """تحديث بيانات الطالب في قاعدة البيانات"""
+    def update_student_data(chat_id: int) -> bool:
+        """تحديث بيانات الطالب في قاعدة البيانات (نسخة عادية)"""
         try:
             # جلب بيانات المستخدم من قاعدة البيانات
             user = get_user(chat_id)
