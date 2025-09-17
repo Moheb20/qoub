@@ -195,22 +195,38 @@ def log_chat_id(chat_id):
             conn.commit()
 
 def get_user(chat_id):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute('''
-                SELECT chat_id, student_id, password, last_msg_id, courses_data,
-                       last_login, last_interaction, registered_at, status, last_gpa
-                FROM users WHERE chat_id = %s
-            ''', (chat_id,))
-            row = cur.fetchone()
-            if row:
-                columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
-                           'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
-                user = dict(zip(columns, row))
-                user['student_id'] = decrypt_text(user['student_id'])
-                user['password'] = decrypt_text(user['password'])
-                return user
-            return None
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT chat_id, student_id, password, last_msg_id, courses_data,
+                           last_login, last_interaction, registered_at, status, last_gpa
+                    FROM users WHERE chat_id = %s
+                ''', (chat_id,))
+                row = cur.fetchone()
+                if row:
+                    columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
+                               'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
+                    user = dict(zip(columns, row))
+                    
+                    # فك تشفير البيانات مع معالجة الأخطاء
+                    try:
+                        user['student_id'] = decrypt_text(user['student_id'])
+                    except Exception as e:
+                        logger.error(f"Error decrypting student_id for {chat_id}: {e}")
+                        user['student_id'] = None
+                    
+                    try:
+                        user['password'] = decrypt_text(user['password'])
+                    except Exception as e:
+                        logger.error(f"Error decrypting password for {chat_id}: {e}")
+                        user['password'] = None
+                    
+                    return user
+                return None
+    except Exception as e:
+        logger.error(f"Error getting user {chat_id}: {e}")
+        return None
 
 def logout_user(chat_id):
     with get_conn() as conn:
