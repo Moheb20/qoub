@@ -1062,7 +1062,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
             return
         
-        stats = scraper.get_student_stats()
+        stats = scraper._extract_study_stats()
         if not stats:
             bot.send_message(chat_id, "⚠️ لم أتمكن من جلب إحصائياتك، جرب التحديث أولاً.")
             return
@@ -1096,7 +1096,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
             return
         
-        courses = scraper.get_student_courses()
+        courses = scraper._extract_courses()
         if not courses:
             bot.send_message(chat_id, "⚠️ لا توجد مقررات، جرب التحديث.")
             return
@@ -1129,7 +1129,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
             return
         
-        courses = scraper.get_student_courses()
+        courses = scraper._parse_course_row()
         if not courses:
             bot.send_message(chat_id, "⚠️ لا توجد مقررات، جرب التحديث.")
             return
@@ -1204,8 +1204,8 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
             return
         
-        stats = scraper.get_student_stats()
-        courses = scraper.get_student_courses()
+        stats = scraper.fetch_study_plan()
+        courses = scraper.fetch_study_plan()
         
         if not stats or not courses:
             bot.send_message(chat_id, "⚠️ لم أتمكن من جلب بياناتك، جرب التحديث أولاً.")
