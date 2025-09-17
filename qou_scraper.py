@@ -23,6 +23,7 @@ TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
 WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 BALANCE_URL = 'https://portal.qou.edu/student/getSasStudFtermCardList.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
+cel = 'https://portal.qou.edu/calendarProposed.do'
 logger = logging.getLogger(__name__)
 EXAM_TYPE_MAP = {
     "MT&IM": "📝 النصفي",
@@ -379,3 +380,36 @@ class QOUScraper:
         text += f"📊 رصيد الفصل: {total_balance}\n"
 
         return text
+
+
+    def get_active_calendar():
+        res = requests.get(cel)
+        res.encoding = "utf-8"  # الموقع بالعربي
+        soup = BeautifulSoup(res.text, "html.parser")
+    
+        # نجيب كل الصفوف الفعّالة (اللي مش text-not-active)
+        active_rows = soup.find_all("tr", class_=lambda x: x != "text-not-active")
+    
+        events = []
+        for row in active_rows:
+            cols = row.find_all("td")
+            if not cols:
+                continue
+            subject = cols[0].get_text(strip=True)
+            week = cols[1].get_text(strip=True)
+            day = cols[2].get_text(strip=True)
+            start = cols[3].get_text(strip=True)
+            end = cols[4].get_text(strip=True)
+    
+            event_text = f"""🗓 {subject}
+    📅 {day} {week}
+    ⏳ {start} → {end}"""
+            events.append(event_text)
+    
+        if not events:
+            return "ما لقيت أحداث حالياً 🤷‍♂️"
+    
+        # أول واحد = الحالي
+        current_calendar = events[0]
+    
+        return current_calendar
