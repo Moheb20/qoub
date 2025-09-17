@@ -128,7 +128,7 @@ def send_cel_services(chat_id):
     # أزرار التقويم
     markup.add(
         types.KeyboardButton("📅 التقويم الحالي"),
-        types.KeyboardButton("📅 عرض التقويم القادم")
+        types.KeyboardButton("📅 عرض التقويم القادم للفصل الحالي")
     )
     
     # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
@@ -357,7 +357,7 @@ def handle_all_messages(message):
     elif text == "📅 التـــقويــم":
         send_cel_services(chat_id)
 
-    elif text == "📅 عرض التقويم القادم":
+    elif text == "📅 عرض التقويم القادم للفصل الحالي":
         calendar_text1 = QOUScraper.get_full_current_semester_calendar()
         bot.send_message(chat_id, calendar_text1)
 
