@@ -743,6 +743,7 @@ class QOUScraper:
     # دوال التكامل مع قاعدة البيانات
     def update_student_data(chat_id: int) -> bool:
         """تحديث بيانات الطالب في قاعدة البيانات (نسخة عادية)"""
+        scraper = None
         try:
             # جلب بيانات المستخدم من قاعدة البيانات
             user = get_user(chat_id)
@@ -764,6 +765,17 @@ class QOUScraper:
             if study_plan_data['status'] != 'success':
                 logger.error(f"Failed to fetch study plan for student: {user['student_id']}")
                 return False
+            
+            # حفظ البيانات في قاعدة البيانات
+            save_student_stats(chat_id, study_plan_data['stats'])
+            save_student_courses(chat_id, study_plan_data['courses'])
+            
+            logger.info(f"Successfully updated data for student: {user['student_id']}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating student data for chat_id {chat_id}: {e}")
+            return False
             
             # حفظ في قاعدة البيانات
             save_student_stats(chat_id, study_plan_data['stats'])
