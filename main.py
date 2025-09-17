@@ -1051,23 +1051,19 @@ def handle_all_messages(message):
         return
     elif text == "📊 إحصائياتي":
         user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
             return
-        
-        bot.send_chat_action(chat_id, 'typing')  # إظهار أن البوت يعمل
-        scraper = QOUScraper(user['student_id'], user['password'])
-        
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
-            return
-        
-        stats = scraper._extract_study_stats()
-        if not stats:
-            bot.send_message(chat_id, "⚠️ لم أتمكن من جلب إحصائياتك، جرب التحديث أولاً.")
-            return
-        
+    
         try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            study_plan = scraper.fetch_study_plan()
+            stats = study_plan['stats']
+    
+            if not stats or study_plan['status'] != 'success':
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب تحديث بياناتك أولاً.")
+                return
+    
             reply = f"""
     📊 *إحصائياتك الحالية:*
     ✅ الساعات المطلوبة: {stats['total_hours_required']}
@@ -1078,101 +1074,78 @@ def handle_all_messages(message):
     🏁 حالة الخطة: {"مكتملة ✅" if stats['plan_completed'] else "غير مكتملة ⏳"}
     """
             bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
         except Exception as e:
-            logger.error(f"Error sending stats: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض الإحصائيات.")
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
     
     
     elif text == "📚 مقرراتي":
         user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
             return
-        
-        bot.send_chat_action(chat_id, 'typing')
-        scraper = QOUScraper(user['student_id'], user['password'])
-        
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
-            return
-        
-        courses = scraper._extract_courses()
-        if not courses:
-            bot.send_message(chat_id, "⚠️ لا توجد مقررات، جرب التحديث.")
-            return
-        
+    
         try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            study_plan = scraper.fetch_study_plan()
+            courses = study_plan['courses']
+    
+            if not courses or study_plan['status'] != 'success':
+                bot.send_message(chat_id, "⚠️ لا يوجد مقررات، جرب 🔄 تحديث بياناتك.")
+                return
+    
             reply = "📚 *قائمة مقرراتك:*\n\n"
-            for i, c in enumerate(courses[:20], 1):
+            for c in courses[:20]:
                 status_icon = "✅" if c['status'] == 'completed' else "🔄" if c['status'] == 'in_progress' else "⏳"
-                reply += f"{i}. {status_icon} {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
-            
-            if len(courses) > 20:
-                reply += f"\nو {len(courses) - 20} مقرر إضافي..."
-            
+                reply += f"{status_icon} {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
+    
             bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
         except Exception as e:
-            logger.error(f"Error sending courses: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض المقررات.")
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
     
     
     elif text == "📌 مقررات حالية":
         user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
             return
-        
-        bot.send_chat_action(chat_id, 'typing')
-        scraper = QOUScraper(user['student_id'], user['password'])
-        
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
-            return
-        
-        courses = scraper._parse_course_row()
-        if not courses:
-            bot.send_message(chat_id, "⚠️ لا توجد مقررات، جرب التحديث.")
-            return
-        
-        current = [c for c in courses if c['status'] == 'in_progress']
-        if not current:
-            bot.send_message(chat_id, "⏳ لا توجد مقررات قيد الدراسة حالياً.")
-            return
-        
+    
         try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            study_plan = scraper.fetch_study_plan()
+            current_courses = [c for c in study_plan['courses'] if c['status'] == 'in_progress']
+    
+            if not current_courses:
+                bot.send_message(chat_id, "⏳ لا يوجد مقررات قيد الدراسة.")
+                return
+    
             reply = "📌 *المقررات الحالية:*\n\n"
-            for i, c in enumerate(current, 1):
-                reply += f"{i}. {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
-            
+            for c in current_courses:
+                reply += f"▫️ {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
+    
             bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
         except Exception as e:
-            logger.error(f"Error sending current courses: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض المقررات الحالية.")
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
     
     
     elif text == "🎯 نسبة الإنجاز":
         user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
             return
-        
-        bot.send_chat_action(chat_id, 'typing')
-        scraper = QOUScraper(user['student_id'], user['password'])
-        
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
-            return
-        
-        stats = scraper.get_student_stats()
-        if not stats:
-            bot.send_message(chat_id, "⚠️ لم أتمكن من جلب إحصائياتك، جرب التحديث أولاً.")
-            return
-        
+    
         try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            stats = scraper.fetch_study_plan()['stats']
+    
+            if not stats:
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتي.")
+                return
+    
             percentage = stats['completion_percentage']
             progress_bar = "🟩" * int(percentage / 10) + "⬜" * (10 - int(percentage / 10))
-            remaining_hours = max(0, stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred'])
-            
             reply = f"""
     🎯 *نسبة إنجازك الدراسي:*
     
@@ -1183,80 +1156,58 @@ def handle_all_messages(message):
     • المطلوب: {stats['total_hours_required']} ساعة
     • المكتمل: {stats['total_hours_completed']} ساعة
     • المحتسب: {stats['total_hours_transferred']} ساعة
-    • المتبقي: {remaining_hours} ساعة
+    • المتبقي: {stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']} ساعة
     """
             bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
         except Exception as e:
-            logger.error(f"Error sending progress: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض نسبة الإنجاز.")
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
     
     
     elif text == "📋 الخطة الدراسية":
         user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
             return
-        
-        bot.send_chat_action(chat_id, 'typing')
-        scraper = QOUScraper(user['student_id'], user['password'])
-        
-        if not scraper.login():
-            bot.send_message(chat_id, "❌ فشل تسجيل الدخول، تحقق من بياناتك وحاول لاحقاً.")
-            return
-        
-        stats = scraper.fetch_study_plan()
-        courses = scraper.fetch_study_plan()
-        
-        if not stats or not courses:
-            bot.send_message(chat_id, "⚠️ لم أتمكن من جلب بياناتك، جرب التحديث أولاً.")
-            return
-        
+    
         try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            study_plan = scraper.fetch_study_plan()
+            stats = study_plan['stats']
+            courses = study_plan['courses']
+    
+            if not stats or not courses:
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتي.")
+                return
+    
             categories = {}
             for course in courses:
-                category = course['category']
-                if category not in categories:
-                    categories[category] = []
-                categories[category].append(course)
+                cat = course['category']
+                categories.setdefault(cat, []).append(course)
     
             reply = "📋 *الخطة الدراسية الشاملة*\n\n"
             for category, courses_list in categories.items():
                 completed = sum(1 for c in courses_list if c['status'] == 'completed')
                 total = len(courses_list)
-                category_percentage = (completed / total) * 100 if total > 0 else 0
-                reply += f"📁 *{category}:*\n"
-                reply += f"   {completed}/{total} مكتمل ({category_percentage:.1f}%)\n\n"
-            
+                percentage_cat = (completed / total) * 100 if total else 0
+                reply += f"📁 *{category}:*\n   {completed}/{total} مكتمل ({percentage_cat:.1f}%)\n\n"
+    
             reply += f"📊 *الإجمالي: {stats['completion_percentage']}% مكتمل*"
             bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
         except Exception as e:
-            logger.error(f"Error sending study plan: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض الخطة الدراسية.")
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
     
     
     elif text == "🔄 تحديث بياناتي":
-        user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
-            return
-        
-        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
-        
-        try:
-            # استخدام الدالة غير المتزامنة بشكل صحيح
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            success = loop.run_until_complete(update_student_data(chat_id))
-            loop.close()
-            
-            if success:
-                bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
-            else:
-                bot.send_message(chat_id, "⚠️ فشل التحديث، تحقق من بياناتك وحاول لاحقاً.")
-        except Exception as e:
-            logger.error(f"Error updating data: {e}")
-            bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {str(e)}")
+        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار ...")
+        success = update_student_data(chat_id)
+        if success:
+            bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
+        else:
+            bot.send_message(chat_id, "⚠️ فشل التحديث، حاول لاحقاً.")
     
+        
     
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
