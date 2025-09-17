@@ -18,6 +18,7 @@ from typing import Dict, Any
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
 pdfmetrics.registerFont(TTFont('Arial', font_path))
+STUDY_PLAN_URL = "https://portal.qou.edu/student/showMajorSheet.do" 
 LOGIN_URL = 'https://portal.qou.edu/login.do'
 INBOX_URL = 'https://portal.qou.edu/student/inbox.do'
 TERM_SUMMARY_URL = 'https://portal.qou.edu/student/showTermSummary.do'
