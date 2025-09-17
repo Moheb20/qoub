@@ -429,4 +429,43 @@ class QOUScraper:
         else:
             return "📅 الأسبوع الحالي: زوجي"
 
+    @staticmethod
+    def get_full_current_semester_calendar():
+        res = requests.get(cel)
+        res.encoding = "utf-8"
+        soup = BeautifulSoup(res.text, "html.parser")
+    
+        semesters = soup.find_all("div", class_="text-warning")
+        if not semesters:
+            return "لم أتمكن من العثور على أي فصول."
+    
+        # نفترض أن الفصل الحالي هو آخر فصل ظاهر في الصفحة
+        current_semester_div = semesters[-1]
+    
+        # ⚡ استخدم find_next_sibling للحصول على الجدول الصحيح
+        table = current_semester_div.find_next_sibling("table")
+        if not table:
+            return "لم أتمكن من العثور على جدول الأحداث للفصل الحالي."
+    
+        rows = table.find_all("tr")
+        events = []
+        for row in rows:
+            cols = row.find_all("td")
+            if not cols:
+                continue
+            subject = cols[0].get_text(strip=True)
+            week = cols[1].get_text(strip=True)
+            day = cols[2].get_text(strip=True)
+            start = cols[3].get_text(strip=True)
+            end = cols[4].get_text(strip=True)
+    
+            event_text = f"""🗓 {subject}
+    📅 {day} {week}
+    ⏳ {start} → {end}"""
+            events.append(event_text)
+    
+        if not events:
+            return "لا يوجد أحداث للفصل الحالي 🤷‍♂️"
+    
+        return "\n\n".join(events)
 
