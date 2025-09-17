@@ -1050,7 +1050,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "⚠️ الرجاء اختيار النسخة من القائمة.")
         return
     elif text == "📊 إحصائياتي":
-        stats = get_student_stats(chat_id)
+        stats = QOUScraper.get_student_stats(chat_id)
         if not stats:
             bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب التحديث أولاً.")
         else:
@@ -1066,7 +1066,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "📚 مقرراتي":
-        courses = get_student_courses(chat_id)
+        courses = QOUScraper.get_student_courses(chat_id)
         if not courses:
             bot.send_message(chat_id, "⚠️ لا يوجد مقررات، جرب التحديث.")
         else:
@@ -1077,7 +1077,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "📌 مقررات حالية":
-        courses = get_student_courses(chat_id)
+        courses = QOUScraper.get_student_courses(chat_id)
         current = [c for c in courses if c['status'] == 'in_progress']
         if not current:
             bot.send_message(chat_id, "⏳ لا يوجد مقررات قيد الدراسة.")
@@ -1089,7 +1089,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "🎯 نسبة الإنجاز":
-        stats = get_student_stats(chat_id)
+        stats = QOUScraper.get_student_stats(chat_id)
         if not stats:
             bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب التحديث أولاً.")
         else:
@@ -1110,8 +1110,8 @@ def handle_all_messages(message):
             bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "📋 الخطة الدراسية":
-        stats = get_student_stats(chat_id)
-        courses = get_student_courses(chat_id)
+        stats = QOUScraper.get_student_stats(chat_id)
+        courses = QOUScraper.get_student_courses(chat_id)
         if not stats or not courses:
             bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب التحديث أولاً.")
         else:
