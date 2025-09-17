@@ -414,4 +414,18 @@ class QOUScraper:
             return "ما لقيت أحداث حالياً 🤷‍♂️"
     
         return events[0]  # أول حدث فعال
+    
+    def get_current_week_type():
+        start_date = datetime.strptime("13/09/2025", "%d/%m/%Y")
+        today = datetime.today()
+        
+        delta_days = (today - start_date).days
+        if delta_days < 0:
+            return "📅 الأسبوع الحالي: لم يبدأ بعد"
+    
+        week_number = delta_days // 7
+        if week_number % 2 == 0:
+            return "📅 الأسبوع الحالي: فردي"
+        else:
+            return "📅 الأسبوع الحالي: زوجي"
 
