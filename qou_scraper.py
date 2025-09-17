@@ -39,6 +39,14 @@ class QOUScraper:
         self.session = requests.Session()
         self.student_id = student_id
         self.password = password
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/114.0.0.0 Safari/537.36",
+            "Accept-Language": "ar,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Connection": "keep-alive"
+        }
 
     def login(self) -> bool:
         self.session.get(LOGIN_URL)
