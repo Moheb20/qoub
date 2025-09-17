@@ -134,31 +134,87 @@ def check_for_gpa_changes():
     while True:
         try:
             users = get_all_users()
+            logger.info(f"جاري فحص GPA لـ {len(users)} مستخدم")
+            
             for user in users:
                 chat_id = user['chat_id']
+                student_id = user['student_id']
+                
                 try:
-                    scraper = QOUScraper(user['student_id'], user['password'])
-                    old_gpa = json.loads(user.get('last_gpa')) if user.get('last_gpa') else None
+                    # فك تشفير البيانات إذا كانت مشفرة
+                    if isinstance(student_id, bytes) or (isinstance(student_id, str) and student_id.startswith('encrypted:')):
+                        student_id = decrypt_text(student_id)
+                    password = decrypt_text(user['password']) if user.get('password') else None
+                    
+                    if not student_id or not password:
+                        logger.warning(f"[{chat_id}] بيانات تسجيل الدخول غير كاملة")
+                        continue
+                    
+                    # إنشاء السكرابر
+                    scraper = QOUScraper(student_id, password)
+                    
+                    # تسجيل الدخول أولاً
+                    if not scraper.login():
+                        logger.warning(f"[{chat_id}] فشل تسجيل الدخول للطالب {student_id}")
+                        continue
+                    
+                    # جلب المعدل القديم
+                    old_gpa = None
+                    if user.get('last_gpa'):
+                        try:
+                            old_gpa = json.loads(user['last_gpa'])
+                        except json.JSONDecodeError:
+                            old_gpa = user['last_gpa']  # في حالة كان نصاً وليس JSON
+                    
+                    # جلب المعدل الجديد
                     new_gpa = scraper.fetch_gpa()
-                    if new_gpa:
-                        logger.info(f"[{chat_id}] المعدل الحالي: {old_gpa}, المعدل الجديد: {new_gpa}")
-                    if new_gpa and new_gpa != old_gpa:
+                    
+                    if not new_gpa:
+                        logger.warning(f"[{chat_id}] لم يتم الحصول على GPA للطالب {student_id}")
+                        continue
+                    
+                    logger.info(f"[{chat_id}] المعدل القديم: {old_gpa}, المعدل الجديد: {new_gpa}")
+                    
+                    # المقارنة
+                    if old_gpa is None:
+                        # أول مرة، نحفظ فقط بدون إرسال رسالة
+                        update_user_gpa(chat_id, json.dumps(new_gpa))
+                        logger.info(f"[{chat_id}] تم حفظ GPA لأول مرة")
+                    elif (new_gpa.get('term_gpa') != old_gpa.get('term_gpa') or 
+                          new_gpa.get('cumulative_gpa') != old_gpa.get('cumulative_gpa')):
+                        # هناك تغيير، نرسل رسالة
                         msg = (
-                            f"🎓 تـــم تــــحديث البــــوابة الاكــــاديـــمية!\n"
+                            f"🎓 تـــم تــــحديث البــــوابة الاكــــاديـــمية!\n\n"
                             f"📘 المــعدل الـــفـصـلي : {new_gpa.get('term_gpa', '-')}\n"
-                            f"📚 المــعدل الـتـراكـمـي: {new_gpa.get('cumulative_gpa', '-')}"
+                            f"📚 المــعدل الـتـراكـمـي: {new_gpa.get('cumulative_gpa', '-')}\n\n"
+                            f"🆔 الرقم الجامعي: {student_id}"
                         )
-                        send_message(bot, chat_id, msg)
-                        logger.info(f"[{chat_id}] تم إرسال رسالة تحديث GPA للطالب")
+                        try:
+                            bot.send_message(chat_id, msg)
+                            logger.info(f"[{chat_id}] تم إرسال رسالة تحديث GPA")
+                        except Exception as msg_error:
+                            logger.error(f"[{chat_id}] فشل إرسال الرسالة: {msg_error}")
+                        
+                        # تحديث قاعدة البيانات
                         update_user_gpa(chat_id, json.dumps(new_gpa))
                     else:
                         logger.info(f"[{chat_id}] لا تغيير في GPA")
+                        
                 except Exception as ex:
-                    logger.warning(f"[{chat_id}] خطأ أثناء متابعة GPA: {ex}")
-            time.sleep(24*60*60)
+                    logger.error(f"[{chat_id}] خطأ أثناء متابعة GPA: {ex}")
+                    import traceback
+                    logger.error(f"[{chat_id}] Traceback: {traceback.format_exc()}")
+            
+            # الانتظار 24 ساعة قبل الفحص التالي
+            logger.info("تم الانتهاء من فحص GPA لجميع المستخدمين، الانتظار 24 ساعة...")
+            time.sleep(24 * 60 * 60)
+            
         except Exception as e:
             logger.error(f"❌ خطأ عام في متابعة GPA: {e}")
-            time.sleep(60)
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # الانتظار ساعة واحدة قبل إعادة المحاولة في حالة الخطأ العام
+            time.sleep(60 * 60)
 
 
 
