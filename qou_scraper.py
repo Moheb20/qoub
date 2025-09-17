@@ -255,20 +255,21 @@ class QOUScraper:
         if not stats:
             return None
         
+        # تنظيف البيانات
+        def clean_gpa_value(gpa):
+            if not gpa or gpa in ['غير متوفر', 'N/A', '']:
+                return "غير متوفر"
+            try:
+                # تحويل إلى رقم للتأكد من صحته
+                float(gpa)
+                return gpa
+            except (ValueError, TypeError):
+                return "غير متوفر"
+        
         return {
-            "term_gpa": stats['term']['gpa'] if stats['term'].get('gpa') else "غير متوفر",
-            "cumulative_gpa": stats['cumulative']['gpa'] if stats['cumulative'].get('gpa') else "غير متوفر"
+            "term_gpa": clean_gpa_value(stats.get('term', {}).get('gpa')),
+            "cumulative_gpa": clean_gpa_value(stats.get('cumulative', {}).get('gpa'))
         }
-
-    
-        return {
-            "term_gpa": stats.get('term', {}).get('gpa', 'غير متوفر'),
-            "cumulative_gpa": stats.get('cumulative', {}).get('gpa', 'غير متوفر'),
-
-            "term_gpa": clean(stats.get('term', {}).get('gpa')),
-            "cumulative_gpa": clean(stats.get('cumulative', {}).get('gpa'))
-        }
-
 
     def fetch_discussion_sessions(self) -> List[dict]:
         resp = self.session.get(WEEKLY_MEETINGS_URL)
