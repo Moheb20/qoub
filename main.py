@@ -128,7 +128,7 @@ def send_cel_services(chat_id):
         markup.add(types.KeyboardButton("📅 التقويم الحالي")),
         markup.add(types.KeyboardButton("📅 عرض تقويم الفصل كامل")),
         current_week_text = QOUScraper.get_current_week_type(),
-        markup.add(types.InlineKeyboardButton(current_week_text, callback_data="noop")),
+        markup.add(types.InlineKeyboardButton(current_week_text, callback_data="noop"))
     )
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
 
