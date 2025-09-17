@@ -750,51 +750,63 @@ class QOUScraper:
     
     # دوال التكامل مع قاعدة البيانات
     def update_student_data(chat_id: int) -> bool:
-        """تحديث بيانات الطالب في قاعدة البيانات (نسخة عادية)"""
+        """تحديث بيانات الطالب في قاعدة البيانات"""
         scraper = None
         try:
             # جلب بيانات المستخدم من قاعدة البيانات
             user = get_user(chat_id)
-            if not user or not user['student_id'] or not user['password']:
+            if not user:
                 logger.error(f"User data not found for chat_id: {chat_id}")
                 return False
             
+            # التحقق من صحة البيانات بعد فك التشفير
+            if not user.get('student_id') or not isinstance(user['student_id'], str) or user['student_id'].strip() == '':
+                logger.error(f"Invalid student_id for chat_id: {chat_id}")
+                return False
+            
+            if not user.get('password') or not isinstance(user['password'], str) or user['password'].strip() == '':
+                logger.error(f"Invalid password for chat_id: {chat_id}")
+                return False
+            
+            # تنظيف البيانات
+            student_id = user['student_id'].strip()
+            password = user['password'].strip()
+            
             # إنشاء السكرابر
-            scraper = QOUScraper(user['student_id'], user['password'])
+            scraper = QOUScraper(student_id, password)
             
             # تسجيل الدخول
             if not scraper.login():
-                logger.error(f"Login failed for student: {user['student_id']}")
+                logger.error(f"Login failed for student: {student_id}")
                 return False
             
             # جلب البيانات
             study_plan_data = scraper.fetch_study_plan()
             
-            if study_plan_data['status'] != 'success':
-                logger.error(f"Failed to fetch study plan for student: {user['student_id']}")
+            if not study_plan_data or study_plan_data.get('status') != 'success':
+                logger.error(f"Failed to fetch study plan for student: {student_id}")
                 return False
             
-            # حفظ البيانات في قاعدة البيانات
-            save_student_stats(chat_id, study_plan_data['stats'])
-            save_student_courses(chat_id, study_plan_data['courses'])
-            
-            logger.info(f"Successfully updated data for student: {user['student_id']}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error updating student data for chat_id {chat_id}: {e}")
-            return False
-            
             # حفظ في قاعدة البيانات
-            save_student_stats(chat_id, study_plan_data['stats'])
-            save_student_courses(chat_id, study_plan_data['courses'])
+            save_student_stats(chat_id, study_plan_data.get('stats', {}))
+            save_student_courses(chat_id, study_plan_data.get('courses', []))
             
-            logger.info(f"Successfully updated data for student: {user['student_id']}")
+            logger.info(f"Successfully updated data for student: {student_id}")
             return True
             
         except Exception as e:
             logger.error(f"Error updating student data for chat_id {chat_id}: {e}")
             return False
+        finally:
+            # تنظيف الموارد
+            if scraper is not None:
+                try:
+                    if hasattr(scraper, 'close'):
+                        scraper.close()
+                    elif hasattr(scraper, 'session'):
+                        scraper.session.close()
+                except Exception as cleanup_error:
+                    logger.error(f"Error during cleanup: {cleanup_error}")
     
     def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
         """حفظ الإحصائيات الدراسية"""
@@ -825,8 +837,7 @@ class QOUScraper:
                     ))
                 conn.commit()
         except Exception as e:
-            logger.error(f"Error saving student stats: {e}")
-            # يمكن إضافة إعادة محاولة أو معالجة الخطأ هنا
+            logger.error(f"Error saving student stats for {chat_id}: {e}")
     
     def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
         """حفظ المقررات الدراسية"""
@@ -854,7 +865,4 @@ class QOUScraper:
                         ))
                 conn.commit()
         except Exception as e:
-            logger.error(f"Error saving student courses: {e}")
-            # يمكن إضافة إعادة محاولة أو معالجة الخطأ هنا
-
-
+            logger.error(f"Error saving student courses for {chat_id}: {e}")
