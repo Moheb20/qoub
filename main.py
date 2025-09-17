@@ -1208,8 +1208,7 @@ def handle_all_messages(message):
         bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
         
         try:
-            # استدعاء الدالة غير المتزامنة بشكل صحيح
-            success = await update_student_data(chat_id)
+            success = update_student_data(chat_id)  # استدعاء عادي بدون await
             
             if success:
                 bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
@@ -1218,8 +1217,6 @@ def handle_all_messages(message):
         except Exception as e:
             logger.error(f"Error updating data: {e}")
             bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {str(e)}")
-    
-        
     
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
