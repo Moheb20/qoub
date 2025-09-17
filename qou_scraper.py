@@ -382,14 +382,13 @@ class QOUScraper:
         return text
 
 
-    def get_active_calendar():
-        res = requests.get(cel)
-        res.encoding = "utf-8"  # الموقع بالعربي
+    def get_active_calendar(self):
+        res = self.session.get(cel)   # نستعمل نفس session
+        res.encoding = "utf-8"
         soup = BeautifulSoup(res.text, "html.parser")
-    
-        # نجيب كل الصفوف الفعّالة (اللي مش text-not-active)
+
         active_rows = soup.find_all("tr", class_=lambda x: x != "text-not-active")
-    
+
         events = []
         for row in active_rows:
             cols = row.find_all("td")
@@ -400,16 +399,13 @@ class QOUScraper:
             day = cols[2].get_text(strip=True)
             start = cols[3].get_text(strip=True)
             end = cols[4].get_text(strip=True)
-    
+
             event_text = f"""🗓 {subject}
-    📅 {day} {week}
-    ⏳ {start} → {end}"""
+            📅 {day} {week}
+            ⏳ {start} → {end}"""
             events.append(event_text)
-    
+
         if not events:
             return "ما لقيت أحداث حالياً 🤷‍♂️"
-    
-        # أول واحد = الحالي
-        current_calendar = events[0]
-    
-        return current_calendar
+
+        return events[0]
