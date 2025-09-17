@@ -122,14 +122,22 @@ def send_academic_services(chat_id):
 
 
 def send_cel_services(chat_id):
-    """القائمة الفرعية للخدمات الأخرى"""
+    """القائمة الفرعية للخدمات الأكاديمية والجدول والتقويم"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    
+    # أزرار التقويم
     markup.add(
-        markup.add(types.KeyboardButton("📅 التقويم الحالي")),
-        markup.add(types.KeyboardButton("📅 عرض تقويم الفصل كامل")),
-        current_week_text = QOUScraper.get_current_week_type(),
-        markup.add(types.InlineKeyboardButton(current_week_text, callback_data="noop"))
+        types.KeyboardButton("📅 التقويم الحالي"),
+        types.KeyboardButton("📅 عرض تقويم الفصل كامل")
     )
+    
+    # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
+    current_week_text = QOUScraper.get_current_week_type()
+    markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
+
+    # زر العودة
+    markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
 
 def send_other_services(chat_id):
