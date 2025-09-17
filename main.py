@@ -1052,7 +1052,7 @@ def handle_all_messages(message):
     elif text == "📊 إحصائياتي":
         stats = get_student_stats(chat_id)
         if not stats:
-            await update.message.reply_text("⚠️ لم أجد بيانات، جرب التحديث أولاً.")
+            bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب التحديث أولاً.")
         else:
             reply = f"""
     📊 *إحصائياتك الحالية:*
@@ -1063,34 +1063,35 @@ def handle_all_messages(message):
     📈 الإنجاز: {stats['completion_percentage']}%
     🏁 حالة الخطة: {"مكتملة ✅" if stats['plan_completed'] else "غير مكتملة ⏳"}
     """
-            await update.message.reply_text(reply, parse_mode="Markdown")
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "📚 مقرراتي":
         courses = get_student_courses(chat_id)
         if not courses:
-            await update.message.reply_text("⚠️ لا يوجد مقررات، جرب التحديث.")
+            bot.send_message(chat_id, "⚠️ لا يوجد مقررات، جرب التحديث.")
         else:
             reply = "📚 *قائمة مقرراتك:*\n\n"
             for c in courses[:20]:  # أول 20 فقط
                 status_icon = "✅" if c['status'] == 'completed' else "🔄" if c['status'] == 'in_progress' else "⏳"
                 reply += f"{status_icon} {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
-            await update.message.reply_text(reply, parse_mode="Markdown")
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "📌 مقررات حالية":
         courses = get_student_courses(chat_id)
         current = [c for c in courses if c['status'] == 'in_progress']
         if not current:
-            await update.message.reply_text("⏳ لا يوجد مقررات قيد الدراسة.")
+            bot.send_message(chat_id, "⏳ لا يوجد مقررات قيد الدراسة.")
+
         else:
             reply = "📌 *المقررات الحالية:*\n\n"
             for c in current:
                 reply += f"▫️ {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
-            await update.message.reply_text(reply, parse_mode="Markdown")
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "🎯 نسبة الإنجاز":
         stats = get_student_stats(chat_id)
         if not stats:
-            await update.message.reply_text("⚠️ لم أجد بيانات، جرب التحديث أولاً.")
+            bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب التحديث أولاً.")
         else:
             percentage = stats['completion_percentage']
             progress_bar = "🟩" * int(percentage / 10) + "⬜" * (10 - int(percentage / 10))
@@ -1106,13 +1107,13 @@ def handle_all_messages(message):
     • المحتسب: {stats['total_hours_transferred']} ساعة
     • المتبقي: {stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']} ساعة
     """
-            await update.message.reply_text(reply, parse_mode="Markdown")
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "📋 الخطة الدراسية":
         stats = get_student_stats(chat_id)
         courses = get_student_courses(chat_id)
         if not stats or not courses:
-            await update.message.reply_text("⚠️ لم أجد بيانات، جرب التحديث أولاً.")
+            bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب التحديث أولاً.")
         else:
             categories = {}
             for course in courses:
@@ -1129,17 +1130,18 @@ def handle_all_messages(message):
                 reply += f"📁 *{category}:*\n"
                 reply += f"   {completed}/{total} مكتمل ({category_percentage:.1f}%)\n\n"
             reply += f"📊 *الإجمالي: {stats['completion_percentage']}% مكتمل*"
-            await update.message.reply_text(reply, parse_mode="Markdown")
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
     
     elif text == "🔄 تحديث بياناتي":
-        await update.message.reply_text("⏳ جاري تحديث بياناتك، الرجاء الانتظار ...")
+        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار ...")
         try:
-            if await update_student_data(chat_id):
-                await update.message.reply_text("✅ تم تحديث بياناتك بنجاح!")
+            if update_student_data(chat_id):
+                bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
             else:
-                await update.message.reply_text("⚠️ فشل التحديث، حاول لاحقاً.")
+                bot.send_message(chat_id, "⚠️ فشل التحديث، حاول لاحقاً.")
         except Exception as e:
-            await update.message.reply_text(f"🚨 خطأ أثناء التحديث: {e}")
+            bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {e}")
+
 
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
