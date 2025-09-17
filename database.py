@@ -114,13 +114,58 @@ def init_db():
                 )
             ''')
 
+            # جدول الإحصائيات الدراسية
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS student_stats (
+                    chat_id BIGINT PRIMARY KEY REFERENCES users(chat_id),
+                    total_hours_required INTEGER DEFAULT 0,
+                    total_hours_completed INTEGER DEFAULT 0,
+                    total_hours_transferred INTEGER DEFAULT 0,
+                    semesters_count INTEGER DEFAULT 0,
+                    plan_completed BOOLEAN DEFAULT FALSE,
+                    completion_percentage FLOAT DEFAULT 0,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # جدول المقررات الدراسية
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS student_courses (
+                    id SERIAL PRIMARY KEY,
+                    chat_id BIGINT REFERENCES users(chat_id),
+                    course_code TEXT NOT NULL,
+                    course_name TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    hours INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'not_taken',
+                    semester_offered TEXT,
+                    grade TEXT,
+                    is_elective BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # جدول التذكيرات والتنبيهات
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS study_reminders (
+                    id SERIAL PRIMARY KEY,
+                    chat_id BIGINT REFERENCES users(chat_id),
+                    reminder_type TEXT NOT NULL,
+                    reminder_data TEXT NOT NULL,
+                    due_date TIMESTAMP,
+                    is_completed BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
         conn.commit()
 
-
 # ---------- إدارة المستخدمين ----------
-def add_user(chat_id, student_id, password, registered_at=None):
+def add_user(chat_id, student_id, password, registered_at=None, initial_stats=None, initial_courses=None):
+    """إضافة مستخدم جديد مع البيانات الأولية للخطة الدراسية"""
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # إضافة المستخدم الأساسي
             cur.execute('''
                 INSERT INTO users (chat_id, student_id, password, registered_at)
                 VALUES (%s, %s, %s, %s)
@@ -129,6 +174,15 @@ def add_user(chat_id, student_id, password, registered_at=None):
                     password = EXCLUDED.password,
                     registered_at = EXCLUDED.registered_at
             ''', (chat_id, encrypt_text(student_id), encrypt_text(password), registered_at))
+            
+            # حفظ الإحصائيات إذا وجدت
+            if initial_stats:
+                save_student_stats(chat_id, initial_stats)
+            
+            # حفظ المقررات إذا وجدت
+            if initial_courses:
+                save_student_courses(chat_id, initial_courses)
+            
         conn.commit()
 
 def log_chat_id(chat_id):
@@ -454,5 +508,159 @@ def get_group_link(name):
             row = cur.fetchone()
             return row[0] if row else None
 
+# ---------- إدارة الخطة الدراسية ----------
 
+def save_student_stats(chat_id, stats_data):
+    """حفظ الإحصائيات الدراسية للطالب"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO student_stats 
+                (chat_id, total_hours_required, total_hours_completed, 
+                 total_hours_transferred, semesters_count, plan_completed, completion_percentage)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (chat_id) DO UPDATE SET
+                    total_hours_required = EXCLUDED.total_hours_required,
+                    total_hours_completed = EXCLUDED.total_hours_completed,
+                    total_hours_transferred = EXCLUDED.total_hours_transferred,
+                    semesters_count = EXCLUDED.semesters_count,
+                    plan_completed = EXCLUDED.plan_completed,
+                    completion_percentage = EXCLUDED.completion_percentage,
+                    last_updated = CURRENT_TIMESTAMP
+            ''', (
+                chat_id,
+                stats_data.get('required_hours', 0),
+                stats_data.get('completed_hours', 0),
+                stats_data.get('transferred_hours', 0),
+                stats_data.get('semesters_count', 0),
+                stats_data.get('plan_completed', False),
+                stats_data.get('completion_percentage', 0)
+            ))
+        conn.commit()
+
+def save_student_courses(chat_id, courses_data):
+    """حفظ المقررات الدراسية للطالب"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # حذف المقررات القديمة أولاً
+            cur.execute('DELETE FROM student_courses WHERE chat_id = %s', (chat_id,))
+            
+            # إضافة المقررات الجديدة
+            for course in courses_data:
+                cur.execute('''
+                    INSERT INTO student_courses 
+                    (chat_id, course_code, course_name, category, hours, status, semester_offered, grade, is_elective)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    chat_id,
+                    course.get('course_code', ''),
+                    course.get('course_name', ''),
+                    course.get('category', ''),
+                    course.get('hours', 0),
+                    course.get('status', 'not_taken'),
+                    course.get('semester_offered', ''),
+                    course.get('grade', ''),
+                    course.get('is_elective', False)
+                ))
+        conn.commit()
+
+def get_student_stats(chat_id):
+    """الحصول على إحصائيات الطالب"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT total_hours_required, total_hours_completed, total_hours_transferred,
+                       semesters_count, plan_completed, completion_percentage, last_updated
+                FROM student_stats WHERE chat_id = %s
+            ''', (chat_id,))
+            row = cur.fetchone()
+            if row:
+                columns = ['total_hours_required', 'total_hours_completed', 'total_hours_transferred',
+                          'semesters_count', 'plan_completed', 'completion_percentage', 'last_updated']
+                return dict(zip(columns, row))
+            return None
+
+def get_student_courses(chat_id, category=None, status=None):
+    """الحصول على مقررات الطالب مع إمكانية التصفية"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            query = '''
+                SELECT course_code, course_name, category, hours, status, semester_offered, grade, is_elective
+                FROM student_courses WHERE chat_id = %s
+            '''
+            params = [chat_id]
+            
+            if category:
+                query += ' AND category = %s'
+                params.append(category)
+            
+            if status:
+                query += ' AND status = %s'
+                params.append(status)
+            
+            query += ' ORDER BY category, course_code'
+            
+            cur.execute(query, params)
+            courses = []
+            for row in cur.fetchall():
+                courses.append({
+                    'course_code': row[0],
+                    'course_name': row[1],
+                    'category': row[2],
+                    'hours': row[3],
+                    'status': row[4],
+                    'semester_offered': row[5],
+                    'grade': row[6],
+                    'is_elective': row[7]
+                })
+            return courses
+
+def get_remaining_courses(chat_id):
+    """الحصول على المقررات المتبقية للطالب"""
+    return get_student_courses(chat_id, status='not_taken')
+
+def get_completed_courses(chat_id):
+    """الحصول على المقررات المكتملة للطالب"""
+    return get_student_courses(chat_id, status='completed')
+
+def calculate_completion_percentage(chat_id):
+    """حساب نسبة إكمال الخطة الدراسية"""
+    stats = get_student_stats(chat_id)
+    if stats and stats['total_hours_required'] > 0:
+        percentage = (stats['total_hours_completed'] / stats['total_hours_required']) * 100
+        return round(percentage, 2)
+    return 0
+
+def add_study_reminder(chat_id, reminder_type, reminder_data, due_date=None):
+    """إضافة تذكير دراسي"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                INSERT INTO study_reminders (chat_id, reminder_type, reminder_data, due_date)
+                VALUES (%s, %s, %s, %s)
+            ''', (chat_id, reminder_type, reminder_data, due_date))
+        conn.commit()
+
+def get_upcoming_reminders(chat_id, days_ahead=7):
+    """الحصول على التذكيرات القادمة"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT id, reminder_type, reminder_data, due_date
+                FROM study_reminders 
+                WHERE chat_id = %s 
+                AND is_completed = FALSE
+                AND due_date BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '%s days'
+                ORDER BY due_date
+            ''', (chat_id, days_ahead))
+            
+            reminders = []
+            for row in cur.fetchall():
+                reminders.append({
+                    'id': row[0],
+                    'reminder_type': row[1],
+                    'reminder_data': row[2],
+                    'due_date': row[3]
+                })
+            return reminders
 
