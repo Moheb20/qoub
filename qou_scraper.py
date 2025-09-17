@@ -586,6 +586,7 @@ class QOUScraper:
                 'error': str(e)
             }
     
+    
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
         """استخراج الإحصائيات الدراسية من الصفحة"""
         stats = {
@@ -749,138 +750,137 @@ class QOUScraper:
     
     
     # دوال التكامل مع قاعدة البيانات
-    def update_student_data(chat_id: int) -> bool:
-        """تحديث بيانات الطالب في قاعدة البيانات"""
-        try:
-            # جلب بيانات المستخدم من قاعدة البيانات
-            user = get_user(chat_id)
-            if not user:
-                logger.error(f"User data not found for chat_id: {chat_id}")
-                return False
-            
-            # التحقق من صحة البيانات بعد فك التشفير
-            if not user.get('student_id') or not isinstance(user['student_id'], str) or user['student_id'].strip() == '':
-                logger.error(f"Invalid student_id for chat_id: {chat_id}")
-                return False
-            
-            if not user.get('password') or not isinstance(user['password'], str) or user['password'].strip() == '':
-                logger.error(f"Invalid password for chat_id: {chat_id}")
-                return False
-            
-            # تنظيف البيانات
-            student_id = user['student_id'].strip()
-            password = user['password'].strip()
-            
-            logger.info(f"Attempting to update data for student: {student_id}")
-            
-            # إنشاء واستخدام السكرابر بدون حفظ المرجع
-            success = update_with_scraper(student_id, password, chat_id)
-            return success
-            
-        except Exception as e:
-            logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+def update_student_data(chat_id: int) -> bool:
+    """تحديث بيانات الطالب في قاعدة البيانات"""
+    try:
+        # جلب بيانات المستخدم من قاعدة البيانات
+        user = get_user(chat_id)
+        if not user:
+            logger.error(f"User data not found for chat_id: {chat_id}")
             return False
-    
-    def update_with_scraper(student_id, password, chat_id):
-        """دالة منفصلة للتعامل مع السكرابر"""
-        scraper = None
-        try:
-            # إنشاء السكرابر
-            scraper = QOUScraper(student_id, password)
-            
-            # تسجيل الدخول
-            if not scraper.login():
-                logger.error(f"Login failed for student: {student_id}")
-                return False
-            
-            # جلب البيانات
-            study_plan_data = scraper.fetch_study_plan()
-            
-            if not study_plan_data:
-                logger.error(f"No study plan data returned for student: {student_id}")
-                return False
-            
-            if study_plan_data.get('status') != 'success':
-                error_msg = study_plan_data.get('error', 'Unknown error')
-                logger.error(f"Failed to fetch study plan for student {student_id}: {error_msg}")
-                return False
-            
-            # حفظ في قاعدة البيانات
-            save_student_stats(chat_id, study_plan_data.get('stats', {}))
-            save_student_courses(chat_id, study_plan_data.get('courses', []))
-            
-            logger.info(f"Successfully updated data for student: {student_id}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error in update_with_scraper for student {student_id}: {str(e)}")
+        
+        # التحقق من صحة البيانات بعد فك التشفير
+        if not user.get('student_id') or not isinstance(user['student_id'], str) or user['student_id'].strip() == '':
+            logger.error(f"Invalid student_id for chat_id: {chat_id}")
             return False
-        finally:
-            # تنظيف الموارد
-            if scraper is not None:
-                try:
-                    if hasattr(scraper, 'close'):
-                        scraper.close()
-                except Exception as cleanup_error:
-                    logger.error(f"Error during cleanup: {cleanup_error}")
-    
-    def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
-        """حفظ الإحصائيات الدراسية"""
-        try:
-            with get_conn() as conn:
-                with conn.cursor() as cur:
+        
+        if not user.get('password') or not isinstance(user['password'], str) or user['password'].strip() == '':
+            logger.error(f"Invalid password for chat_id: {chat_id}")
+            return False
+        
+        # تنظيف البيانات
+        student_id = user['student_id'].strip()
+        password = user['password'].strip()
+        
+        logger.info(f"Attempting to update data for student: {student_id}")
+        
+        # استخدام دالة منفصلة للتعامل مع السكرابر
+        return update_with_scraper(student_id, password, chat_id)
+        
+    except Exception as e:
+        logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
+
+def update_with_scraper(student_id, password, chat_id):
+    """دالة منفصلة للتعامل مع السكرابر"""
+    scraper = None
+    try:
+        # إنشاء السكرابر
+        scraper = QOUScraper(student_id, password)
+        
+        # تسجيل الدخول
+        if not scraper.login():
+            logger.error(f"Login failed for student: {student_id}")
+            return False
+        
+        # جلب البيانات
+        study_plan_data = scraper.fetch_study_plan()
+        
+        if not study_plan_data:
+            logger.error(f"No study plan data returned for student: {student_id}")
+            return False
+        
+        if study_plan_data.get('status') != 'success':
+            error_msg = study_plan_data.get('error', 'Unknown error')
+            logger.error(f"Failed to fetch study plan for student {student_id}: {error_msg}")
+            return False
+        
+        # حفظ في قاعدة البيانات
+        save_student_stats(chat_id, study_plan_data.get('stats', {}))
+        save_student_courses(chat_id, study_plan_data.get('courses', []))
+        
+        logger.info(f"Successfully updated data for student: {student_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error in update_with_scraper for student {student_id}: {str(e)}")
+        return False
+    finally:
+        # تنظيف الموارد
+        if scraper is not None:
+            try:
+                if hasattr(scraper, 'close'):
+                    scraper.close()
+            except Exception as cleanup_error:
+                logger.error(f"Error during cleanup: {cleanup_error}")
+
+def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
+    """حفظ الإحصائيات الدراسية"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO student_stats 
+                    (chat_id, total_hours_required, total_hours_completed, 
+                     total_hours_transferred, semesters_count, plan_completed, completion_percentage)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (chat_id) DO UPDATE SET
+                        total_hours_required = EXCLUDED.total_hours_required,
+                        total_hours_completed = EXCLUDED.total_hours_completed,
+                        total_hours_transferred = EXCLUDED.total_hours_transferred,
+                        semesters_count = EXCLUDED.semesters_count,
+                        plan_completed = EXCLUDED.plan_completed,
+                        completion_percentage = EXCLUDED.completion_percentage,
+                        last_updated = CURRENT_TIMESTAMP
+                ''', (
+                    chat_id,
+                    stats_data.get('total_hours_required', 0),
+                    stats_data.get('total_hours_completed', 0),
+                    stats_data.get('total_hours_transferred', 0),
+                    stats_data.get('semesters_count', 0),
+                    stats_data.get('plan_completed', False),
+                    stats_data.get('completion_percentage', 0)
+                ))
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Error saving student stats for {chat_id}: {e}")
+
+def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
+    """حفظ المقررات الدراسية"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                # حذف المقررات القديمة
+                cur.execute('DELETE FROM student_courses WHERE chat_id = %s', (chat_id,))
+                
+                # إضافة المقررات الجديدة
+                for course in courses_data:
                     cur.execute('''
-                        INSERT INTO student_stats 
-                        (chat_id, total_hours_required, total_hours_completed, 
-                         total_hours_transferred, semesters_count, plan_completed, completion_percentage)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (chat_id) DO UPDATE SET
-                            total_hours_required = EXCLUDED.total_hours_required,
-                            total_hours_completed = EXCLUDED.total_hours_completed,
-                            total_hours_transferred = EXCLUDED.total_hours_transferred,
-                            semesters_count = EXCLUDED.semesters_count,
-                            plan_completed = EXCLUDED.plan_completed,
-                            completion_percentage = EXCLUDED.completion_percentage,
-                            last_updated = CURRENT_TIMESTAMP
+                        INSERT INTO student_courses 
+                        (chat_id, course_code, course_name, category, hours, status, detailed_status, is_elective)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ''', (
                         chat_id,
-                        stats_data.get('total_hours_required', 0),
-                        stats_data.get('total_hours_completed', 0),
-                        stats_data.get('total_hours_transferred', 0),
-                        stats_data.get('semesters_count', 0),
-                        stats_data.get('plan_completed', False),
-                        stats_data.get('completion_percentage', 0)
+                        course.get('course_code', ''),
+                        course.get('course_name', ''),
+                        course.get('category', ''),
+                        course.get('hours', 0),
+                        course.get('status', 'unknown'),
+                        course.get('detailed_status', ''),
+                        course.get('is_elective', False)
                     ))
-                conn.commit()
-        except Exception as e:
-            logger.error(f"Error saving student stats for {chat_id}: {e}")
-    
-    def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
-        """حفظ المقررات الدراسية"""
-        try:
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    # حذف المقررات القديمة
-                    cur.execute('DELETE FROM student_courses WHERE chat_id = %s', (chat_id,))
-                    
-                    # إضافة المقررات الجديدة
-                    for course in courses_data:
-                        cur.execute('''
-                            INSERT INTO student_courses 
-                            (chat_id, course_code, course_name, category, hours, status, detailed_status, is_elective)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ''', (
-                            chat_id,
-                            course.get('course_code', ''),
-                            course.get('course_name', ''),
-                            course.get('category', ''),
-                            course.get('hours', 0),
-                            course.get('status', 'unknown'),
-                            course.get('detailed_status', ''),
-                            course.get('is_elective', False)
-                        ))
-                conn.commit()
-        except Exception as e:
-            logger.error(f"Error saving student courses for {chat_id}: {e}")
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Error saving student courses for {chat_id}: {e}")
