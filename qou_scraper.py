@@ -431,41 +431,89 @@ class QOUScraper:
 
     @staticmethod
     def get_full_current_semester_calendar():
-        res = requests.get(cel)
-        res.encoding = "utf-8"
-        soup = BeautifulSoup(res.text, "html.parser")
+        try:
+            res = requests.get(cel, timeout=10)
+            res.raise_for_status()
+            res.encoding = "utf-8"
+            soup = BeautifulSoup(res.text, "html.parser")
+        
+            # البحث عن جميع الفصول
+            semesters = soup.find_all("div", class_="text-warning")
+            if not semesters:
+                return "لم أتمكن من العثور على أي فصول."
+        
+            # تحديد الفصل الحالي بناءً على التاريخ الحالي (تحسين)
+            current_date = datetime.now()
+            current_semester_div = None
+            
+            for semester_div in semesters:
+                # محاولة استخراج تاريخ بداية الفصل من الجدول التالي
+                table = semester_div.find_next_sibling("table")
+                if not table:
+                    continue
+                    
+                # البحث عن تاريخ بداية الفصل في الجدول
+                start_date_found = False
+                for row in table.find_all("tr"):
+                    cols = row.find_all("td")
+                    if len(cols) >= 5:
+                        date_text = cols[3].get_text(strip=True)
+                        if date_text and date_text != "من :":
+                            try:
+                                event_date = datetime.strptime(date_text, "%d/%m/%Y")
+                                if event_date <= current_date:
+                                    start_date_found = True
+                                    break
+                            except ValueError:
+                                continue
+                
+                if start_date_found:
+                    current_semester_div = semester_div
+                    break
+            
+            # إذا لم نجد فصلًا مناسبًا، نأخذ آخر فصل
+            if not current_semester_div:
+                current_semester_div = semesters[-1]
+        
+            # الحصول على الجدول التالي للفصل
+            table = current_semester_div.find_next_sibling("table")
+            if not table:
+                return "لم أتمكن من العثور على جدول الأحداث للفصل الحالي."
+        
+            # استخراج الأحداث مع تصفية الصفوف غير النشطة
+            events = []
+            rows = table.find_all("tr")
+            
+            for row in rows:
+                # تخطي الصفوف غير النشطة (المنتهية)
+                if "text-not-active" in row.get("class", []):
+                    continue
+                    
+                cols = row.find_all("td")
+                if len(cols) < 5:
+                    continue
+                    
+                subject = cols[0].get_text(strip=True).replace("الموضوع : ", "")
+                week = cols[1].get_text(strip=True).replace("الاسبوع : ", "")
+                day = cols[2].get_text(strip=True).replace("اليوم : ", "")
+                start = cols[3].get_text(strip=True).replace("من : ", "")
+                end = cols[4].get_text(strip=True).replace("الى : ", "")
     
-        semesters = soup.find_all("div", class_="text-warning")
-        if not semesters:
-            return "لم أتمكن من العثور على أي فصول."
-    
-        # نفترض أن الفصل الحالي هو آخر فصل ظاهر في الصفحة
-        current_semester_div = semesters[-1]
-    
-        # ⚡ استخدم find_next_sibling للحصول على الجدول الصحيح
-        table = current_semester_div.find_next_sibling("table")
-        if not table:
-            return "لم أتمكن من العثور على جدول الأحداث للفصل الحالي."
-    
-        rows = table.find_all("tr")
-        events = []
-        for row in rows:
-            cols = row.find_all("td")
-            if not cols:
-                continue
-            subject = cols[0].get_text(strip=True)
-            week = cols[1].get_text(strip=True)
-            day = cols[2].get_text(strip=True)
-            start = cols[3].get_text(strip=True)
-            end = cols[4].get_text(strip=True)
-    
-            event_text = f"""🗓 {subject}
+                event_text = f"""🗓 {subject}
     📅 {day} {week}
     ⏳ {start} → {end}"""
-            events.append(event_text)
-    
-        if not events:
-            return "لا يوجد أحداث للفصل الحالي 🤷‍♂️"
-    
-        return "\n\n".join(events)
-
+                events.append(event_text)
+        
+            if not events:
+                return "لا يوجد أحداث للفصل الحالي 🤷‍♂️"
+        
+            # إضافة عنوان الفصل
+            semester_title = current_semester_div.get_text(strip=True)
+            result = f"📚 {semester_title}\n\n" + "\n\n".join(events)
+            
+            return result
+            
+        except requests.RequestException:
+            return "حدث خطأ في الاتصال بالخادم. يرجى المحاولة لاحقًا."
+        except Exception as e:
+            return f"حدث خطأ غير متوقع: {str(e)}"
