@@ -1200,12 +1200,24 @@ def handle_all_messages(message):
     
     
     elif text == "🔄 تحديث بياناتي":
-        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار ...")
-        success = update_student_data(chat_id)
-        if success:
-            bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
-        else:
-            bot.send_message(chat_id, "⚠️ فشل التحديث، حاول لاحقاً.")
+        user = get_user(chat_id)
+        if not user:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+            return
+        
+        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
+        
+        try:
+            # استدعاء الدالة غير المتزامنة بشكل صحيح
+            success = await update_student_data(chat_id)
+            
+            if success:
+                bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
+            else:
+                bot.send_message(chat_id, "⚠️ فشل التحديث، تحقق من بياناتك وحاول لاحقاً.")
+        except Exception as e:
+            logger.error(f"Error updating data: {e}")
+            bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {str(e)}")
     
         
     
