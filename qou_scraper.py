@@ -14,6 +14,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from io import BytesIO
 import database 
+from typing import Dict, Any
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
 pdfmetrics.registerFont(TTFont('Arial', font_path))
