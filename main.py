@@ -116,6 +116,7 @@ def send_academic_services(chat_id):
         types.KeyboardButton("📊 عرض بيانات الفصل"),
         types.KeyboardButton("📅 جدول الامتحانات"),
         types.KeyboardButton("🎙️ حلقات النقاش"),
+        types.KeyboardButton("📅 التقويم الحالي"),
         types.KeyboardButton("📚 الخطط الدراسية"),
         types.KeyboardButton("💰 رصيد الطالب"),
         types.KeyboardButton("⬅️ عودة للرئيسية")
@@ -292,9 +293,13 @@ def handle_all_messages(message):
     if text == "👤 تسجيل الدخول":
         start_login(chat_id)
         return
+    elif text == "📅 التقويم الحالي":
+        try:
+            calendar = get_active_calendar()
+            bot.send_message(chat_id, calendar)
+        except Exception as e:
+            bot.send_message(chat_id, f"⚠️ صار خطأ أثناء جلب التقويم:\n{e}")
 
-    # عرض القروبات
-    # عرض التصنيفات
     elif text == "📚 عرض القروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
