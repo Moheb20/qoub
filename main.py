@@ -296,7 +296,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, calendar)
         except Exception as e:
             bot.send_message(chat_id, f"⚠️ صار خطأ أثناء جلب التقويم:\n{e}")
-
+        return
     elif text == "📚 عرض القروبات":
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
