@@ -295,7 +295,7 @@ def handle_all_messages(message):
         return
     elif text == "📅 التقويم الحالي":
         try:
-            calendar = get_active_calendar()
+            calendar = scraper.get_active_calendar()
             bot.send_message(chat_id, calendar)
         except Exception as e:
             bot.send_message(chat_id, f"⚠️ صار خطأ أثناء جلب التقويم:\n{e}")
