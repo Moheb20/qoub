@@ -95,9 +95,7 @@ def send_main_menu(chat_id):
         bot.send_message(chat_id, "⬇️ الرجاء تسجيل الدخول أولاً:", reply_markup=markup)
     else:
         markup.add(types.KeyboardButton("📖 الخدمات الأكاديمية"))
-        markup.add(types.KeyboardButton("📅 التقويم الحالي"))
-        current_week_text = QOUScraper.get_current_week_type()
-        markup.add(types.InlineKeyboardButton(current_week_text, callback_data="noop"))
+        markup.add(types.KeyboardButton("📅 التـــقويــم"))
         markup.add(types.KeyboardButton("📚 أخرى"))
         markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
         if chat_id in ADMIN_CHAT_ID:
@@ -122,6 +120,17 @@ def send_academic_services(chat_id):
     )
     bot.send_message(chat_id, "⬇️ اختر خدمة أكاديمية:", reply_markup=markup)
 
+
+def send_cel_services(chat_id):
+    """القائمة الفرعية للخدمات الأخرى"""
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add(
+        markup.add(types.KeyboardButton("📅 التقويم الحالي"))
+        markup.add(types.KeyboardButton("📅 عرض تقويم الفصل كامل"))
+        current_week_text = QOUScraper.get_current_week_type()
+        markup.add(types.InlineKeyboardButton(current_week_text, callback_data="noop"))
+    )
+    bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
 
 def send_other_services(chat_id):
     """القائمة الفرعية للخدمات الأخرى"""
@@ -337,6 +346,14 @@ def handle_all_messages(message):
     elif text == "📚 أخرى":
         send_other_services(chat_id)
 
+    elif text == "📅 التـــقويــم":
+        send_cel_services(chat_id)
+
+    elif text == "📅 عرض تقويم الفصل كامل":
+        calendar_text1 = QOUScraper.get_full_current_semester_calendar()
+        bot.send_message(chat_id, calendar_text1)
+
+    
     # العودة للرئيسية
     elif text == "⬅️ عودة للرئيسية":
         send_main_menu(chat_id)
