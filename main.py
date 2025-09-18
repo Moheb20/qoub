@@ -1177,7 +1177,16 @@ def handle_all_messages(message):
     
     # ⬇️⬇️⬇️ هذا السطر يجب أن يكون بنفس مستوى elif السابق ⬇️⬇️⬇️
     elif chat_id in user_data and user_data[chat_id].get('action') == 'awaiting_category':
-        selected_category = message.text.replace("📁 ", "").strip()
+        selected_text = message.text.strip()
+        
+        # ✅ التحقق من زر الرئيسية فقط
+        if selected_text == "🏠 الرئيسية":
+            del user_data[chat_id]  # حذف حالة المستخدم
+            show_main_menu(chat_id)
+            return
+        
+        # إذا لم يكن زر الرئيسية، نتعامل معه كفئة
+        selected_category = selected_text.replace("📁 ", "").strip()
         categories = user_data[chat_id]['categories']
         
         # البحث عن الفئة المطابقة
