@@ -41,6 +41,7 @@ class QOUScraper:
         self.session = requests.Session()
         self.student_id = student_id
         self.password = password
+        self.is_logged_in = False 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -66,14 +67,16 @@ class QOUScraper:
             # إرسال POST لتسجيل الدخول
             resp = self.session.post(LOGIN_URL, data=params, headers=self.headers, timeout=30, allow_redirects=True)
             resp.raise_for_status()
+
     
             # تحقق من نجاح تسجيل الدخول
-            if "logout" in resp.text.lower() or "student" in resp.url:
-                return True
-            return False
+            success = "logout" in resp.text.lower() or "student" in resp.url
+            self.is_logged_in = success  # <-- تخزين حالة تسجيل الدخول
+            return success
     
         except requests.exceptions.RequestException as e:
             logger.error(f"Login request failed for {self.student_id}: {e}")
+            self.is_logged_in = False
             return False
     
 
