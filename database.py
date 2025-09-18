@@ -40,55 +40,57 @@ def decrypt_text(token):
 
 # ---------- إنشاء الجداول ----------
 def init_db():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # جدول المستخدمين
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    chat_id BIGINT PRIMARY KEY,
-                    student_id TEXT NOT NULL,
-                    password TEXT NOT NULL,
-                    last_msg_id TEXT,
-                    courses_data TEXT,
-                    last_login TEXT,
-                    last_interaction TEXT,
-                    registered_at TEXT,
-                    status TEXT DEFAULT 'active',
-                    last_gpa TEXT
-                )
-            ''')
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                # جدول المستخدمين
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        chat_id BIGINT PRIMARY KEY,
+                        student_id TEXT NOT NULL,
+                        password TEXT NOT NULL,
+                        last_msg_id TEXT,
+                        courses_data TEXT,
+                        last_login TEXT,
+                        last_interaction TEXT,
+                        registered_at TEXT,
+                        status TEXT DEFAULT 'active',
+                        last_gpa TEXT
+                    )
+                ''')
 
-            # جدول السجلات (logs)
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS logs (
-                    id SERIAL PRIMARY KEY,
-                    chat_id BIGINT,   -- شلنا UNIQUE
-                    event_type TEXT,
-                    event_value TEXT,
-                    created_at TEXT
-                )
-            ''')
+                # جدول السجلات (logs)
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS logs (
+                        id SERIAL PRIMARY KEY,
+                        chat_id BIGINT,   -- شلنا UNIQUE
+                        event_type TEXT,
+                        event_value TEXT,
+                        created_at TEXT
+                    )
+                ''')
 
-            # جدول المواعيد النهائية
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS deadlines (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    date DATE NOT NULL
-                )
-            ''')
+                # جدول المواعيد النهائية
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS deadlines (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        date DATE NOT NULL
+                    )
+                ''')
 
-            # جدول المجموعات
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS groups (
-                    id SERIAL PRIMARY KEY,
-                    category TEXT NOT NULL,
-                    name TEXT NOT NULL UNIQUE,
-                    link TEXT NOT NULL
-                )
-            ''')
+                # جدول المجموعات
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS groups (
+                        id SERIAL PRIMARY KEY,
+                        category TEXT NOT NULL,
+                        name TEXT NOT NULL UNIQUE,
+                        link TEXT NOT NULL
+                    )
+                ''')
 
-            cur.execute('''
+                # جدول إحصائيات الطلاب
+                cur.execute('''
                     CREATE TABLE IF NOT EXISTS student_stats (
                         chat_id BIGINT PRIMARY KEY,
                         total_hours_required INTEGER DEFAULT 0,
@@ -100,9 +102,9 @@ def init_db():
                         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
-                
+
                 # جدول المقررات
-            cur.execute('''
+                cur.execute('''
                     CREATE TABLE IF NOT EXISTS student_courses (
                         id SERIAL PRIMARY KEY,
                         chat_id BIGINT NOT NULL,
@@ -116,7 +118,8 @@ def init_db():
                         FOREIGN KEY (chat_id) REFERENCES student_stats(chat_id) ON DELETE CASCADE
                     )
                 ''')
-                
+
+                # إنشاء فهرس لأداء أفضل
                 cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
 
             conn.commit()
@@ -124,6 +127,7 @@ def init_db():
 
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
+
 
 # ---------- إدارة المستخدمين ----------
 def add_user(chat_id, student_id, password, registered_at=None, initial_stats=None, initial_courses=None):
