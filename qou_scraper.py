@@ -593,7 +593,6 @@ class QOUScraper:
     def fetch_study_plan(self) -> Dict[str, Any]:
         """جلب الخطة الدراسية الكاملة للطالب مع معالجة أفضل للأخطاء"""
         try:
-            # التأكد من تسجيل الدخول
             if not self.is_logged_in:
                 login_success = self.login()
                 if not login_success:
@@ -606,15 +605,12 @@ class QOUScraper:
                         'error': 'Login failed'
                     }
     
-            # إعداد الهيدر مع Referer صحيح
             headers = self.headers.copy()
             headers['Referer'] = "https://portal.qou.edu/portalLogin.do"
     
-            # جلب صفحة الخطة الدراسية
             response = self.session.get(STUDY_PLAN_URL, headers=headers, timeout=30)
             response.raise_for_status()
     
-            # التحقق من إعادة التوجيه لصفحة الخطأ أو جلسة منتهية
             if any(x in response.url for x in ["errorPage", "jsessionid"]) or "No data" in response.text:
                 logger.warning(f"Redirected to error page or no data for {self.student_id}")
                 return {
@@ -625,7 +621,6 @@ class QOUScraper:
                     'error': 'Redirected to error page or no data'
                 }
     
-            # استخراج الإحصائيات والمقررات
             soup = BeautifulSoup(response.text, 'html.parser')
             stats = self._extract_study_stats(soup)
             courses = self._extract_courses(soup)
@@ -655,7 +650,7 @@ class QOUScraper:
                 'status': 'error',
                 'error': str(e)
             }
-
+    
     
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
         """استخراج الإحصائيات الدراسية من الصفحة"""
@@ -667,130 +662,102 @@ class QOUScraper:
             'plan_completed': False,
             'completion_percentage': 0
         }
-        
+    
         try:
-            # البحث عن الإحصائيات في الهيكل
             stats_table = soup.find('table', class_='table')
-            if not stats_table:
-                # محاولة بديلة للعثور على الإحصائيات
+            if stats_table:
+                for row in stats_table.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) == 2:
+                        label = cols[0].get_text(strip=True)
+                        value = cols[1].get_text(strip=True)
+                        if 'عدد الساعات المطلوبة' in label:
+                            stats['total_hours_required'] = self._parse_number(value)
+                        elif 'عدد الساعات المجتازة' in label:
+                            stats['total_hours_completed'] = self._parse_number(value)
+                        elif 'عدد الساعات المحتسبة' in label:
+                            stats['total_hours_transferred'] = self._parse_number(value)
+                        elif 'عدد الفصول' in label:
+                            stats['semesters_count'] = self._parse_number(value)
+                        elif 'انهى الخطة' in label:
+                            stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
+            else:
                 stats_elements = soup.select('.form-group .control-label, .form-group .col-sm-2')
-                if stats_elements:
-                    for i in range(0, len(stats_elements), 2):
-                        if i+1 < len(stats_elements):
-                            label = stats_elements[i].get_text(strip=True)
-                            value = stats_elements[i+1].get_text(strip=True)
-                            
-                            if 'عدد الساعات المطلوبة' in label:
-                                stats['total_hours_required'] = self._parse_number(value)
-                            elif 'عدد الساعات المجتازة' in label:
-                                stats['total_hours_completed'] = self._parse_number(value)
-                            elif 'عدد الساعات المحتسبة' in label:
-                                stats['total_hours_transferred'] = self._parse_number(value)
-                            elif 'عدد الفصول' in label:
-                                stats['semesters_count'] = self._parse_number(value)
-                            elif 'انهى الخطة' in label:
-                                stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
-                return stats
-            
-            # إذا وجدنا الجدول، نستخرج البيانات منه
-            rows = stats_table.find_all('tr')
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) == 2:
-                    label = cols[0].get_text(strip=True)
-                    value = cols[1].get_text(strip=True)
-                    
-                    if 'عدد الساعات المطلوبة' in label:
-                        stats['total_hours_required'] = self._parse_number(value)
-                    elif 'عدد الساعات المجتازة' in label:
-                        stats['total_hours_completed'] = self._parse_number(value)
-                    elif 'عدد الساعات المحتسبة' in label:
-                        stats['total_hours_transferred'] = self._parse_number(value)
-                    elif 'عدد الفصول' in label:
-                        stats['semesters_count'] = self._parse_number(value)
-                    elif 'انهى الخطة' in label:
-                        stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
-        
-            # حساب نسبة الإنجاز
+                for i in range(0, len(stats_elements), 2):
+                    if i+1 < len(stats_elements):
+                        label = stats_elements[i].get_text(strip=True)
+                        value = stats_elements[i+1].get_text(strip=True)
+                        if 'عدد الساعات المطلوبة' in label:
+                            stats['total_hours_required'] = self._parse_number(value)
+                        elif 'عدد الساعات المجتازة' in label:
+                            stats['total_hours_completed'] = self._parse_number(value)
+                        elif 'عدد الساعات المحتسبة' in label:
+                            stats['total_hours_transferred'] = self._parse_number(value)
+                        elif 'عدد الفصول' in label:
+                            stats['semesters_count'] = self._parse_number(value)
+                        elif 'انهى الخطة' in label:
+                            stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
+    
             if stats['total_hours_required'] > 0:
                 completed = stats['total_hours_completed'] + stats['total_hours_transferred']
                 stats['completion_percentage'] = round((completed / stats['total_hours_required']) * 100, 2)
-            
+    
         except Exception as e:
             logger.error(f"Error extracting stats: {e}")
-        
+    
         return stats
+    
     
     def _extract_courses(self, soup) -> List[Dict[str, Any]]:
         """استخراج المقررات الدراسية"""
         courses = []
-        
+    
         try:
-            # البحث عن أقسام المقررات - تحسين انتقائية العناصر
             course_sections = soup.find_all('div', class_=lambda x: x and ('member-card' in x or 'panel' in x or 'card' in x))
-            
             if not course_sections:
-                # محاولة بديلة للعثور على المقررات
                 course_tables = soup.find_all('table', class_='table')
                 for table in course_tables:
-                    # تخطي جدول الإحصائيات إذا كان موجوداً
-                    if table.find_previous_sibling('h4') or table.find_previous_sibling('h3'):
-                        section_title = table.find_previous_sibling('h4') or table.find_previous_sibling('h3')
-                        category = section_title.get_text(strip=True) if section_title else 'غير مصنف'
-                        
-                        rows = table.find_all('tr')[1:]  # تخطي رأس الجدول
-                        for row in rows:
+                    if table.find_previous_sibling('h3') or table.find_previous_sibling('h4'):
+                        category_elem = table.find_previous_sibling('h3') or table.find_previous_sibling('h4')
+                        category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
+                        for row in table.find_all('tr')[1:]:
                             cols = row.find_all('td')
-                            if len(cols) >= 4:  # عدد أعمدة أقل قد يكون مقبولاً
+                            if len(cols) >= 4:
                                 course_data = self._parse_course_row(cols, category)
                                 if course_data:
                                     courses.append(course_data)
                 return courses
-            
+    
             for section in course_sections:
-                # استخراج نوع القسم
-                section_title = section.find('h4') or section.find('h3') or section.find('h2')
-                category = section_title.get_text(strip=True) if section_title else 'غير مصنف'
-                
-                # استخراج جدول المقررات
+                category_elem = section.find(['h2', 'h3', 'h4'])
+                category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
                 table = section.find('table')
                 if table:
-                    rows = table.find_all('tr')[1:]  # تخطي رأس الجدول
-                    
-                    for row in rows:
+                    for row in table.find_all('tr')[1:]:
                         cols = row.find_all('td')
-                        if len(cols) >= 4:  # تقليل الحد الأدنى للأعمدة
+                        if len(cols) >= 4:
                             course_data = self._parse_course_row(cols, category)
                             if course_data:
                                 courses.append(course_data)
-        
+    
         except Exception as e:
             logger.error(f"Error extracting courses: {e}")
-        
+    
         return courses
+    
     
     def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
         """تحليل صف المقرر"""
         try:
-            # حالة المقرر (من النص مباشرة)
             status = self._get_course_status_simple(cols[0])
-            
-            # رمز المقرر
             course_code = cols[1].get_text(strip=True)
             course_code_elem = cols[1].find('a')
             if course_code_elem:
                 course_code = course_code_elem.get_text(strip=True)
-            
-            # اسم المقرر
             course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
-            
-            # عدد الساعات
-            hours_text = cols[3].get_text(strip=True) if len(cols) > 3 else '0'
-            hours = self._parse_number(hours_text)
-            
-            # الحالة التفصيلية
+            hours = self._parse_number(cols[3].get_text(strip=True) if len(cols) > 3 else '0')
             detailed_status = cols[4].get_text(strip=True) if len(cols) > 4 else ''
-            
+    
             return {
                 'course_code': course_code,
                 'course_name': course_name,
@@ -800,61 +767,26 @@ class QOUScraper:
                 'detailed_status': detailed_status,
                 'is_elective': 'اختياري' in category or 'elective' in category.lower()
             }
-            
+    
         except Exception as e:
             logger.error(f"Error parsing course row: {e}")
             return None
-
-
-    def _get_course_status(self, class_list):
-        """تحديد حالة المقرر بناءً على كلاسات الأيقونة"""
-        if not class_list:
-            return 'unknown'
-        
-        # تحويل القائمة إلى سلسلة نصية للبحث
-        classes_str = ' '.join(str(cls) for cls in class_list).lower()
-        
-        status_map = {
-            'completed': ['fa-check', 'text-success', 'success', 'ناجح', 'passed', 'مكتمل'],
-            'failed': ['fa-times', 'text-danger', 'danger', 'راسب', 'failed', 'فاشل'],
-            'in_progress': ['fa-spinner', 'text-warning', 'warning', 'active', 'مسجل', 'registered', 'قيد التقدم'],
-            'not_taken': ['fa-circle', 'text-muted', 'muted', 'لم يؤخذ', 'not taken', 'غير مأخوذ'],
-            'registered': ['fa-book', 'text-info', 'info', 'مسجل', 'registered']
-        }
-        
-        for status, keywords in status_map.items():
-            if any(keyword.lower() in classes_str for keyword in keywords):
-                return status
-        
-        return 'unknown'
-
-
-    def _parse_number(self, text):
-        """تحويل النص إلى رقم"""
-        try:
-            if not text:
-                return 0
-            # إزالة أي أحرف غير رقمية
-            cleaned = ''.join(filter(str.isdigit, str(text)))
-            return int(cleaned) if cleaned else 0
-        except (ValueError, TypeError):
-            return 0
+    
     
     def _get_course_status_simple(self, status_element):
         """دالة مبسطة لتحديد حالة المقرر من النص"""
         try:
             text = status_element.get_text(strip=True).lower()
-            
-            if any(word in text for word in ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح']):
-                return 'completed'
-            elif any(word in text for word in ['راسب', 'فاشل', 'failed', 'رسب']):
-                return 'failed'
-            elif any(word in text for word in ['مسجل', 'قيد', 'in progress', 'registered', 'مستمر']):
-                return 'in_progress'
-            elif any(word in text for word in ['معفي', 'معفى', 'exempted']):
-                return 'exempted'
-            else:
-                return 'unknown'
-                
+            mapping = {
+                'completed': ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح'],
+                'failed': ['راسب', 'فاشل', 'failed', 'رسب'],
+                'in_progress': ['مسجل', 'قيد', 'in progress', 'registered', 'مستمر'],
+                'exempted': ['معفي', 'معفى', 'exempted']
+            }
+            for key, keywords in mapping.items():
+                if any(word in text for word in keywords):
+                    return key
+            return 'unknown'
         except Exception:
             return 'unknown'
+
