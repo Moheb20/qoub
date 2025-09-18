@@ -515,59 +515,7 @@ def get_group_link(name):
 
 # ---------- إدارة الخطة الدراسية ----------
 
-def save_student_stats(chat_id, stats_data):
-    """حفظ الإحصائيات الدراسية للطالب"""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute('''
-                INSERT INTO student_stats 
-                (chat_id, total_hours_required, total_hours_completed, 
-                 total_hours_transferred, semesters_count, plan_completed, completion_percentage)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (chat_id) DO UPDATE SET
-                    total_hours_required = EXCLUDED.total_hours_required,
-                    total_hours_completed = EXCLUDED.total_hours_completed,
-                    total_hours_transferred = EXCLUDED.total_hours_transferred,
-                    semesters_count = EXCLUDED.semesters_count,
-                    plan_completed = EXCLUDED.plan_completed,
-                    completion_percentage = EXCLUDED.completion_percentage,
-                    last_updated = CURRENT_TIMESTAMP
-            ''', (
-                chat_id,
-                stats_data.get('required_hours', 0),
-                stats_data.get('completed_hours', 0),
-                stats_data.get('transferred_hours', 0),
-                stats_data.get('semesters_count', 0),
-                stats_data.get('plan_completed', False),
-                stats_data.get('completion_percentage', 0)
-            ))
-        conn.commit()
 
-def save_student_courses(chat_id, courses_data):
-    """حفظ المقررات الدراسية للطالب"""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # حذف المقررات القديمة أولاً
-            cur.execute('DELETE FROM student_courses WHERE chat_id = %s', (chat_id,))
-            
-            # إضافة المقررات الجديدة
-            for course in courses_data:
-                cur.execute('''
-                    INSERT INTO student_courses 
-                    (chat_id, course_code, course_name, category, hours, status, semester_offered, grade, is_elective)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ''', (
-                    chat_id,
-                    course.get('course_code', ''),
-                    course.get('course_name', ''),
-                    course.get('category', ''),
-                    course.get('hours', 0),
-                    course.get('status', 'not_taken'),
-                    course.get('semester_offered', ''),
-                    course.get('grade', ''),
-                    course.get('is_elective', False)
-                ))
-        conn.commit()
 
 def get_student_stats(chat_id):
     """الحصول على إحصائيات الطالب"""
@@ -669,8 +617,10 @@ def get_upcoming_reminders(chat_id, days_ahead=7):
                 })
             return reminders
 
-def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
-    """حفظ الإحصائيات الدراسية"""
+def save_student_stats(chat_id, stats_data):
+    if not isinstance(stats_data, dict):
+        logger.error(f"stats_data is not dict for {chat_id}: {stats_data}")
+        return    
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -700,8 +650,11 @@ def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error saving student stats for {chat_id}: {e}")
 
-def save_student_courses(chat_id: int, courses_data: Any):
-    """حفظ المقررات الدراسية"""
+def save_student_courses(chat_id, courses_data):
+    if not isinstance(courses_data, list):
+        logger.error(f"courses_data is not list for {chat_id}: {courses_data}")
+        return
+    courses_to_save = [c for c in courses_data if isinstance(c, dict)]
     try:
         if not isinstance(courses_data, list):
             logger.error(f"courses_data is not a list for {chat_id}, got {type(courses_data)}: {courses_data}")
