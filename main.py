@@ -8,6 +8,7 @@ from bidi.algorithm import get_display
 load_dotenv()
 import threading
 import logging
+from bs4 import BeautifulSoup
 from flask import Flask
 from telebot import types
 from bot_instance import bot
