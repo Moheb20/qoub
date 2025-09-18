@@ -700,21 +700,13 @@ def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error saving student stats for {chat_id}: {e}")
 
-def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
+def save_student_courses(chat_id: int, courses_data: Any):
     """حفظ المقررات الدراسية"""
     try:
-        # ✅ إذا كان جاي كـ string نحوله ل list
-        if isinstance(courses_data, str):
-            try:
-                courses_data = json.loads(courses_data)
-            except Exception:
-                logger.error(f"Invalid JSON format for courses_data for {chat_id}")
-                return
-
         if not isinstance(courses_data, list):
-            logger.error(f"courses_data is not a list for {chat_id}")
-            return
-
+            logger.error(f"courses_data is not a list for {chat_id}, got {type(courses_data)}: {courses_data}")
+            return  # تجاهل الحفظ بدل ما يفجر
+        
         with get_conn() as conn:
             with conn.cursor() as cur:
                 # حذف المقررات القديمة
@@ -722,8 +714,8 @@ def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
                 
                 # إضافة المقررات الجديدة
                 for course in courses_data:
-                    if not isinstance(course, dict):  # 🔒 حماية إضافية
-                        continue
+                    if not isinstance(course, dict):
+                        continue  # تجاهل أي عنصر مش dict
                     cur.execute('''
                         INSERT INTO student_courses 
                         (chat_id, course_code, course_name, category, hours, status, detailed_status, is_elective)
