@@ -663,24 +663,43 @@ class QOUScraper:
             'total_hours_required': 0,
             'total_hours_completed': 0,
             'total_hours_transferred': 0,
-            'semesters_count': 0,  # تأكد من وجود المفتاح
+            'semesters_count': 0,
             'plan_completed': False,
             'completion_percentage': 0
         }
     
         try:
-            cards = soup.find_all('div', class_='member-card')
-            for card in cards:
-                buttons = card.find_all('button')
-                if len(buttons) >= 3:
-                    stats['total_hours_required'] += self._parse_number(buttons[0].get_text())
-                    stats['total_hours_transferred'] += self._parse_number(buttons[1].get_text())
-                    stats['total_hours_completed'] += self._parse_number(buttons[2].get_text())
-    
-            # لاستخراج عدد الفصول إذا موجود في الصفحة
-            semester_elem = soup.find(lambda tag: tag.name == 'span' and 'عدد الفصول' in tag.get_text())
-            if semester_elem:
-                stats['semesters_count'] = self._parse_number(semester_elem.get_text())
+            # ✅ الطريقة الجديدة: البحث في النموذج
+            form_groups = soup.find_all('div', class_='form-group')
+            for group in form_groups:
+                labels = group.find_all('label', class_='control-label')
+                values = group.find_all('div', class_=lambda x: x != 'control-label')
+                
+                for i, label in enumerate(labels):
+                    label_text = label.get_text(strip=True)
+                    if i < len(values):
+                        value_text = values[i].get_text(strip=True)
+                        
+                        if 'عدد الساعات المطلوبة' in label_text:
+                            stats['total_hours_required'] = self._parse_number(value_text)
+                        elif 'عدد الساعات المجتازة' in label_text:
+                            stats['total_hours_completed'] = self._parse_number(value_text)
+                        elif 'عدد الساعات المحتسبة' in label_text:
+                            stats['total_hours_transferred'] = self._parse_number(value_text)
+                        elif 'عدد الفصول' in label_text:
+                            stats['semesters_count'] = self._parse_number(value_text)
+                        elif 'انهى الخطة' in label_text:
+                            stats['plan_completed'] = 'نعم' in value_text
+            
+            # ✅ الطريقة القديمة (كبديل)
+            if stats['total_hours_required'] == 0:
+                cards = soup.find_all('div', class_='member-card')
+                for card in cards:
+                    buttons = card.find_all('button')
+                    if len(buttons) >= 3:
+                        stats['total_hours_required'] += self._parse_number(buttons[0].get_text())
+                        stats['total_hours_transferred'] += self._parse_number(buttons[1].get_text())
+                        stats['total_hours_completed'] += self._parse_number(buttons[2].get_text())
     
             if stats['total_hours_required'] > 0:
                 completed = stats['total_hours_completed'] + stats['total_hours_transferred']
@@ -697,46 +716,74 @@ class QOUScraper:
         
         courses = []
         try:
-            # ✅ البحث في جميع الجداول
-            tables = soup.find_all('table')
-            logger.info(f"Found {len(tables)} tables on the page")
+            # ✅ البحث عن جميع الجداول داخل div.member-card
+            member_cards = soup.find_all('div', class_='member-card')
+            logger.info(f"Found {len(member_cards)} member cards")
             
-            for table_idx, table in enumerate(tables):
-                rows = table.find_all("tr")
-                logger.info(f"Table {table_idx + 1}: Found {len(rows)} rows")
+            for card_idx, card in enumerate(member_cards):
+                # استخراج اسم الفئة من العنوان
+                category_header = card.find('h4')
+                if category_header:
+                    category = category_header.get_text(strip=True)
+                else:
+                    category = f"الفئة {card_idx + 1}"
+                
+                # البحث عن الجدول داخل البطاقة
+                table = card.find('table')
+                if not table:
+                    continue
+                    
+                rows = table.find_all('tr')
+                logger.info(f"Card {card_idx + 1} ({category}): Found {len(rows)} rows")
                 
                 for row_idx, row in enumerate(rows):
-                    cols = row.find_all("td")
+                    cols = row.find_all(['td', 'th'])
                     
-                    # تجاهل الصفوف التي تحتوي على عدد قليل من الأعمدة (عناوين أو فواصل)
-                    if len(cols) < 3:
+                    # تجاهل الصفوف التي تحتوي على عدد قليل من الأعمدة أو صفوف العناوين
+                    if len(cols) < 5:
                         continue
                     
-                    # ✅ محاولة استخراج بيانات المقرر بطرق مختلفة
                     try:
-                        # الطريقة 1: افتراض أن الأعمدة تحتوي على [رمز، اسم، نوع، ساعات، حالة]
-                        course_code = cols[0].get_text(strip=True)
-                        course_name = cols[1].get_text(strip=True)
+                        # استخراج البيانات من الأعمدة
+                        course_code_elem = cols[1].find('a')
+                        course_code = course_code_elem.get_text(strip=True) if course_code_elem else cols[1].get_text(strip=True)
+                        course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
                         
-                        # تجاهل الصفوف التي لا تحتوي على رمز واسم صالحين
-                        if not course_code or not course_name or len(course_code) < 3:
+                        # تجاهل الصفوف التي لا تحتوي على رمز مقرر صالح
+                        if not course_code or '/' not in course_code:
                             continue
+                        
+                        # استخراج حالة المقرر من العمود الأول (الأيقونة)
+                        status_icon = cols[0].find('i')
+                        status_class = ''
+                        if status_icon:
+                            status_class = ' '.join(status_icon.get('class', []))
+                        
+                        # تحديد الحالة بناءً على class الأيقونة
+                        if 'btn-success' in status_class:
+                            status = 'completed'
+                        elif 'btn-danger' in status_class:
+                            status = 'failed'
+                        elif 'btn-default' in status_class:
+                            status = 'not_registered'
+                        else:
+                            status = 'unknown'
                         
                         course = {
                             "course_code": course_code,
                             "course_name": course_name,
-                            "category": cols[2].get_text(strip=True) if len(cols) > 2 else 'غير مصنف',
+                            "category": category,
                             "hours": self._parse_number(cols[3].get_text(strip=True)) if len(cols) > 3 else 0,
-                            "status": self._get_course_status_simple(cols[4]) if len(cols) > 4 else 'unknown',
-                            "detailed_status": cols[4].get_text(strip=True) if len(cols) > 4 else 'غير معروف',
-                            "is_elective": any(x in cols[2].get_text(strip=True) for x in ['اختياري', 'elective']) if len(cols) > 2 else False
+                            "status": status,
+                            "detailed_status": cols[4].get_text(strip=True) if len(cols) > 4 else '',
+                            "is_elective": 'اختياري' in category
                         }
                         
                         courses.append(course)
                         logger.debug(f"Extracted course: {course_code} - {course_name}")
                         
                     except Exception as e:
-                        logger.warning(f"Error parsing row {row_idx} in table {table_idx}: {e}")
+                        logger.warning(f"Error parsing row {row_idx} in card {card_idx}: {e}")
                         continue
         
         except Exception as e:
@@ -809,9 +856,10 @@ class QOUScraper:
                 text = str(status_element).lower()
             
             status_mapping = {
-                'completed': ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح', 'تم بنجاح'],
+                'completed': ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح', 'تم بنجاح', 'محتسب'],
                 'failed': ['راسب', 'فاشل', 'failed', 'رسب', 'غير مكتمل'],
                 'in_progress': ['مسجل', 'قيد', 'in progress', 'registered', 'مستمر', 'قيد التقدم'],
+                'not_registered': ['لم يسجل', 'غير مسجل', 'not registered'],
                 'exempted': ['معفي', 'معفى', 'exempted', 'معفاة']
             }
             
@@ -835,3 +883,35 @@ class QOUScraper:
         except (ValueError, TypeError):
             return 0
 
+    def debug_page_structure(self, soup):
+        """لتصحيح هيكل الصفحة"""
+        debug_info = []
+        
+        # تحليل البطاقات
+        member_cards = soup.find_all('div', class_='member-card')
+        debug_info.append(f"📊 عدد البطاقات: {len(member_cards)}")
+        
+        for i, card in enumerate(member_cards):
+            # العنوان
+            title = card.find('h4')
+            debug_info.append(f"\n🎯 البطاقة {i+1}: {title.get_text(strip=True) if title else 'لا يوجد عنوان'}")
+            
+            # الجدول
+            table = card.find('table')
+            if table:
+                rows = table.find_all('tr')
+                debug_info.append(f"   📋 عدد الصفوف: {len(rows)}")
+                
+                # أول 3 صفوف
+                for j, row in enumerate(rows[:3]):
+                    cols = row.find_all(['td', 'th'])
+                    col_data = []
+                    for col in cols:
+                        text = col.get_text(strip=True)
+                        # تقصير النص الطويل
+                        if len(text) > 20:
+                            text = text[:20] + "..."
+                        col_data.append(text)
+                    debug_info.append(f"   📝 الصف {j+1}: {col_data}")
+        
+        return "\n".join(debug_info)
