@@ -88,78 +88,43 @@ def init_db():
                 )
             ''')
 
-            # جدول الفروع
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS branches (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL UNIQUE
-                )
-            ''')
-
-            # جدول الأقسام
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS departments (
-                    id SERIAL PRIMARY KEY,
-                    branch_id INT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-                    name TEXT NOT NULL
-                )
-            ''')
-
-            # جدول الأرقام/الأسماء
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS contacts (
-                    id SERIAL PRIMARY KEY,
-                    department_id INT NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
-                    name TEXT NOT NULL,
-                    phone TEXT NOT NULL
-                )
-            ''')
-
-            # جدول الإحصائيات الدراسية
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS student_stats (
-                    chat_id BIGINT PRIMARY KEY REFERENCES users(chat_id),
-                    total_hours_required INTEGER DEFAULT 0,
-                    total_hours_completed INTEGER DEFAULT 0,
-                    total_hours_transferred INTEGER DEFAULT 0,
-                    semesters_count INTEGER DEFAULT 0,
-                    plan_completed BOOLEAN DEFAULT FALSE,
-                    completion_percentage FLOAT DEFAULT 0,
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-            # جدول المقررات الدراسية
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS student_courses (
-                    id SERIAL PRIMARY KEY,
-                    chat_id BIGINT REFERENCES users(chat_id),
-                    course_code TEXT NOT NULL,
-                    course_name TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    hours INTEGER DEFAULT 0,
-                    status TEXT DEFAULT 'not_taken',
-                    semester_offered TEXT,
-                    grade TEXT,
-                    is_elective BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-            # جدول التذكيرات والتنبيهات
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS study_reminders (
-                    id SERIAL PRIMARY KEY,
-                    chat_id BIGINT REFERENCES users(chat_id),
-                    reminder_type TEXT NOT NULL,
-                    reminder_data TEXT NOT NULL,
-                    due_date TIMESTAMP,
-                    is_completed BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-        conn.commit()
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS student_stats (
+                        chat_id BIGINT PRIMARY KEY,
+                        total_hours_required INTEGER DEFAULT 0,
+                        total_hours_completed INTEGER DEFAULT 0,
+                        total_hours_transferred INTEGER DEFAULT 0,
+                        semesters_count INTEGER DEFAULT 0,
+                        plan_completed BOOLEAN DEFAULT FALSE,
+                        completion_percentage NUMERIC(5,2) DEFAULT 0,
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # جدول المقررات
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS student_courses (
+                        id SERIAL PRIMARY KEY,
+                        chat_id BIGINT NOT NULL,
+                        course_code VARCHAR(50),
+                        course_name TEXT,
+                        category TEXT,
+                        hours INTEGER DEFAULT 0,
+                        status VARCHAR(20),
+                        detailed_status TEXT,
+                        is_elective BOOLEAN DEFAULT FALSE,
+                        FOREIGN KEY (chat_id) REFERENCES student_stats(chat_id) ON DELETE CASCADE
+                    )
+                ''')
+                
+                # إنشاء فهرس لأداء أفضل
+                cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
+                
+            conn.commit()
+            logger.info("Database tables initialized successfully")
+            
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}")
 
 # ---------- إدارة المستخدمين ----------
 def add_user(chat_id, student_id, password, registered_at=None, initial_stats=None, initial_courses=None):
