@@ -1359,7 +1359,28 @@ def handle_all_messages(message):
         except Exception as e:
             logger.error(f"Error updating data: {e}")
             bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {str(e)}")
-    
+    elif text == "🔍 تصحيح الهيكل":
+        user = get_user(chat_id)
+        if not user:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك")
+            return
+        
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            
+            # جلب الصفحة مباشرة
+            headers = scraper.headers.copy()
+            headers['Referer'] = "https://portal.qou.edu/portalLogin.do"
+            response = scraper.session.get(STUDY_PLAN_URL, headers=headers, timeout=30)
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            debug_info = scraper.debug_page_structure(soup)
+            
+            # إرسال الجزء الأول فقط لتجنب طول الرسالة
+            bot.send_message(chat_id, f"📋 هيكل الصفحة:\n{debug_info[:1000]}...")
+            
+        except Exception as e:
+            bot.send_message(chat_id, f"🚨 خطأ: {str(e)}")
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 if __name__ == "__main__":
