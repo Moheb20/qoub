@@ -21,8 +21,31 @@ KEY_FILE = 'secret.key'
 def load_or_create_key():
     key = os.getenv("FERNET_KEY")
     if not key:
-        raise Exception("FERNET_KEY not found in environment variables")
-    return Fernet(key.encode())
+        logger.error("FERNET_KEY not found in environment variables")
+        # إنشاء مفتاح جديد للطوارئ
+        new_key = Fernet.generate_key()
+        logger.warning(f"تم إنشاء مفتاح جديد: {new_key.decode()}")
+        return Fernet(new_key)
+    
+    # تحقق من صحة المفتاح
+    try:
+        # محاولة تشفير وفك تشفير نص اختبار
+        test_fernet = Fernet(key.encode())
+        test_text = "test"
+        encrypted = test_fernet.encrypt(test_text.encode()).decode()
+        decrypted = test_fernet.decrypt(encrypted.encode()).decode()
+        if decrypted == test_text:
+            logger.info("✅ مفتاح التشفير صالح")
+            return test_fernet
+        else:
+            logger.error("❌ مفتاح التشفير غير صالح")
+    except Exception as e:
+        logger.error(f"❌ خطأ في مفتاح التشفير: {e}")
+    
+    # إنشاء مفتاح جديد في حالة فشل التحقق
+    new_key = Fernet.generate_key()
+    logger.warning(f"تم إنشاء مفتاح جديد: {new_key.decode()}")
+    return Fernet(new_key)
 
 
 fernet = load_or_create_key()
@@ -41,14 +64,23 @@ def decrypt_text(token):
         return None
     
     try:
+        # ✅ سجل ما نحاول فك تشفيره
+        logger.debug(f"محاولة فك تشفير: {token[:20]}...")
+        
         # ✅ إضافة padding إذا لزم الأمر لتصحيح base64
         padding = len(token) % 4
         if padding != 0:
             token += '=' * (4 - padding)
+            logger.debug(f"تم إضافة padding: {token}")
         
-        return fernet.decrypt(token.encode()).decode()
+        # ✅ فك التشفير
+        decrypted = fernet.decrypt(token.encode()).decode()
+        logger.debug(f"فك التشفير بنجاح: {decrypted[:10]}...")
+        return decrypted
+        
     except Exception as e:
-        logger.error(f"فشل فك التشفير: {e}")
+        logger.error(f"فشل فك التشفير: {str(e)}")
+        logger.error(f"النص المشفر: {token}")
         return None
 
 
