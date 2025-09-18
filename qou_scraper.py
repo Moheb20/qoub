@@ -653,93 +653,65 @@ class QOUScraper:
     
         
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
-        """استخراج الإحصائيات الدراسية لكل فئة في الخطة الدراسية"""
         stats = {
             'total_hours_required': 0,
             'total_hours_completed': 0,
             'total_hours_transferred': 0,
+            'semesters_count': 0,  # تأكد من وجود المفتاح
             'plan_completed': False,
-            'completion_percentage': 0,
-            'sections': {}  # ← لإضافة كل قسم بشكل منفصل
+            'completion_percentage': 0
         }
     
         try:
             cards = soup.find_all('div', class_='member-card')
             for card in cards:
-                category_elem = card.find(['h3', 'h4'])
-                category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
-    
                 buttons = card.find_all('button')
-                required = self._parse_number(buttons[0].get_text()) if len(buttons) >= 1 else 0
-                transferred = self._parse_number(buttons[1].get_text()) if len(buttons) >= 2 else 0
-                completed = self._parse_number(buttons[2].get_text()) if len(buttons) >= 3 else 0
+                if len(buttons) >= 3:
+                    stats['total_hours_required'] += self._parse_number(buttons[0].get_text())
+                    stats['total_hours_transferred'] += self._parse_number(buttons[1].get_text())
+                    stats['total_hours_completed'] += self._parse_number(buttons[2].get_text())
     
-                stats['sections'][category] = {
-                    'required': required,
-                    'transferred': transferred,
-                    'completed': completed,
-                    'completion_percentage': round((transferred + completed) / required * 100, 2) if required > 0 else 0
-                }
-    
-                stats['total_hours_required'] += required
-                stats['total_hours_transferred'] += transferred
-                stats['total_hours_completed'] += completed
+            # لاستخراج عدد الفصول إذا موجود في الصفحة
+            semester_elem = soup.find(lambda tag: tag.name == 'span' and 'عدد الفصول' in tag.get_text())
+            if semester_elem:
+                stats['semesters_count'] = self._parse_number(semester_elem.get_text())
     
             if stats['total_hours_required'] > 0:
-                completed_total = stats['total_hours_completed'] + stats['total_hours_transferred']
-                stats['completion_percentage'] = round((completed_total / stats['total_hours_required']) * 100, 2)
+                completed = stats['total_hours_completed'] + stats['total_hours_transferred']
+                stats['completion_percentage'] = round((completed / stats['total_hours_required']) * 100, 2)
     
         except Exception as e:
             logger.error(f"Error extracting stats: {e}")
     
         return stats
+
         
     def _extract_courses(self, soup) -> Dict[str, List[Dict[str, Any]]]:
-        """استخراج المقررات وتصنيفها حسب الفئة"""
-        courses_by_category = {
-            "إجباري جامعة": [],
-            "إختياري جامعة": [],
-            "إجباري كلية": [],
-            "تخصصي إجباري": [],
-            "تخصصي اختياري": [],
-            "غير مصنف": []
-        }
+        """استخراج المقررات الدراسية وتصنيفها حسب الفئة"""
+        courses_by_category = {}
     
         try:
             course_sections = soup.find_all('div', class_=lambda x: x and 'member-card' in x)
             for section in course_sections:
-                # قراءة عنوان القسم
                 category_elem = section.find(['h2', 'h3', 'h4'])
-                category_text = category_elem.get_text(strip=True) if category_elem else "غير مصنف"
-    
-                # تحويل العنوان إلى فئة معروفة
-                if "إجباري جامعة" in category_text:
-                    category = "إجباري جامعة"
-                elif "إختياري جامعة" in category_text:
-                    category = "إختياري جامعة"
-                elif "إجباري كلية" in category_text:
-                    category = "إجباري كلية"
-                elif "تخصصي اجباري" in category_text or "تخصصي إجباري" in category_text:
-                    category = "تخصصي إجباري"
-                elif "تخصصي اختياري" in category_text:
-                    category = "تخصصي اختياري"
-                else:
-                    category = "غير مصنف"
-    
+                category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
                 table = section.find('table')
+                courses = []
                 if table:
                     for row in table.find_all('tr')[1:]:
                         cols = row.find_all('td')
-                        if len(cols) >= 4:
+                        if len(cols) >= 3:  # حسب الصفحة الجديدة، تأكد من عدد الأعمدة
                             course_data = self._parse_course_row(cols, category)
                             if course_data:
-                                courses_by_category[category].append(course_data)
+                                courses.append(course_data)
+                courses_by_category[category] = courses
     
         except Exception as e:
             logger.error(f"Error extracting courses: {e}")
     
         return courses_by_category
     
+        
     
     def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
         """تحليل صف المقرر مع تجاهل الصفوف الفارغة أو التوضيحية"""
