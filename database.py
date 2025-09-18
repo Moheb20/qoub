@@ -680,7 +680,7 @@ def get_upcoming_reminders(chat_id, days_ahead=7):
                 })
             return reminders
 
-def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
+def save_student_stats(chat_id: int, stats_data: dict[str, Any]):
     """حفظ الإحصائيات الدراسية"""
     try:
         with get_conn() as conn:
@@ -711,7 +711,7 @@ def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error saving student stats for {chat_id}: {e}")
 
-def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
+def save_student_courses(chat_id: int, courses_data: List[dict[str, Any]]):
     """حفظ المقررات الدراسية"""
     try:
         with get_conn() as conn:
