@@ -573,22 +573,22 @@ class QOUScraper:
     def fetch_study_plan(self) -> Dict[str, Any]:
         """جلب الخطة الدراسية الكاملة للطالب"""
         try:
-            logger.info(f"Fetching study plan for {self.student_id} using URL: {STUDY_PLAN_URL}")
-            logger.info(f"Session cookies: {self.session.cookies.get_dict()}")
-            logger.info(f"Headers: {self.headers}")
-
+            # أولاً نحتاج إلى زيارة الصفحة الرئيسية للحصول على الجلسة الصحيحة
+            self.session.get("https://portal.qou.edu/student/index.do", headers=self.headers)
+            
+            # الآن نجلب صفحة الخطة الدراسية
             response = self.session.get(STUDY_PLAN_URL, headers=self.headers, timeout=30)
             response.raise_for_status()
             
-            # التحقق من أن الصفحة تحتوي على البيانات المطلوبة
-            if "الخطة الدراسية" not in response.text:
-                logger.warning(f"Study plan page might be invalid for {self.student_id}")
+            # التحقق من أننا لسنا في صفحة الخطأ
+            if "errorPage.jsp" in response.url or "الخطة الدراسية" not in response.text:
+                logger.warning(f"Redirected to error page or invalid page for {self.student_id}")
                 return {
                     'stats': {},
                     'courses': [],
                     'last_updated': datetime.now().isoformat(),
                     'status': 'error',
-                    'error': 'Invalid study plan page'
+                    'error': 'Invalid or error page reached'
                 }
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -786,3 +786,25 @@ class QOUScraper:
             logger.error(f"Error parsing course row: {e}")
             return None
 
+
+    def _get_course_status(self, class_list):
+        """تحديد حالة المقرر بناءً على كلاسات الأيقونة"""
+        if not class_list:
+            return 'unknown'
+        
+        # تحويل القائمة إلى سلسلة نصية للبحث
+        classes_str = ' '.join(str(cls) for cls in class_list).lower()
+        
+        status_map = {
+            'completed': ['fa-check', 'text-success', 'success', 'ناجح', 'passed', 'مكتمل'],
+            'failed': ['fa-times', 'text-danger', 'danger', 'راسب', 'failed', 'فاشل'],
+            'in_progress': ['fa-spinner', 'text-warning', 'warning', 'active', 'مسجل', 'registered', 'قيد التقدم'],
+            'not_taken': ['fa-circle', 'text-muted', 'muted', 'لم يؤخذ', 'not taken', 'غير مأخوذ'],
+            'registered': ['fa-book', 'text-info', 'info', 'مسجل', 'registered']
+        }
+        
+        for status, keywords in status_map.items():
+            if any(keyword.lower() in classes_str for keyword in keywords):
+                return status
+        
+        return 'unknown'
