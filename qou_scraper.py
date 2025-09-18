@@ -669,7 +669,7 @@ class QOUScraper:
                     elif 'عدد الفصول' in label:
                         stats['semesters_count'] = self._parse_number(value)
                     elif 'انهى الخطة' in label:
-                        stats['plan_completed'] = 'نعم' في value أو 'yes' في value.lower()
+                        stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
         
             # حساب نسبة الإنجاز
             if stats['total_hours_required'] > 0:
