@@ -573,22 +573,27 @@ class QOUScraper:
     def fetch_study_plan(self) -> Dict[str, Any]:
         """جلب الخطة الدراسية الكاملة للطالب"""
         try:
-            # أولاً نحتاج إلى زيارة الصفحة الرئيسية للحصول على الجلسة الصحيحة
-            self.session.get("https://portal.qou.edu/student/index.do", headers=self.headers)
+            # أولاً نحتاج إلى زيارة صفحة الطالب الرئيسية لتهيئة الجلسة
+            portal_url = "https://portal.qou.edu/portalLogin.do"
+            response = self.session.get(portal_url, headers=self.headers, timeout=30)
+            response.raise_for_status()
             
-            # الآن نجلب صفحة الخطة الدراسية
-            response = self.session.get(STUDY_PLAN_URL, headers=self.headers, timeout=30)
+            # الآن نجلب صفحة الخطة الدراسية مع Referer صحيح
+            headers = self.headers.copy()
+            headers['Referer'] = portal_url
+            
+            response = self.session.get(STUDY_PLAN_URL, headers=headers, timeout=30)
             response.raise_for_status()
             
             # التحقق من أننا لسنا في صفحة الخطأ
-            if "errorPage.jsp" in response.url or "الخطة الدراسية" not in response.text:
-                logger.warning(f"Redirected to error page or invalid page for {self.student_id}")
+            if "errorPage" in response.url or "jsessionid" in response.url:
+                logger.warning(f"Redirected to error page for {self.student_id}")
                 return {
                     'stats': {},
                     'courses': [],
                     'last_updated': datetime.now().isoformat(),
                     'status': 'error',
-                    'error': 'Invalid or error page reached'
+                    'error': 'Redirected to error page'
                 }
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -740,21 +745,8 @@ class QOUScraper:
     def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
         """تحليل صف المقرر"""
         try:
-            # حالة المقرر (من الأيقونة أو النص)
-            status = 'unknown'
-            status_icon = cols[0].find('i')
-            if status_icon:
-                status_classes = status_icon.get('class', [])
-                status = self._get_course_status(status_classes)  # التصحيح هنا
-            else:
-                # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
-                status_text = cols[0].get_text(strip=True).lower()
-                if 'ناجح' in status_text or 'completed' in status_text:
-                    status = 'completed'
-                elif 'راسب' in status_text or 'failed' in status_text:
-                    status = 'failed'
-                elif 'مسجل' in status_text or 'in progress' in status_text:
-                    status = 'in_progress'
+            # حالة المقرر (من النص مباشرة)
+            status = self._get_course_status_simple(cols[0])
             
             # رمز المقرر
             course_code = cols[1].get_text(strip=True)
@@ -808,3 +800,34 @@ class QOUScraper:
                 return status
         
         return 'unknown'
+
+
+    def _parse_number(self, text):
+        """تحويل النص إلى رقم"""
+        try:
+            if not text:
+                return 0
+            # إزالة أي أحرف غير رقمية
+            cleaned = ''.join(filter(str.isdigit, str(text)))
+            return int(cleaned) if cleaned else 0
+        except (ValueError, TypeError):
+            return 0
+    
+    def _get_course_status_simple(self, status_element):
+        """دالة مبسطة لتحديد حالة المقرر من النص"""
+        try:
+            text = status_element.get_text(strip=True).lower()
+            
+            if any(word in text for word in ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح']):
+                return 'completed'
+            elif any(word in text for word in ['راسب', 'فاشل', 'failed', 'رسب']):
+                return 'failed'
+            elif any(word in text for word in ['مسجل', 'قيد', 'in progress', 'registered', 'مستمر']):
+                return 'in_progress'
+            elif any(word in text for word in ['معفي', 'معفى', 'exempted']):
+                return 'exempted'
+            else:
+                return 'unknown'
+                
+        except Exception:
+            return 'unknown'
