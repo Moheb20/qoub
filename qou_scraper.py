@@ -653,35 +653,52 @@ class QOUScraper:
     
         
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
-        """استخراج الإحصائيات الدراسية من الصفحة بناءً على الأزرار الموجودة"""
+        """استخراج الإحصائيات الدراسية لكل قسم (إجباري جامعة، اختياري جامعة...)"""
         stats = {
+            'sections': {},  # لكل قسم: الساعات المطلوبة، المحتسبة، المجتازة، النسبة
             'total_hours_required': 0,
             'total_hours_completed': 0,
             'total_hours_transferred': 0,
-            'semesters_count': 0,
-            'plan_completed': False,
             'completion_percentage': 0
         }
     
         try:
-            # البحث عن جميع البطاقات (member-card) للحصول على الأزرار
+            # البحث عن جميع البطاقات (member-card) للحصول على الأقسام
             cards = soup.find_all('div', class_='member-card')
             for card in cards:
+                title_elem = card.find(['h4', 'h3'])
+                if not title_elem:
+                    continue
+                section_name = title_elem.get_text(strip=True)
+    
                 buttons = card.find_all('button')
                 if len(buttons) >= 3:
-                    stats['total_hours_required'] += self._parse_number(buttons[0].get_text())
-                    stats['total_hours_transferred'] += self._parse_number(buttons[1].get_text())
-                    stats['total_hours_completed'] += self._parse_number(buttons[2].get_text())
+                    required = self._parse_number(buttons[0].get_text())
+                    transferred = self._parse_number(buttons[1].get_text())
+                    completed = self._parse_number(buttons[2].get_text())
+                    percentage = round(((completed + transferred) / required) * 100, 2) if required > 0 else 0
     
+                    stats['sections'][section_name] = {
+                        'required': required,
+                        'transferred': transferred,
+                        'completed': completed,
+                        'percentage': percentage
+                    }
+    
+                    # تجميع الإجمالي
+                    stats['total_hours_required'] += required
+                    stats['total_hours_transferred'] += transferred
+                    stats['total_hours_completed'] += completed
+    
+            # حساب النسبة الإجمالية
+            total_completed = stats['total_hours_completed'] + stats['total_hours_transferred']
             if stats['total_hours_required'] > 0:
-                completed = stats['total_hours_completed'] + stats['total_hours_transferred']
-                stats['completion_percentage'] = round((completed / stats['total_hours_required']) * 100, 2)
+                stats['completion_percentage'] = round((total_completed / stats['total_hours_required']) * 100, 2)
     
         except Exception as e:
             logger.error(f"Error extracting stats: {e}")
     
         return stats
-    
     
     def _extract_courses(self, soup) -> List[Dict[str, Any]]:
         """استخراج المقررات الدراسية من div.member-card"""
