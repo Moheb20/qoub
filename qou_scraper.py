@@ -790,3 +790,14 @@ class QOUScraper:
         except Exception:
             return 'unknown'
 
+    def _parse_number(self, text):
+        """تحويل النص إلى رقم"""
+        try:
+            if not text:
+                return 0
+            # إزالة أي أحرف غير رقمية
+            cleaned = ''.join(filter(str.isdigit, str(text)))
+            return int(cleaned) if cleaned else 0
+        except (ValueError, TypeError):
+            return 0
+
