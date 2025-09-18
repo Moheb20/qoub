@@ -117,12 +117,11 @@ def init_db():
                     )
                 ''')
                 
-                # إنشاء فهرس لأداء أفضل
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
-                
-        conn.commit()
-        logger.info("Database tables initialized successfully")
-            
+                cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
+
+            conn.commit()
+            logger.info("Database tables initialized successfully")
+
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
 
