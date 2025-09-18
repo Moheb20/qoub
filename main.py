@@ -1135,9 +1135,9 @@ def handle_all_messages(message):
     ━━━━━━━━━━━━━━━━━━━━
     
     📊 *الإحصاءات العامة:*
-    • 📚 عدد المقررات: {}
-    • ✅ مكتمل: {}
-    • 🕒 مجموع الساعات: {}
+    • 📚 عدد المقررات في الخطة: {}
+    • ✅ عدد المقررات المكتملة: {}
+    • 🕒 مجموع الساعات المكتملة: {}
             
     👇 اختر الفئة لعرض المقررات:
             """.format(
@@ -1281,14 +1281,16 @@ def handle_all_messages(message):
     
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
-            stats = scraper.fetch_study_plan()['stats']
+            stats = scraper.fetch_study_plan().get('stats', {})
     
             if not stats:
-                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتي.")
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتك.")
                 return
     
             percentage = stats['completion_percentage']
             progress_bar = "🟩" * int(percentage / 10) + "⬜" * (10 - int(percentage / 10))
+            remaining_hours = stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']
+    
             reply = f"""
     🎯 *نسبة إنجازك الدراسي:*
     
@@ -1299,8 +1301,8 @@ def handle_all_messages(message):
     • المطلوب: {stats['total_hours_required']} ساعة
     • المكتمل: {stats['total_hours_completed']} ساعة
     • المحتسب: {stats['total_hours_transferred']} ساعة
-    • المتبقي: {stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']} ساعة
-    """
+    • المتبقي: {remaining_hours if remaining_hours > 0 else 0} ساعة
+            """
             bot.send_message(chat_id, reply, parse_mode="Markdown")
     
         except Exception as e:
