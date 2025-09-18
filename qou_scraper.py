@@ -750,9 +750,9 @@ class QOUScraper:
             return None
     
     
-    # دوال التكامل مع قاعدة البيانات
 def update_student_data(chat_id: int) -> bool:
     """تحديث بيانات الطالب في قاعدة البيانات"""
+    scraper = None  # تعريف المتغير هنا أولاً
     try:
         # جلب بيانات المستخدم من قاعدة البيانات
         user = get_user(chat_id)
@@ -775,19 +775,6 @@ def update_student_data(chat_id: int) -> bool:
         
         logger.info(f"Attempting to update data for student: {student_id}")
         
-        # استخدام دالة منفصلة للتعامل مع السكرابر
-        return update_with_scraper(student_id, password, chat_id)
-        
-    except Exception as e:
-        logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return False
-
-def update_with_scraper(student_id, password, chat_id):
-    """دالة منفصلة للتعامل مع السكرابر"""
-    scraper = None
-    try:
         # إنشاء السكرابر
         scraper = QOUScraper(student_id, password)
         
@@ -816,14 +803,20 @@ def update_with_scraper(student_id, password, chat_id):
         return True
         
     except Exception as e:
-        logger.error(f"Error in update_with_scraper for student {student_id}: {str(e)}")
+        logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
     finally:
         # تنظيف الموارد - التحقق من وجود scraper أولاً
         if scraper is not None:
             try:
+                # إذا كان هناك دالة close في السكرابر
                 if hasattr(scraper, 'close'):
                     scraper.close()
+                # أو إغلاق الجلسة إذا كانت موجودة
+                elif hasattr(scraper, 'session'):
+                    scraper.session.close()
             except Exception as cleanup_error:
                 logger.error(f"Error during cleanup: {cleanup_error}")
 
