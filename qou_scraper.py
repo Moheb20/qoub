@@ -594,7 +594,7 @@ class QOUScraper:
         """جلب الخطة الدراسية الكاملة للطالب مع معالجة أفضل للأخطاء"""
         try:
             # التأكد من تسجيل الدخول
-            if not self.is_logged_in():
+            if not self.is_logged_in:
                 login_success = self.login()
                 if not login_success:
                     logger.warning(f"Login failed for {self.student_id}")
