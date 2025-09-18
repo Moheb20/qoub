@@ -620,8 +620,14 @@ class QOUScraper:
                     'status': 'error',
                     'error': 'Redirected to error page or no data'
                 }
-    
+        
             soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # ✅ DEBUG: لرؤية هيكل الصفحة
+            if not soup.find_all('table'):
+                debug_info = self.debug_page_structure(soup)
+                logger.info(f"Page structure for {self.student_id}:\n{debug_info}")
+            
             stats = self._extract_study_stats(soup)
             courses = self._extract_courses(soup)
     
@@ -691,43 +697,47 @@ class QOUScraper:
         
         courses = []
         try:
-            # ✅ محاولة أنماط مختلفة للجداول
+            # ✅ البحث في جميع الجداول
             tables = soup.find_all('table')
             logger.info(f"Found {len(tables)} tables on the page")
             
-            # النمط 1: البحث عن الصفوف بالكلاس المحدد
-            rows = soup.find_all("tr", class_="course-row")
-            if not rows:
-                # النمط 2: البحث عن أي صف قد يحتوي على مقرر
-                rows = soup.find_all("tr")
-                # تصفية الصفوف التي تحتوي على بيانات مقرر
-                rows = [row for row in rows if len(row.find_all('td')) >= 3]
-            
-            logger.info(f"Found {len(rows)} potential course rows")
-            
-            for row in rows:
-                cols = row.find_all("td")
-                if len(cols) < 3:  # تقليل الشرط إلى 3 أعمدة
-                    continue
+            for table_idx, table in enumerate(tables):
+                rows = table.find_all("tr")
+                logger.info(f"Table {table_idx + 1}: Found {len(rows)} rows")
                 
-                try:
-                    course = {
-                        "course_code": cols[0].get_text(strip=True),
-                        "course_name": cols[1].get_text(strip=True),
-                        "category": cols[2].get_text(strip=True) if len(cols) > 2 else 'غير مصنف',
-                        "hours": self._parse_number(cols[3].get_text(strip=True)) if len(cols) > 3 else 0,
-                        "status": self._get_course_status_simple(cols[4]) if len(cols) > 4 else 'unknown',
-                        "detailed_status": cols[4].get_text(strip=True) if len(cols) > 4 else 'غير معروف',
-                        "is_elective": "اختياري" in cols[2].get_text(strip=True) if len(cols) > 2 else False
-                    }
+                for row_idx, row in enumerate(rows):
+                    cols = row.find_all("td")
                     
-                    # تجاهل الصفوف الفارغة أو غير المهمة
-                    if course['course_code'] and course['course_name']:
-                        courses.append(course)
+                    # تجاهل الصفوف التي تحتوي على عدد قليل من الأعمدة (عناوين أو فواصل)
+                    if len(cols) < 3:
+                        continue
+                    
+                    # ✅ محاولة استخراج بيانات المقرر بطرق مختلفة
+                    try:
+                        # الطريقة 1: افتراض أن الأعمدة تحتوي على [رمز، اسم، نوع، ساعات، حالة]
+                        course_code = cols[0].get_text(strip=True)
+                        course_name = cols[1].get_text(strip=True)
                         
-                except Exception as e:
-                    logger.warning(f"Error parsing row: {e}")
-                    continue
+                        # تجاهل الصفوف التي لا تحتوي على رمز واسم صالحين
+                        if not course_code or not course_name or len(course_code) < 3:
+                            continue
+                        
+                        course = {
+                            "course_code": course_code,
+                            "course_name": course_name,
+                            "category": cols[2].get_text(strip=True) if len(cols) > 2 else 'غير مصنف',
+                            "hours": self._parse_number(cols[3].get_text(strip=True)) if len(cols) > 3 else 0,
+                            "status": self._get_course_status_simple(cols[4]) if len(cols) > 4 else 'unknown',
+                            "detailed_status": cols[4].get_text(strip=True) if len(cols) > 4 else 'غير معروف',
+                            "is_elective": any(x in cols[2].get_text(strip=True) for x in ['اختياري', 'elective']) if len(cols) > 2 else False
+                        }
+                        
+                        courses.append(course)
+                        logger.debug(f"Extracted course: {course_code} - {course_name}")
+                        
+                    except Exception as e:
+                        logger.warning(f"Error parsing row {row_idx} in table {table_idx}: {e}")
+                        continue
         
         except Exception as e:
             logger.error(f"Error extracting courses for {self.student_id}: {e}")
@@ -735,7 +745,7 @@ class QOUScraper:
         
         logger.info(f"Successfully extracted {len(courses)} courses")
         return courses
-    
+        
         
     
     def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
@@ -774,22 +784,43 @@ class QOUScraper:
         except Exception as e:
             logger.error(f"Error parsing course row: {e}")
             return None
+        
+    def debug_page_structure(self, soup):
+        """لتصحيح هيكل الصفحة"""
+        debug_info = []
+        
+        # تحليل جميع الجداول
+        tables = soup.find_all('table')
+        for i, table in enumerate(tables):
+            debug_info.append(f"📊 Table {i + 1}:")
+            rows = table.find_all('tr')
+            for j, row in enumerate(rows[:3]):  # أول 3 صفوف فقط لكل جدول
+                cols = row.find_all(['td', 'th'])
+                col_texts = [col.get_text(strip=True) for col in cols]
+                debug_info.append(f"   Row {j + 1}: {col_texts}")
     
-    
+        return "\n".join(debug_info)
     def _get_course_status_simple(self, status_element):
         """دالة مبسطة لتحديد حالة المقرر من النص"""
         try:
-            text = status_element.get_text(strip=True).lower()
-            mapping = {
-                'completed': ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح'],
-                'failed': ['راسب', 'فاشل', 'failed', 'رسب'],
-                'in_progress': ['مسجل', 'قيد', 'in progress', 'registered', 'مستمر'],
-                'exempted': ['معفي', 'معفى', 'exempted']
+            if hasattr(status_element, 'get_text'):
+                text = status_element.get_text(strip=True).lower()
+            else:
+                text = str(status_element).lower()
+            
+            status_mapping = {
+                'completed': ['ناجح', 'مكتمل', 'completed', 'passed', 'نجح', 'تم بنجاح'],
+                'failed': ['راسب', 'فاشل', 'failed', 'رسب', 'غير مكتمل'],
+                'in_progress': ['مسجل', 'قيد', 'in progress', 'registered', 'مستمر', 'قيد التقدم'],
+                'exempted': ['معفي', 'معفى', 'exempted', 'معفاة']
             }
-            for key, keywords in mapping.items():
-                if any(word in text for word in keywords):
-                    return key
+            
+            for status_key, keywords in status_mapping.items():
+                if any(keyword in text for keyword in keywords):
+                    return status_key
+            
             return 'unknown'
+            
         except Exception:
             return 'unknown'
 
