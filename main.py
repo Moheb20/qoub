@@ -380,6 +380,9 @@ def handle_all_messages(message):
     elif text == "📖 الخطة الدراسية":
         send_academic_stats_menu(chat_id)
 
+    elif text == "🏠 الرئيسية":
+        send_academic_stats_menu(chat_id)
+        
     elif text == "📅 عرض التقويم القادم للفصل الحالي":
         calendar_text1 = QOUScraper.get_full_current_semester_calendar()
         bot.send_message(chat_id, calendar_text1)
