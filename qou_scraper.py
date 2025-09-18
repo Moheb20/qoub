@@ -750,29 +750,10 @@ class QOUScraper:
             return None
     
     
-def update_student_data(chat_id: int) -> bool:
+def update_student_data(chat_id: int, student_id: str, password: str) -> bool:
     """تحديث بيانات الطالب في قاعدة البيانات"""
-    scraper = None  # تعريف المتغير هنا أولاً
+    scraper = None
     try:
-        # جلب بيانات المستخدم من قاعدة البيانات
-        user = get_user(chat_id)
-        if not user:
-            logger.error(f"User data not found for chat_id: {chat_id}")
-            return False
-        
-        # التحقق من صحة البيانات بعد فك التشفير
-        if not user.get('student_id') or not isinstance(user['student_id'], str) or user['student_id'].strip() == '':
-            logger.error(f"Invalid student_id for chat_id: {chat_id}")
-            return False
-        
-        if not user.get('password') or not isinstance(user['password'], str) or user['password'].strip() == '':
-            logger.error(f"Invalid password for chat_id: {chat_id}")
-            return False
-        
-        # تنظيف البيانات
-        student_id = user['student_id'].strip()
-        password = user['password'].strip()
-        
         logger.info(f"Attempting to update data for student: {student_id}")
         
         # إنشاء السكرابر
@@ -801,6 +782,18 @@ def update_student_data(chat_id: int) -> bool:
         
         logger.info(f"Successfully updated data for student: {student_id}")
         return True
+        
+    except Exception as e:
+        logger.error(f"Error in update_student_data for student {student_id}: {str(e)}")
+        return False
+    finally:
+        # تنظيف الموارد
+        if scraper is not None:
+            try:
+                if hasattr(scraper, 'session'):
+                    scraper.session.close()
+            except Exception as cleanup_error:
+                logger.error(f"Error during cleanup: {cleanup_error}")
         
     except Exception as e:
         logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
