@@ -1087,23 +1087,26 @@ def handle_all_messages(message):
     
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
-            study_plan = scraper.fetch_study_plan()
-            courses = study_plan['courses']
+            courses_by_category = scraper.fetch_study_plan()['courses']  # الآن الدالة تعيد dict حسب الفئة
     
-            if not courses or study_plan['status'] != 'success':
-                bot.send_message(chat_id, "⚠️ لا يوجد مقررات، جرب 🔄 تحديث بياناتك.")
-                return
+            for category, courses_list in courses_by_category.items():
+                reply = f"📁 *{category}:*\n"
+                if courses_list:
+                    for c in courses_list:
+                        status_icon = (
+                            "✅" if c['status'] == 'completed' else
+                            "❌" if c['status'] == 'failed' else
+                            "⏳" if c['status'] == 'in_progress' else
+                            "⚡" if c['status'] == 'exempted' else "❔"
+                        )
+                        reply += f"{status_icon} {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
+                else:
+                    reply += "لا يوجد مقررات\n"
     
-            reply = "📚 *قائمة مقرراتك:*\n\n"
-            for c in courses[:20]:
-                status_icon = "✅" if c['status'] == 'completed' else "🔄" if c['status'] == 'in_progress' else "⏳"
-                reply += f"{status_icon} {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
-    
-            bot.send_message(chat_id, reply, parse_mode="Markdown")
+                bot.send_message(chat_id, reply, parse_mode="Markdown")
     
         except Exception as e:
             bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
-    
     
     elif text == "📌 مقررات حالية":
         user = get_user(chat_id)
