@@ -1208,6 +1208,8 @@ def handle_all_messages(message):
         bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
         
         try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+
             success = scraper.update_student_data(chat_id, user['student_id'], user['password'])
             
             if success:
