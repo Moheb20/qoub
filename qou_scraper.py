@@ -651,9 +651,9 @@ class QOUScraper:
                 'error': str(e)
             }
     
-    
+        
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
-        """استخراج الإحصائيات الدراسية من الصفحة"""
+        """استخراج الإحصائيات الدراسية من الصفحة بناءً على الأزرار الموجودة"""
         stats = {
             'total_hours_required': 0,
             'total_hours_completed': 0,
@@ -664,39 +664,14 @@ class QOUScraper:
         }
     
         try:
-            stats_table = soup.find('table', class_='table')
-            if stats_table:
-                for row in stats_table.find_all('tr'):
-                    cols = row.find_all('td')
-                    if len(cols) == 2:
-                        label = cols[0].get_text(strip=True)
-                        value = cols[1].get_text(strip=True)
-                        if 'عدد الساعات المطلوبة' in label:
-                            stats['total_hours_required'] = self._parse_number(value)
-                        elif 'عدد الساعات المجتازة' in label:
-                            stats['total_hours_completed'] = self._parse_number(value)
-                        elif 'عدد الساعات المحتسبة' in label:
-                            stats['total_hours_transferred'] = self._parse_number(value)
-                        elif 'عدد الفصول' in label:
-                            stats['semesters_count'] = self._parse_number(value)
-                        elif 'انهى الخطة' in label:
-                            stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
-            else:
-                stats_elements = soup.select('.form-group .control-label, .form-group .col-sm-2')
-                for i in range(0, len(stats_elements), 2):
-                    if i+1 < len(stats_elements):
-                        label = stats_elements[i].get_text(strip=True)
-                        value = stats_elements[i+1].get_text(strip=True)
-                        if 'عدد الساعات المطلوبة' in label:
-                            stats['total_hours_required'] = self._parse_number(value)
-                        elif 'عدد الساعات المجتازة' in label:
-                            stats['total_hours_completed'] = self._parse_number(value)
-                        elif 'عدد الساعات المحتسبة' in label:
-                            stats['total_hours_transferred'] = self._parse_number(value)
-                        elif 'عدد الفصول' in label:
-                            stats['semesters_count'] = self._parse_number(value)
-                        elif 'انهى الخطة' in label:
-                            stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
+            # البحث عن جميع البطاقات (member-card) للحصول على الأزرار
+            cards = soup.find_all('div', class_='member-card')
+            for card in cards:
+                buttons = card.find_all('button')
+                if len(buttons) >= 3:
+                    stats['total_hours_required'] += self._parse_number(buttons[0].get_text())
+                    stats['total_hours_transferred'] += self._parse_number(buttons[1].get_text())
+                    stats['total_hours_completed'] += self._parse_number(buttons[2].get_text())
     
             if stats['total_hours_required'] > 0:
                 completed = stats['total_hours_completed'] + stats['total_hours_transferred']
@@ -709,33 +684,19 @@ class QOUScraper:
     
     
     def _extract_courses(self, soup) -> List[Dict[str, Any]]:
-        """استخراج المقررات الدراسية"""
+        """استخراج المقررات الدراسية من div.member-card"""
         courses = []
     
         try:
-            course_sections = soup.find_all('div', class_=lambda x: x and ('member-card' in x or 'panel' in x or 'card' in x))
-            if not course_sections:
-                course_tables = soup.find_all('table', class_='table')
-                for table in course_tables:
-                    if table.find_previous_sibling('h3') or table.find_previous_sibling('h4'):
-                        category_elem = table.find_previous_sibling('h3') or table.find_previous_sibling('h4')
-                        category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
-                        for row in table.find_all('tr')[1:]:
-                            cols = row.find_all('td')
-                            if len(cols) >= 4:
-                                course_data = self._parse_course_row(cols, category)
-                                if course_data:
-                                    courses.append(course_data)
-                return courses
-    
+            course_sections = soup.find_all('div', class_='member-card')
             for section in course_sections:
                 category_elem = section.find(['h2', 'h3', 'h4'])
                 category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
                 table = section.find('table')
                 if table:
-                    for row in table.find_all('tr')[1:]:
+                    for row in table.find_all('tr'):
                         cols = row.find_all('td')
-                        if len(cols) >= 4:
+                        if cols and any(td.get_text(strip=True) for td in cols):
                             course_data = self._parse_course_row(cols, category)
                             if course_data:
                                 courses.append(course_data)
@@ -747,15 +708,17 @@ class QOUScraper:
     
     
     def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
-        """تحليل صف المقرر"""
+        """تحليل صف المقرر بناءً على HTML الجديد"""
         try:
             status = self._get_course_status_simple(cols[0])
-            course_code = cols[1].get_text(strip=True)
             course_code_elem = cols[1].find('a')
-            if course_code_elem:
-                course_code = course_code_elem.get_text(strip=True)
+            course_code = course_code_elem.get_text(strip=True) if course_code_elem else cols[1].get_text(strip=True)
             course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
-            hours = self._parse_number(cols[3].get_text(strip=True) if len(cols) > 3 else '0')
+            hours_text = ''
+            # محاولة استخراج الساعات من النصوص الموجودة في category أو detailed_status
+            if 'س.' in cols[2].get_text():
+                hours_text = cols[2].get_text()
+            hours = self._parse_number(hours_text)
             detailed_status = cols[4].get_text(strip=True) if len(cols) > 4 else ''
     
             return {
@@ -765,7 +728,7 @@ class QOUScraper:
                 'hours': hours,
                 'status': status,
                 'detailed_status': detailed_status,
-                'is_elective': 'اختياري' in category or 'elective' in category.lower()
+                'is_elective': 'اختياري' in category or 'مقررات حرة' in category
             }
     
         except Exception as e:
