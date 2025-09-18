@@ -1169,80 +1169,79 @@ def handle_all_messages(message):
             except:
                 pass
             bot.send_message(chat_id, f"🚨 حدث خطأ: {str(e)}")
-
-
-
+    
+    # ⬇️⬇️⬇️ هذا السطر يجب أن يكون بنفس مستوى elif السابق ⬇️⬇️⬇️
     elif chat_id in user_data and user_data[chat_id].get('action') == 'awaiting_category':
-    selected_category = message.text.replace("📁 ", "").strip()
-    categories = user_data[chat_id]['categories']
+        selected_category = message.text.replace("📁 ", "").strip()
+        categories = user_data[chat_id]['categories']
         
-    # البحث عن الفئة المطابقة
-    matched_category = None
-    for category in categories.keys():
-        if selected_category in category or category in selected_category:
-            matched_category = category
-            break
+        # البحث عن الفئة المطابقة
+        matched_category = None
+        for category in categories.keys():
+            if selected_category in category or category in selected_category:
+                matched_category = category
+                break
         
-    if matched_category:
-        category_data = categories[matched_category]
+        if matched_category:
+            category_data = categories[matched_category]
             
             # إنشاء بطاقة الفئة
-        completion_percent = (category_data['completed'] / category_data['total'] * 100) if category_data['total'] > 0 else 0
+            completion_percent = (category_data['completed'] / category_data['total'] * 100) if category_data['total'] > 0 else 0
             
-        category_card = f"""
-📋 *{matched_category}*
-━━━━━━━━━━━━━━━━━━━━
-📊 *إحصاءات الفئة:*
-• 📚 عدد المقررات: {category_data['total']}
-• ✅ مكتمل: {category_data['completed']}
-• 📈 نسبة الإنجاز: {completion_percent:.1f}%
-• 🕒 مجموع الساعات: {category_data['hours']}
-
-🎓 *المقررات:*
+            category_card = f"""
+    📋 *{matched_category}*
+    ━━━━━━━━━━━━━━━━━━━━
+    📊 *إحصاءات الفئة:*
+    • 📚 عدد المقررات: {category_data['total']}
+    • ✅ مكتمل: {category_data['completed']}
+    • 📈 نسبة الإنجاز: {completion_percent:.1f}%
+    • 🕒 مجموع الساعات: {category_data['hours']}
+    
+    🎓 *المقررات:*
             """
             
             # إرسال بطاقة الفئة
-        bot.send_message(chat_id, category_card, parse_mode="Markdown")
+            bot.send_message(chat_id, category_card, parse_mode="Markdown")
             
             # إرسال كل مقرر كبطاقة منفصلة
-        for course in category_data['courses']:
-            status_emoji = {
+            for course in category_data['courses']:
+                status_emoji = {
                     'completed': '✅',
                     'failed': '❌', 
                     'in_progress': '⏳',
                     'exempted': '⚡'
-            }.get(course.get('status', 'unknown'), '❔')
+                }.get(course.get('status', 'unknown'), '❔')
                 
-            course_card = f"""
-{status_emoji} *{course.get('course_code', '')} - {course.get('course_name', '')}*
-┌───────────────────
-│ 📊 الحالة: {course.get('detailed_status', '')}
-│ 🕒 الساعات: {course.get('hours', 0)}
-│ 📁 النوع: {'اختياري' if course.get('is_elective', False) else 'إجباري'}
-└───────────────────
+                course_card = f"""
+    {status_emoji} *{course.get('course_code', '')} - {course.get('course_name', '')}*
+    ┌───────────────────
+    │ 📊 الحالة: {course.get('detailed_status', '')}
+    │ 🕒 الساعات: {course.get('hours', 0)}
+    │ 📁 النوع: {'اختياري' if course.get('is_elective', False) else 'إجباري'}
+    └───────────────────
                 """
                 
-            bot.send_message(chat_id, course_card, parse_mode="Markdown")
+                bot.send_message(chat_id, course_card, parse_mode="Markdown")
             
             # إعادة عرض keyboard الفئات
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-        buttons = []
-        for category in categories.keys():
-             short_name = category[:15] + "..." if len(category) > 15 else category
-            buttons.append(types.KeyboardButton(f"📁 {short_name}"))
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+            buttons = []
+            for category in categories.keys():
+                short_name = category[:15] + "..." if len(category) > 15 else category
+                buttons.append(types.KeyboardButton(f"📁 {short_name}"))
             
-        for i in range(0, len(buttons), 2):
-            if i + 1 < len(buttons):
-                  markup.row(buttons[i], buttons[i+1])
-             else:
-                markup.row(buttons[i])
+            for i in range(0, len(buttons), 2):
+                if i + 1 < len(buttons):
+                    markup.row(buttons[i], buttons[i+1])
+                else:
+                    markup.row(buttons[i])
             
-         markup.row(types.KeyboardButton("🏠 الرئيسية"))
+            markup.row(types.KeyboardButton("🏠 الرئيسية"))
             
-         bot.send_message(chat_id, "👇 اختر فئة أخرى أو العودة للرئيسية:", reply_markup=markup)
+            bot.send_message(chat_id, "👇 اختر فئة أخرى أو العودة للرئيسية:", reply_markup=markup)
             
-     else:
-         bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة.")
+        else:
+            bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة.")
     
     elif text == "📌 مقررات حالية":
         user = get_user(chat_id)
