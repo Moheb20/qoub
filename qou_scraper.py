@@ -533,52 +533,38 @@ class QOUScraper:
 
 
 
-    def update_student_data(chat_id: int, student_id: str, password: str) -> bool:
+    def update_student_data(self, chat_id: int) -> bool:
         """تحديث بيانات الطالب في قاعدة البيانات"""
-        scraper = None
         try:
-            logger.info(f"Attempting to update data for student: {student_id}")
-            
-            # إنشاء السكرابر
-            scraper = QOUScraper(student_id, password)
+            logger.info(f"Attempting to update data for student: {self.student_id}")
             
             # تسجيل الدخول
-            if not scraper.login():
-                logger.error(f"Login failed for student: {student_id}")
+            if not self.login():
+                logger.error(f"Login failed for student: {self.student_id}")
                 return False
             
             # جلب البيانات
-            study_plan_data = scraper.fetch_study_plan()
+            study_plan_data = self.fetch_study_plan()
             
             if not study_plan_data:
-                logger.error(f"No study plan data returned for student: {student_id}")
+                logger.error(f"No study plan data returned for student: {self.student_id}")
                 return False
             
             if study_plan_data.get('status') != 'success':
                 error_msg = study_plan_data.get('error', 'Unknown error')
-                logger.error(f"Failed to fetch study plan for student {student_id}: {error_msg}")
+                logger.error(f"Failed to fetch study plan for student {self.student_id}: {error_msg}")
                 return False
             
             # حفظ في قاعدة البيانات
             save_student_stats(chat_id, study_plan_data.get('stats', {}))
             save_student_courses(chat_id, study_plan_data.get('courses', []))
             
-            logger.info(f"Successfully updated data for student: {student_id}")
+            logger.info(f"Successfully updated data for student: {self.student_id}")
             return True
             
         except Exception as e:
-            logger.error(f"Error in update_student_data for student {student_id}: {str(e)}")
+            logger.error(f"Error in update_student_data for student {self.student_id}: {str(e)}")
             return False
-        finally:
-            # تنظيف الموارد
-            if scraper is not None:
-                try:
-                    if hasattr(scraper, 'session'):
-                        scraper.session.close()
-                except Exception as cleanup_error:
-                    logger.error(f"Error during cleanup: {cleanup_error}")
-            
-
 
     def fetch_study_plan(self) -> Dict[str, Any]:
         """جلب الخطة الدراسية الكاملة للطالب"""
@@ -630,7 +616,6 @@ class QOUScraper:
                 'status': 'error',
                 'error': str(e)
             }
-    
     
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
         """استخراج الإحصائيات الدراسية من الصفحة"""
@@ -684,7 +669,7 @@ class QOUScraper:
                     elif 'عدد الفصول' in label:
                         stats['semesters_count'] = self._parse_number(value)
                     elif 'انهى الخطة' in label:
-                        stats['plan_completed'] = 'نعم' in value or 'yes' in value.lower()
+                        stats['plan_completed'] = 'نعم' في value أو 'yes' في value.lower()
         
             # حساب نسبة الإنجاز
             if stats['total_hours_required'] > 0:
@@ -744,110 +729,52 @@ class QOUScraper:
         
         return courses
     
-def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
-    """تحليل صف المقرر"""
-    try:
-        # حالة المقرر (من الأيقونة أو النص)
-        status = 'unknown'
-        status_icon = cols[0].find('i')
-        if status_icon:
-            status_classes = status_icon.get('class', [])
-            status = self._get_course_status(status_classes)
-        else:
-            # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
-            status_text = cols[0].get_text(strip=True).lower()
-            if 'ناجح' in status_text or 'completed' in status_text:
-                status = 'completed'
-            elif 'راسب' in status_text or 'failed' in status_text:
-                status = 'failed'
-            elif 'مسجل' in status_text or 'in progress' in status_text:
-                status = 'in_progress'
-        
-        # رمز المقرر
-        course_code = cols[1].get_text(strip=True)
-        course_code_elem = cols[1].find('a')
-        if course_code_elem:
-            course_code = course_code_elem.get_text(strip=True)
-        
-        # اسم المقرر
-        course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
-        
-        # عدد الساعات
-        hours_text = cols[3].get_text(strip=True) if len(cols) > 3 else '0'
-        hours = self._parse_number(hours_text)
-        
-        # الحالة التفصيلية
-        detailed_status = cols[4].get_text(strip=True) if len(cols) > 4 else ''
-        
-        return {
-            'course_code': course_code,
-            'course_name': course_name,
-            'category': category,
-            'hours': hours,
-            'status': status,
-            'detailed_status': detailed_status,
-            'is_elective': 'اختياري' in category or 'elective' in category.lower()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error parsing course row: {e}")
-        return None
+    def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
+        """تحليل صف المقرر"""
+        try:
+            # حالة المقرر (من الأيقونة أو النص)
+            status = 'unknown'
+            status_icon = cols[0].find('i')
+            if status_icon:
+                status_classes = status_icon.get('class', [])
+                status = self._get_course_status(status_classes)
+            else:
+                # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
+                status_text = cols[0].get_text(strip=True).lower()
+                if 'ناجح' in status_text or 'completed' in status_text:
+                    status = 'completed'
+                elif 'راسب' in status_text or 'failed' in status_text:
+                    status = 'failed'
+                elif 'مسجل' in status_text or 'in progress' in status_text:
+                    status = 'in_progress'
+            
+            # رمز المقرر
+            course_code = cols[1].get_text(strip=True)
+            course_code_elem = cols[1].find('a')
+            if course_code_elem:
+                course_code = course_code_elem.get_text(strip=True)
+            
+            # اسم المقرر
+            course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
+            
+            # عدد الساعات
+            hours_text = cols[3].get_text(strip=True) if len(cols) > 3 else '0'
+            hours = self._parse_number(hours_text)
+            
+            # الحالة التفصيلية
+            detailed_status = cols[4].get_text(strip=True) if len(cols) > 4 else ''
+            
+            return {
+                'course_code': course_code,
+                'course_name': course_name,
+                'category': category,
+                'hours': hours,
+                'status': status,
+                'detailed_status': detailed_status,
+                'is_elective': 'اختياري' in category or 'elective' in category.lower()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error parsing course row: {e}")
+            return None
 
-def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
-    """حفظ الإحصائيات الدراسية"""
-    try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute('''
-                    INSERT INTO student_stats 
-                    (chat_id, total_hours_required, total_hours_completed, 
-                     total_hours_transferred, semesters_count, plan_completed, completion_percentage)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (chat_id) DO UPDATE SET
-                        total_hours_required = EXCLUDED.total_hours_required,
-                        total_hours_completed = EXCLUDED.total_hours_completed,
-                        total_hours_transferred = EXCLUDED.total_hours_transferred,
-                        semesters_count = EXCLUDED.semesters_count,
-                        plan_completed = EXCLUDED.plan_completed,
-                        completion_percentage = EXCLUDED.completion_percentage,
-                        last_updated = CURRENT_TIMESTAMP
-                ''', (
-                    chat_id,
-                    stats_data.get('total_hours_required', 0),
-                    stats_data.get('total_hours_completed', 0),
-                    stats_data.get('total_hours_transferred', 0),
-                    stats_data.get('semesters_count', 0),
-                    stats_data.get('plan_completed', False),
-                    stats_data.get('completion_percentage', 0)
-                ))
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error saving student stats for {chat_id}: {e}")
-
-def save_student_courses(chat_id: int, courses_data: List[Dict[str, Any]]):
-    """حفظ المقررات الدراسية"""
-    try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                # حذف المقررات القديمة
-                cur.execute('DELETE FROM student_courses WHERE chat_id = %s', (chat_id,))
-                
-                # إضافة المقررات الجديدة
-                for course in courses_data:
-                    cur.execute('''
-                        INSERT INTO student_courses 
-                        (chat_id, course_code, course_name, category, hours, status, detailed_status, is_elective)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ''', (
-                        chat_id,
-                        course.get('course_code', ''),
-                        course.get('course_name', ''),
-                        course.get('category', ''),
-                        course.get('hours', 0),
-                        course.get('status', 'unknown'),
-                        course.get('detailed_status', ''),
-                        course.get('is_elective', False)
-                    ))
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error saving student courses for {chat_id}: {e}")
