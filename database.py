@@ -2,7 +2,7 @@ import psycopg2
 import os
 import datetime
 from cryptography.fernet import Fernet
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 
