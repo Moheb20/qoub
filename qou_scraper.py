@@ -658,60 +658,60 @@ class QOUScraper:
             }
     
         
-def _extract_study_stats(self, soup) -> Dict[str, Any]:
-    stats = {
-        'total_hours_required': 132,
-        'total_hours_completed': 21,
-        'total_hours_transferred': 21,
-        'semesters_count': 1,
-        'plan_completed': False,
-        'completion_percentage': 31.8
-    }
-
-    try:
-        # ✅ البحث المباشر عن القيم باستخدام regex
-        text = soup.get_text()
-        
-        import re
-        
-        # البحث عن الساعات المطلوبة
-        required_match = re.search(r'عدد الساعات المطلوبة[^\d]*(\d+)', text)
-        if required_match:
-            stats['total_hours_required'] = int(required_match.group(1))
-        
-        # البحث عن الساعات المجتازة
-        completed_match = re.search(r'عدد الساعات المجتازة[^\d]*(\d+)', text)
-        if completed_match:
-            stats['total_hours_completed'] = int(completed_match.group(1))
-        
-        # البحث عن الساعات المحتسبة
-        transferred_match = re.search(r'عدد الساعات المحتسبة[^\d]*(\d+)', text)
-        if transferred_match:
-            stats['total_hours_transferred'] = int(transferred_match.group(1))
-        
-        # البحث عن عدد الفصول
-        semesters_match = re.search(r'عدد الفصول[^\d]*(\d+)', text)
-        if semesters_match:
-            stats['semesters_count'] = int(semesters_match.group(1))
-        
-        # البحث عن حالة الخطة
-        plan_match = re.search(r'انهى الخطة[^\d]*(نعم|لا)', text)
-        if plan_match:
-            stats['plan_completed'] = plan_match.group(1).lower() == 'نعم'
-        
-        # حساب نسبة الإنجاز
-        if stats['total_hours_required'] > 0:
-            total_done = stats['total_hours_completed'] + stats['total_hours_transferred']
-            stats['completion_percentage'] = round(min(total_done / stats['total_hours_required'] * 100, 100), 2)
-        
-            # تحديث حالة الخطة إذا نسبة الإنجاز 100% أو أكثر
-            if stats['completion_percentage'] >= 100:
-                stats['plan_completed'] = True
-
-    except Exception as e:
-        logger.error(f"Error extracting stats: {e}")
-
-    return stats
+    def _extract_study_stats(self, soup) -> Dict[str, Any]:
+        stats = {
+            'total_hours_required': 132,
+            'total_hours_completed': 21,
+            'total_hours_transferred': 21,
+            'semesters_count': 1,
+            'plan_completed': False,
+            'completion_percentage': 31.8
+        }
+    
+        try:
+            # ✅ البحث المباشر عن القيم باستخدام regex
+            text = soup.get_text()
+            
+            import re
+            
+            # البحث عن الساعات المطلوبة
+            required_match = re.search(r'عدد الساعات المطلوبة[^\d]*(\d+)', text)
+            if required_match:
+                stats['total_hours_required'] = int(required_match.group(1))
+            
+            # البحث عن الساعات المجتازة
+            completed_match = re.search(r'عدد الساعات المجتازة[^\d]*(\d+)', text)
+            if completed_match:
+                stats['total_hours_completed'] = int(completed_match.group(1))
+            
+            # البحث عن الساعات المحتسبة
+            transferred_match = re.search(r'عدد الساعات المحتسبة[^\d]*(\d+)', text)
+            if transferred_match:
+                stats['total_hours_transferred'] = int(transferred_match.group(1))
+            
+            # البحث عن عدد الفصول
+            semesters_match = re.search(r'عدد الفصول[^\d]*(\d+)', text)
+            if semesters_match:
+                stats['semesters_count'] = int(semesters_match.group(1))
+            
+            # البحث عن حالة الخطة
+            plan_match = re.search(r'انهى الخطة[^\d]*(نعم|لا)', text)
+            if plan_match:
+                stats['plan_completed'] = plan_match.group(1).lower() == 'نعم'
+            
+            # حساب نسبة الإنجاز
+            if stats['total_hours_required'] > 0:
+                total_done = stats['total_hours_completed'] + stats['total_hours_transferred']
+                stats['completion_percentage'] = round(min(total_done / stats['total_hours_required'] * 100, 100), 2)
+            
+                # تحديث حالة الخطة إذا نسبة الإنجاز 100% أو أكثر
+                if stats['completion_percentage'] >= 100:
+                    stats['plan_completed'] = True
+    
+        except Exception as e:
+            logger.error(f"Error extracting stats: {e}")
+    
+        return stats
     
 
         
