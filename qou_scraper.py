@@ -686,30 +686,44 @@ class QOUScraper:
         return stats
 
         
-    def _extract_courses(self, soup) -> Dict[str, List[Dict[str, Any]]]:
-        """استخراج المقررات الدراسية وتصنيفها حسب الفئة"""
-        courses_by_category = {}
+    def _extract_courses(self, soup) -> list[dict]:
+        """استخراج المقررات من صفحة الخطة الدراسية بشكل آمن"""
     
+        courses = []
         try:
-            course_sections = soup.find_all('div', class_=lambda x: x and 'member-card' in x)
-            for section in course_sections:
-                category_elem = section.find(['h2', 'h3', 'h4'])
-                category = category_elem.get_text(strip=True) if category_elem else 'غير مصنف'
-                table = section.find('table')
-                courses = []
-                if table:
-                    for row in table.find_all('tr')[1:]:
-                        cols = row.find_all('td')
-                        if len(cols) >= 3:  # حسب الصفحة الجديدة، تأكد من عدد الأعمدة
-                            course_data = self._parse_course_row(cols, category)
-                            if course_data:
-                                courses.append(course_data)
-                courses_by_category[category] = courses
+            rows = soup.find_all("tr", class_="course-row")
+            for row in rows:
+                cols = row.find_all("td")
+                if len(cols) < 5:
+                    continue  # تجاهل الصفوف الناقصة
+    
+                course = {
+                    "course_code": cols[0].get_text(strip=True),
+                    "course_name": cols[1].get_text(strip=True),
+                    "category": cols[2].get_text(strip=True),
+                    "hours": int(cols[3].get_text(strip=True) or 0),
+                    "status": cols[4].get_text(strip=True).lower(),
+                    "detailed_status": cols[4].get_text(strip=True),
+                    "is_elective": "اختياري" in cols[2].get_text(strip=True)
+                }
+    
+                courses.append(course)
     
         except Exception as e:
-            logger.error(f"Error extracting courses: {e}")
+            logger.error(f"Error extracting courses for {self.student_id}: {e}")
+            # حتى لو صار خطأ نرجع list فاضية بدل None
+            return []
     
-        return courses_by_category
+        # ✅ نضمن أن القيمة النهائية دايمًا list of dicts
+        if not isinstance(courses, list):
+            logger.warning(f"_extract_courses returned non-list for {self.student_id}, forcing list")
+            courses = []
+    
+        # فلترة أي عناصر مش dict
+        courses = [c for c in courses if isinstance(c, dict)]
+    
+        logger.debug(f"Extracted {len(courses)} courses for {self.student_id}")
+        return courses
     
         
     
