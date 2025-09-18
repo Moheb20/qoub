@@ -120,7 +120,18 @@ def init_db():
                         FOREIGN KEY (chat_id) REFERENCES student_stats(chat_id) ON DELETE CASCADE
                     )
                 ''')
-
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 
+                            FROM information_schema.columns 
+                            WHERE table_name='student_courses' AND column_name='detailed_status'
+                        ) THEN
+                            ALTER TABLE student_courses ADD COLUMN detailed_status TEXT;
+                        END IF;
+                    END$$;
+                """)  
                 # إنشاء فهرس لأداء أفضل
                 cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
                 try:
