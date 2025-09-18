@@ -130,6 +130,8 @@ def check_for_course_updates():
             logger.error(f"❌ خطأ عام في تحديث العلامات: {e}")
             time.sleep(60)
 
+يعني التعديل يكون:
+
 def check_for_gpa_changes():
     while True:
         try:
@@ -139,19 +141,16 @@ def check_for_gpa_changes():
             for user in users:
                 chat_id = user['chat_id']
                 student_id = user['student_id']
+                password = user['password']
                 
                 try:
-                    # فك تشفير البيانات
-                    student_id = decrypt_text(student_id) if student_id else None
-                    password = decrypt_text(user['password']) if user.get('password') else None
-                    
                     if not student_id or not password:
                         logger.warning(f"[{chat_id}] بيانات تسجيل الدخول غير كاملة")
                         continue
                     
-                    # ✅ تحقق من صحة البيانات بعد فك التشفير
+                    # ✅ تحقق من صحة البيانات
                     if len(student_id) < 8 or len(password) < 3:
-                        logger.warning(f"[{chat_id}] بيانات تسجيل الدخول غير صالحة بعد فك التشفير")
+                        logger.warning(f"[{chat_id}] بيانات تسجيل الدخول غير صالحة")
                         continue
                     
                     # إنشاء السكرابر
@@ -168,7 +167,7 @@ def check_for_gpa_changes():
                         try:
                             old_gpa = json.loads(user['last_gpa'])
                         except json.JSONDecodeError:
-                            old_gpa = user['last_gpa']  # في حالة كان نصاً وليس JSON
+                            old_gpa = user['last_gpa']
                     
                     # جلب المعدل الجديد
                     new_gpa = scraper.fetch_gpa()
@@ -181,12 +180,10 @@ def check_for_gpa_changes():
                     
                     # المقارنة
                     if old_gpa is None:
-                        # أول مرة، نحفظ فقط بدون إرسال رسالة
                         update_user_gpa(chat_id, json.dumps(new_gpa))
                         logger.info(f"[{chat_id}] تم حفظ GPA لأول مرة")
                     elif (new_gpa.get('term_gpa') != old_gpa.get('term_gpa') or 
                           new_gpa.get('cumulative_gpa') != old_gpa.get('cumulative_gpa')):
-                        # هناك تغيير، نرسل رسالة
                         msg = (
                             f"🎓 تـــم تــــحديث البــــوابة الاكــــاديـــمية!\n\n"
                             f"📘 المــعدل الـــفـصـلي : {new_gpa.get('term_gpa', '-')}\n"
@@ -199,19 +196,16 @@ def check_for_gpa_changes():
                         except Exception as msg_error:
                             logger.error(f"[{chat_id}] فشل إرسال الرسالة: {msg_error}")
                         
-                        # تحديث قاعدة البيانات
                         update_user_gpa(chat_id, json.dumps(new_gpa))
                     else:
                         logger.info(f"[{chat_id}] لا تغيير في GPA")
                         
                 except Exception as ex:
                     logger.error(f"[{chat_id}] خطأ أثناء متابعة GPA: {ex}")
-                    # ✅ إذا كان الخطأ متعلقاً بالتشفير، احذف المستخدم
                     if "InvalidToken" in str(ex) or "base64" in str(ex):
                         logger.warning(f"[{chat_id}] حذف مستخدم ببيانات تالفة")
                         delete_user(chat_id)
             
-            # الانتظار 24 ساعة
             time.sleep(24 * 60 * 60)
             
         except Exception as e:
