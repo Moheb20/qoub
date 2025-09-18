@@ -88,7 +88,7 @@ def init_db():
                 )
             ''')
 
-                cur.execute('''
+            cur.execute('''
                     CREATE TABLE IF NOT EXISTS student_stats (
                         chat_id BIGINT PRIMARY KEY,
                         total_hours_required INTEGER DEFAULT 0,
@@ -102,7 +102,7 @@ def init_db():
                 ''')
                 
                 # جدول المقررات
-                cur.execute('''
+            cur.execute('''
                     CREATE TABLE IF NOT EXISTS student_courses (
                         id SERIAL PRIMARY KEY,
                         chat_id BIGINT NOT NULL,
@@ -118,10 +118,10 @@ def init_db():
                 ''')
                 
                 # إنشاء فهرس لأداء أفضل
-                cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
+            cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
                 
-            conn.commit()
-            logger.info("Database tables initialized successfully")
+        conn.commit()
+        logger.info("Database tables initialized successfully")
             
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
