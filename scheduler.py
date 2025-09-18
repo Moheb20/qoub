@@ -130,7 +130,6 @@ def check_for_course_updates():
             logger.error(f"❌ خطأ عام في تحديث العلامات: {e}")
             time.sleep(60)
 
-يعني التعديل يكون:
 
 def check_for_gpa_changes():
     while True:
