@@ -1086,42 +1086,163 @@ def handle_all_messages(message):
             return
     
         try:
+            # ⚡ إرسال رسالة تحميل
+            loading_msg = bot.send_message(chat_id, "🎓 جاري تحضير مقرراتك...")
+            
             scraper = QOUScraper(user['student_id'], user['password'])
             study_plan = scraper.fetch_study_plan()
             
             if study_plan.get('status') != 'success':
+                bot.delete_message(chat_id, loading_msg.message_id)
                 bot.send_message(chat_id, "⚠️ لم أتمكن من جلب المقررات. حاول لاحقاً.")
                 return
             
-            courses_list = study_plan['courses']  # هذه قائمة وليست قاموس
+            courses_list = study_plan['courses']
             
-            # تجميع المقررات حسب الفئة
-            courses_by_category = {}
+            # تجميع المقررات حسب الفئة مع الإحصاءات
+            categories_data = {}
             for course in courses_list:
                 category = course.get('category', 'غير مصنف')
-                if category not in courses_by_category:
-                    courses_by_category[category] = []
-                courses_by_category[category].append(course)
+                if category not in categories_data:
+                    categories_data[category] = {
+                        'courses': [],
+                        'completed': 0,
+                        'total': 0,
+                        'hours': 0
+                    }
+                
+                categories_data[category]['courses'].append(course)
+                categories_data[category]['total'] += 1
+                categories_data[category]['hours'] += course.get('hours', 0)
+                if course.get('status') == 'completed':
+                    categories_data[category]['completed'] += 1
             
-            # الآن يمكن استخدام .items() لأن courses_by_category أصبح dict
-            for category, courses_in_category in courses_by_category.items():
-                reply = f"📁 *{category}:*\n"
-                if courses_in_category:
-                    for c in courses_in_category:
-                        status_icon = (
-                            "✅" if c['status'] == 'completed' else
-                            "❌" if c['status'] == 'failed' else
-                            "⏳" if c['status'] == 'in_progress' else
-                            "⚡" if c['status'] == 'exempted' else "❔"
-                        )
-                        reply += f"{status_icon} {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
+            # حذف رسالة التحميل
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
+            if not categories_data:
+                bot.send_message(chat_id, "📭 لا توجد مقررات مسجلة حالياً.")
+                return
+            
+            # إرسال البطاقة الرئيسية
+            main_card = """
+    🎯 *الخطة الدراسية الشاملة* 
+    ━━━━━━━━━━━━━━━━━━━━
+    
+    📊 *الإحصاءات العامة:*
+    • 📚 عدد المقررات: {}
+    • ✅ مكتمل: {}
+    • 🕒 مجموع الساعات: {}
+            
+    👇 اختر الفئة لعرض المقررات:
+            """.format(
+                len(courses_list),
+                sum(1 for c in courses_list if c.get('status') == 'completed'),
+                sum(c.get('hours', 0) for c in courses_list)
+            )
+            
+            # إنشاء keyboard للفئات
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+            buttons = []
+            for category in categories_data.keys():
+                # تقصير اسم الفئة إذا كان طويلاً
+                short_name = category[:15] + "..." if len(category) > 15 else category
+                buttons.append(types.KeyboardButton(f"📁 {short_name}"))
+            
+            # تقسيم الأزرار إلى صفوف
+            for i in range(0, len(buttons), 2):
+                if i + 1 < len(buttons):
+                    markup.row(buttons[i], buttons[i+1])
                 else:
-                    reply += "لا يوجد مقررات\n"
-    
-                bot.send_message(chat_id, reply, parse_mode="Markdown")
-    
+                    markup.row(buttons[i])
+            
+            markup.row(types.KeyboardButton("🏠 الرئيسية"))
+            
+            bot.send_message(chat_id, main_card, parse_mode="Markdown", reply_markup=markup)
+            
+            # حفظ بيانات الفئات في الذاكرة المؤقتة للاستجابة للاختيارات
+            user_data[chat_id] = {'categories': categories_data, 'action': 'awaiting_category'}
+            
         except Exception as e:
-            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
+            try:
+                bot.delete_message(chat_id, loading_msg.message_id)
+            except:
+                pass
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {str(e)}")
+
+
+
+    elif chat_id in user_data and user_data[chat_id].get('action') == 'awaiting_category':
+    selected_category = message.text.replace("📁 ", "").strip()
+    categories = user_data[chat_id]['categories']
+        
+    # البحث عن الفئة المطابقة
+    matched_category = None
+    for category in categories.keys():
+        if selected_category in category or category in selected_category:
+            matched_category = category
+            break
+        
+    if matched_category:
+        category_data = categories[matched_category]
+            
+            # إنشاء بطاقة الفئة
+        completion_percent = (category_data['completed'] / category_data['total'] * 100) if category_data['total'] > 0 else 0
+            
+        category_card = f"""
+📋 *{matched_category}*
+━━━━━━━━━━━━━━━━━━━━
+📊 *إحصاءات الفئة:*
+• 📚 عدد المقررات: {category_data['total']}
+• ✅ مكتمل: {category_data['completed']}
+• 📈 نسبة الإنجاز: {completion_percent:.1f}%
+• 🕒 مجموع الساعات: {category_data['hours']}
+
+🎓 *المقررات:*
+            """
+            
+            # إرسال بطاقة الفئة
+        bot.send_message(chat_id, category_card, parse_mode="Markdown")
+            
+            # إرسال كل مقرر كبطاقة منفصلة
+        for course in category_data['courses']:
+            status_emoji = {
+                    'completed': '✅',
+                    'failed': '❌', 
+                    'in_progress': '⏳',
+                    'exempted': '⚡'
+            }.get(course.get('status', 'unknown'), '❔')
+                
+            course_card = f"""
+{status_emoji} *{course.get('course_code', '')} - {course.get('course_name', '')}*
+┌───────────────────
+│ 📊 الحالة: {course.get('detailed_status', '')}
+│ 🕒 الساعات: {course.get('hours', 0)}
+│ 📁 النوع: {'اختياري' if course.get('is_elective', False) else 'إجباري'}
+└───────────────────
+                """
+                
+            bot.send_message(chat_id, course_card, parse_mode="Markdown")
+            
+            # إعادة عرض keyboard الفئات
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+        buttons = []
+        for category in categories.keys():
+             short_name = category[:15] + "..." if len(category) > 15 else category
+            buttons.append(types.KeyboardButton(f"📁 {short_name}"))
+            
+        for i in range(0, len(buttons), 2):
+            if i + 1 < len(buttons):
+                  markup.row(buttons[i], buttons[i+1])
+             else:
+                markup.row(buttons[i])
+            
+         markup.row(types.KeyboardButton("🏠 الرئيسية"))
+            
+         bot.send_message(chat_id, "👇 اختر فئة أخرى أو العودة للرئيسية:", reply_markup=markup)
+            
+     else:
+         bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة.")
     
     elif text == "📌 مقررات حالية":
         user = get_user(chat_id)
