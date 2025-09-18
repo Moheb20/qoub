@@ -51,14 +51,31 @@ class QOUScraper:
         }
 
     def login(self) -> bool:
-        self.session.get(LOGIN_URL)
-        params = {
-            'userId': self.student_id,
-            'password': self.password,
-            'logBtn': 'Login'
-        }
-        resp = self.session.post(LOGIN_URL, data=params, allow_redirects=True)
-        return 'student' in resp.url
+        """تسجيل الدخول إلى بوابة الجامعة والتحقق من نجاح العملية"""
+        try:
+            # زيارة الصفحة الرئيسية أولاً لتهيئة الجلسة
+            self.session.get(LOGIN_URL, headers=self.headers, timeout=30)
+    
+            # بيانات تسجيل الدخول
+            params = {
+                'userId': self.student_id,
+                'password': self.password,
+                'logBtn': 'Login'
+            }
+    
+            # إرسال POST لتسجيل الدخول
+            resp = self.session.post(LOGIN_URL, data=params, headers=self.headers, timeout=30, allow_redirects=True)
+            resp.raise_for_status()
+    
+            # تحقق من نجاح تسجيل الدخول
+            if "logout" in resp.text.lower() or "student" in resp.url:
+                return True
+            return False
+    
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Login request failed for {self.student_id}: {e}")
+            return False
+    
 
     def fetch_latest_message(self) -> Optional[dict]:
         resp = self.session.get(INBOX_URL)
