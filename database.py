@@ -322,9 +322,20 @@ def get_all_users():
             users = []
             for row in rows:
                 user = dict(zip(columns, row))
-                user['student_id'] = decrypt_text(user['student_id'])
-                user['password'] = decrypt_text(user['password'])
+
+                # ✅ محاولة فك التشفير مع fallback
+                sid = decrypt_text(user['student_id'])
+                pwd = decrypt_text(user['password'])
+
+                if sid is None:  # يعني ما انشفر أصلاً
+                    sid = user['student_id']
+                if pwd is None:
+                    pwd = user['password']
+
+                user['student_id'] = sid
+                user['password'] = pwd
                 users.append(user)
+
             return users
 
 def get_all_users_with_credentials():
