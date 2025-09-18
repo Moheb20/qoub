@@ -1087,12 +1087,27 @@ def handle_all_messages(message):
     
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
-            courses_by_category = scraper.fetch_study_plan()['courses']  # الآن الدالة تعيد dict حسب الفئة
-    
-            for category, courses_list in courses_by_category.items():
+            study_plan = scraper.fetch_study_plan()
+            
+            if study_plan.get('status') != 'success':
+                bot.send_message(chat_id, "⚠️ لم أتمكن من جلب المقررات. حاول لاحقاً.")
+                return
+            
+            courses_list = study_plan['courses']  # هذه قائمة وليست قاموس
+            
+            # تجميع المقررات حسب الفئة
+            courses_by_category = {}
+            for course in courses_list:
+                category = course.get('category', 'غير مصنف')
+                if category not in courses_by_category:
+                    courses_by_category[category] = []
+                courses_by_category[category].append(course)
+            
+            # الآن يمكن استخدام .items() لأن courses_by_category أصبح dict
+            for category, courses_in_category in courses_by_category.items():
                 reply = f"📁 *{category}:*\n"
-                if courses_list:
-                    for c in courses_list:
+                if courses_in_category:
+                    for c in courses_in_category:
                         status_icon = (
                             "✅" if c['status'] == 'completed' else
                             "❌" if c['status'] == 'failed' else
