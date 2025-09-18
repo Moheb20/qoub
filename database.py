@@ -5,7 +5,7 @@ from cryptography.fernet import Fernet
 from typing import Dict, Any, List
 import logging
 
-logger = logging.getLogger(database)
+logger = logging.getLogger("database")
 
 
 
