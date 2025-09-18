@@ -141,13 +141,17 @@ def check_for_gpa_changes():
                 student_id = user['student_id']
                 
                 try:
-                    # فك تشفير البيانات إذا كانت مشفرة
-                    if isinstance(student_id, bytes) or (isinstance(student_id, str) and student_id.startswith('encrypted:')):
-                        student_id = decrypt_text(student_id)
+                    # فك تشفير البيانات
+                    student_id = decrypt_text(student_id) if student_id else None
                     password = decrypt_text(user['password']) if user.get('password') else None
                     
                     if not student_id or not password:
                         logger.warning(f"[{chat_id}] بيانات تسجيل الدخول غير كاملة")
+                        continue
+                    
+                    # ✅ تحقق من صحة البيانات بعد فك التشفير
+                    if len(student_id) < 8 or len(password) < 3:
+                        logger.warning(f"[{chat_id}] بيانات تسجيل الدخول غير صالحة بعد فك التشفير")
                         continue
                     
                     # إنشاء السكرابر
@@ -202,18 +206,16 @@ def check_for_gpa_changes():
                         
                 except Exception as ex:
                     logger.error(f"[{chat_id}] خطأ أثناء متابعة GPA: {ex}")
-                    import traceback
-                    logger.error(f"[{chat_id}] Traceback: {traceback.format_exc()}")
+                    # ✅ إذا كان الخطأ متعلقاً بالتشفير، احذف المستخدم
+                    if "InvalidToken" in str(ex) or "base64" in str(ex):
+                        logger.warning(f"[{chat_id}] حذف مستخدم ببيانات تالفة")
+                        delete_user(chat_id)
             
-            # الانتظار 24 ساعة قبل الفحص التالي
-            logger.info("تم الانتهاء من فحص GPA لجميع المستخدمين، الانتظار 24 ساعة...")
+            # الانتظار 24 ساعة
             time.sleep(24 * 60 * 60)
             
         except Exception as e:
             logger.error(f"❌ خطأ عام في متابعة GPA: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            # الانتظار ساعة واحدة قبل إعادة المحاولة في حالة الخطأ العام
             time.sleep(60 * 60)
 
 
