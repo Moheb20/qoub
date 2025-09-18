@@ -533,7 +533,8 @@ class QOUScraper:
 
 
 
-    def update_student_data(self, chat_id: int, student_id: str, password: str) -> bool:
+    def update_student_data(self, chat_id: int) -> bool:
+
 
         """تحديث بيانات الطالب في قاعدة البيانات"""
         try:
