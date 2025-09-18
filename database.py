@@ -123,7 +123,14 @@ def init_db():
 
                 # إنشاء فهرس لأداء أفضل
                 cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
-
+                try:
+                    cur.execute("SELECT detailed_status FROM student_courses LIMIT 1")
+                except Exception:
+                    try:
+                        cur.execute("ALTER TABLE student_courses ADD COLUMN detailed_status TEXT")
+                        logger.info("تم إضافة العمود detailed_status إلى الجدول student_courses")
+                    except Exception as alter_error:
+                        logger.warning(f"لم يتمكن من إضافة العمود: {alter_error}")
             conn.commit()
             logger.info("Database tables initialized successfully")
 
