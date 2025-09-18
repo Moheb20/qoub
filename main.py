@@ -1243,7 +1243,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "👇 اختر فئة أخرى أو العودة للرئيسية:", reply_markup=markup)
             
         else:
-            bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة.")ير
+            bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة.")
     
     elif text == "📌 مقررات حالية":
         user = get_user(chat_id)
