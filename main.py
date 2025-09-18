@@ -381,7 +381,10 @@ def handle_all_messages(message):
         send_academic_stats_menu(chat_id)
 
     elif text == "🏠 الرئيسية":
+        if chat_id in user_data:
+            del user_data[chat_id]
         send_academic_stats_menu(chat_id)
+        return
         
     elif text == "📅 عرض التقويم القادم للفصل الحالي":
         calendar_text1 = QOUScraper.get_full_current_semester_calendar()
