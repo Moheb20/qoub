@@ -573,6 +573,10 @@ class QOUScraper:
     def fetch_study_plan(self) -> Dict[str, Any]:
         """جلب الخطة الدراسية الكاملة للطالب"""
         try:
+            logger.info(f"Fetching study plan for {self.student_id} using URL: {STUDY_PLAN_URL}")
+            logger.info(f"Session cookies: {self.session.cookies.get_dict()}")
+            logger.info(f"Headers: {self.headers}")
+
             response = self.session.get(STUDY_PLAN_URL, headers=self.headers, timeout=30)
             response.raise_for_status()
             
@@ -741,7 +745,7 @@ class QOUScraper:
             status_icon = cols[0].find('i')
             if status_icon:
                 status_classes = status_icon.get('class', [])
-                status = self._extract_study_stats(status_classes)
+                status = self._get_course_status(status_classes)  # التصحيح هنا
             else:
                 # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
                 status_text = cols[0].get_text(strip=True).lower()
