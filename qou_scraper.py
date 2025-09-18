@@ -571,46 +571,52 @@ class QOUScraper:
             return False
 
     def fetch_study_plan(self) -> Dict[str, Any]:
-        """جلب الخطة الدراسية الكاملة للطالب"""
+        """جلب الخطة الدراسية الكاملة للطالب مع معالجة أفضل للأخطاء"""
         try:
-            # أولاً نحتاج إلى زيارة صفحة الطالب الرئيسية لتهيئة الجلسة
-            portal_url = "https://portal.qou.edu/portalLogin.do"
-            response = self.session.get(portal_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
-            
-            # الآن نجلب صفحة الخطة الدراسية مع Referer صحيح
+            # التأكد من تسجيل الدخول
+            if not self.is_logged_in():
+                login_success = self.login()
+                if not login_success:
+                    logger.warning(f"Login failed for {self.student_id}")
+                    return {
+                        'stats': {},
+                        'courses': [],
+                        'last_updated': datetime.now().isoformat(),
+                        'status': 'error',
+                        'error': 'Login failed'
+                    }
+    
+            # إعداد الهيدر مع Referer صحيح
             headers = self.headers.copy()
-            headers['Referer'] = portal_url
-            
+            headers['Referer'] = "https://portal.qou.edu/portalLogin.do"
+    
+            # جلب صفحة الخطة الدراسية
             response = self.session.get(STUDY_PLAN_URL, headers=headers, timeout=30)
             response.raise_for_status()
-            
-            # التحقق من أننا لسنا في صفحة الخطأ
-            if "errorPage" in response.url or "jsessionid" in response.url:
-                logger.warning(f"Redirected to error page for {self.student_id}")
+    
+            # التحقق من إعادة التوجيه لصفحة الخطأ أو جلسة منتهية
+            if any(x in response.url for x in ["errorPage", "jsessionid"]) or "No data" in response.text:
+                logger.warning(f"Redirected to error page or no data for {self.student_id}")
                 return {
                     'stats': {},
                     'courses': [],
                     'last_updated': datetime.now().isoformat(),
                     'status': 'error',
-                    'error': 'Redirected to error page'
+                    'error': 'Redirected to error page or no data'
                 }
-            
+    
+            # استخراج الإحصائيات والمقررات
             soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # استخراج الإحصائيات العامة
             stats = self._extract_study_stats(soup)
-            
-            # استخراج المقررات
             courses = self._extract_courses(soup)
-            
+    
             return {
                 'stats': stats,
                 'courses': courses,
                 'last_updated': datetime.now().isoformat(),
                 'status': 'success'
             }
-            
+    
         except requests.exceptions.Timeout:
             logger.error(f"Timeout while fetching study plan for {self.student_id}")
             return {
@@ -629,6 +635,7 @@ class QOUScraper:
                 'status': 'error',
                 'error': str(e)
             }
+
     
     def _extract_study_stats(self, soup) -> Dict[str, Any]:
         """استخراج الإحصائيات الدراسية من الصفحة"""
