@@ -1371,7 +1371,7 @@ def handle_all_messages(message):
             # جلب الصفحة مباشرة
             headers = scraper.headers.copy()
             headers['Referer'] = "https://portal.qou.edu/portalLogin.do"
-            response = scraper.session.get(https://portal.qou.edu/student/showMajorSheet.do, headers=headers, timeout=30)
+            response = scraper.session.get("https://portal.qou.edu/student/showMajorSheet.do", headers=headers, timeout=30)
             
             soup = BeautifulSoup(response.text, 'html.parser')
             debug_info = scraper.debug_page_structure(soup)
