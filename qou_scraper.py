@@ -819,7 +819,7 @@ def update_with_scraper(student_id, password, chat_id):
         logger.error(f"Error in update_with_scraper for student {student_id}: {str(e)}")
         return False
     finally:
-        # تنظيف الموارد
+        # تنظيف الموارد - التحقق من وجود scraper أولاً
         if scraper is not None:
             try:
                 if hasattr(scraper, 'close'):
