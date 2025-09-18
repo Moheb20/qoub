@@ -669,17 +669,16 @@ class QOUScraper:
         }
     
         try:
-            # ✅ الطريقة الجديدة: البحث في النموذج
             form_groups = soup.find_all('div', class_='form-group')
             for group in form_groups:
                 labels = group.find_all('label', class_='control-label')
-                values = group.find_all('div', class_=lambda x: x != 'control-label')
-                
+                values = [div.get_text(strip=True) for div in group.find_all('div') if 'control-label' not in div.get('class', [])]
+    
                 for i, label in enumerate(labels):
-                    label_text = label.get_text(strip=True)
                     if i < len(values):
-                        value_text = values[i].get_text(strip=True)
-                        
+                        label_text = label.get_text(strip=True)
+                        value_text = values[i]
+    
                         if 'عدد الساعات المطلوبة' in label_text:
                             stats['total_hours_required'] = self._parse_number(value_text)
                         elif 'عدد الساعات المجتازة' in label_text:
@@ -689,26 +688,23 @@ class QOUScraper:
                         elif 'عدد الفصول' in label_text:
                             stats['semesters_count'] = self._parse_number(value_text)
                         elif 'انهى الخطة' in label_text:
-                            stats['plan_completed'] = 'نعم' in value_text
-            
-            # ✅ الطريقة القديمة (كبديل)
-            if stats['total_hours_required'] == 0:
-                cards = soup.find_all('div', class_='member-card')
-                for card in cards:
-                    buttons = card.find_all('button')
-                    if len(buttons) >= 3:
-                        stats['total_hours_required'] += self._parse_number(buttons[0].get_text())
-                        stats['total_hours_transferred'] += self._parse_number(buttons[1].get_text())
-                        stats['total_hours_completed'] += self._parse_number(buttons[2].get_text())
+                            stats['plan_completed'] = 'نعم' in value_text.lower()
     
+            # حساب نسبة الإنجاز مع التأكد ألا تتجاوز 100%
             if stats['total_hours_required'] > 0:
-                completed = stats['total_hours_completed'] + stats['total_hours_transferred']
-                stats['completion_percentage'] = round((completed / stats['total_hours_required']) * 100, 2)
+                total_done = stats['total_hours_completed'] + stats['total_hours_transferred']
+                total_done = min(total_done, stats['total_hours_required'])
+                stats['completion_percentage'] = round((total_done / stats['total_hours_required']) * 100, 2)
+    
+                # إذا نسبة الإنجاز 100% أو أكثر، اعتبر الخطة مكتملة
+                if stats['completion_percentage'] >= 100:
+                    stats['plan_completed'] = True
     
         except Exception as e:
             logger.error(f"Error extracting stats: {e}")
     
         return stats
+    
 
         
     def _extract_courses(self, soup) -> list[dict]:
