@@ -30,12 +30,26 @@ fernet = load_or_create_key()
 def encrypt_text(text):
     if text is None:
         return None
-    return fernet.encrypt(text.encode()).decode()
+    try:
+        return fernet.encrypt(text.encode()).decode()
+    except Exception as e:
+        logger.error(f"فشل التشفير: {e}")
+        return None
 
 def decrypt_text(token):
     if not token:  # يشمل None و "" وكل النصوص الفارغة
         return None
-    return fernet.decrypt(token.encode()).decode()
+    
+    try:
+        # ✅ إضافة padding إذا لزم الأمر لتصحيح base64
+        padding = len(token) % 4
+        if padding != 0:
+            token += '=' * (4 - padding)
+        
+        return fernet.decrypt(token.encode()).decode()
+    except Exception as e:
+        logger.error(f"فشل فك التشفير: {e}")
+        return None
 
 
 
@@ -303,7 +317,18 @@ def log_event(chat_id, event_type, event_value=None):
                 VALUES (%s, %s, %s, %s)
             ''', (chat_id, event_type, event_value, datetime.datetime.utcnow().isoformat()))
         conn.commit()
-
+def delete_user(chat_id: int):
+    """حذف مستخدم من قاعدة البيانات"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM users WHERE chat_id = %s', (chat_id,))
+                cur.execute('DELETE FROM student_stats WHERE chat_id = %s', (chat_id,))
+                cur.execute('DELETE FROM student_courses WHERE chat_id = %s', (chat_id,))
+            conn.commit()
+        logger.info(f"تم حذف المستخدم {chat_id}")
+    except Exception as e:
+        logger.error(f"Error deleting user {chat_id}: {e}")
 # ---------- الإحصائيات ----------
 def get_total_messages_sent():
     with get_conn() as conn:
