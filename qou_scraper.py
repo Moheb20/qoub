@@ -744,74 +744,54 @@ class QOUScraper:
         
         return courses
     
-    def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
-        """تحليل صف المقرر"""
-        try:
-            # حالة المقرر (من الأيقونة أو النص)
-            status = 'unknown'
-            status_icon = cols[0].find('i')
-            if status_icon:
-                status_classes = status_icon.get('class', [])
-                status = self._get_course_status(status_classes)
-            else:
-                # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
-                status_text = cols[0].get_text(strip=True).lower()
-                if 'ناجح' in status_text or 'completed' in status_text:
-                    status = 'completed'
-                elif 'راسب' in status_text or 'failed' in status_text:
-                    status = 'failed'
-                elif 'مسجل' in status_text or 'in progress' in status_text:
-                    status = 'in_progress'
-            
-            # رمز المقرر
-            course_code = cols[1].get_text(strip=True)
-            course_code_elem = cols[1].find('a')
-            if course_code_elem:
-                course_code = course_code_elem.get_text(strip=True)
-            
-            # اسم المقرر
-            course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
-            
-            # عدد الساعات
-            hours_text = cols[3].get_text(strip=True) if len(cols) > 3 else '0'
-            hours = self._parse_number(hours_text)
-            
-            # الحالة التفصيلية
-            detailed_status = cols[4].get_text(strip=True) if len(cols) > 4 else ''
-            
-            return {
-                'course_code': course_code,
-                'course_name': course_name,
-                'category': category,
-                'hours': hours,
-                'status': status,
-                'detailed_status': detailed_status,
-                'is_elective': 'اختياري' in category or 'elective' in category.lower()
-            }
-            
-        except Exception as e:
-            logger.error(f"Error parsing course row: {e}")
-            return None
-    
-    
-
+def _parse_course_row(self, cols, category) -> Optional[Dict[str, Any]]:
+    """تحليل صف المقرر"""
+    try:
+        # حالة المقرر (من الأيقونة أو النص)
+        status = 'unknown'
+        status_icon = cols[0].find('i')
+        if status_icon:
+            status_classes = status_icon.get('class', [])
+            status = self._get_course_status(status_classes)
+        else:
+            # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
+            status_text = cols[0].get_text(strip=True).lower()
+            if 'ناجح' in status_text or 'completed' in status_text:
+                status = 'completed'
+            elif 'راسب' in status_text or 'failed' in status_text:
+                status = 'failed'
+            elif 'مسجل' in status_text or 'in progress' in status_text:
+                status = 'in_progress'
+        
+        # رمز المقرر
+        course_code = cols[1].get_text(strip=True)
+        course_code_elem = cols[1].find('a')
+        if course_code_elem:
+            course_code = course_code_elem.get_text(strip=True)
+        
+        # اسم المقرر
+        course_name = cols[2].get_text(strip=True) if len(cols) > 2 else ''
+        
+        # عدد الساعات
+        hours_text = cols[3].get_text(strip=True) if len(cols) > 3 else '0'
+        hours = self._parse_number(hours_text)
+        
+        # الحالة التفصيلية
+        detailed_status = cols[4].get_text(strip=True) if len(cols) > 4 else ''
+        
+        return {
+            'course_code': course_code,
+            'course_name': course_name,
+            'category': category,
+            'hours': hours,
+            'status': status,
+            'detailed_status': detailed_status,
+            'is_elective': 'اختياري' in category or 'elective' in category.lower()
+        }
+        
     except Exception as e:
-        logger.error(f"Error in update_student_data for chat_id {chat_id}: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return False
-    finally:
-        # تنظيف الموارد - التحقق من وجود scraper أولاً
-        if scraper is not None:
-            try:
-                # إذا كان هناك دالة close في السكرابر
-                if hasattr(scraper, 'close'):
-                    scraper.close()
-                # أو إغلاق الجلسة إذا كانت موجودة
-                elif hasattr(scraper, 'session'):
-                    scraper.session.close()
-            except Exception as cleanup_error:
-                logger.error(f"Error during cleanup: {cleanup_error}")
+        logger.error(f"Error parsing course row: {e}")
+        return None
 
 def save_student_stats(chat_id: int, stats_data: Dict[str, Any]):
     """حفظ الإحصائيات الدراسية"""
