@@ -57,6 +57,7 @@ admin_states = {}
 # حفظ حالة الأدمن عند إضافة/تعديل/حذف القروبات
 admin_group_states = {}
 user_sessions = {}
+user_data = {}
 
 
 plans_file_path = os.path.join(os.path.dirname(__file__), "qou.json")
