@@ -15,6 +15,8 @@ from bidi.algorithm import get_display
 from io import BytesIO
 import database 
 from typing import Dict, Any
+from database import save_student_stats, save_student_courses
+
 
 font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'arial.ttf')
 pdfmetrics.registerFont(TTFont('Arial', font_path))
@@ -739,7 +741,7 @@ class QOUScraper:
             status_icon = cols[0].find('i')
             if status_icon:
                 status_classes = status_icon.get('class', [])
-                status = self._get_course_status(status_classes)
+                status = self._extract_study_stats(status_classes)
             else:
                 # محاولة تحديد الحالة من النص إذا لم توجد أيقونة
                 status_text = cols[0].get_text(strip=True).lower()
