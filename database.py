@@ -758,3 +758,173 @@ def save_student_courses(chat_id, courses_data):
             conn.commit()
     except Exception as e:
         logger.error(f"Error saving student courses for {chat_id}: {e}")
+
+
+
+
+def clear_portal_data(chat_id):
+    """
+    مسح بيانات البوابة الخاصة بالمستخدم (الفرع والمواد)
+    """
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    UPDATE users 
+                    SET branch = NULL, portal_courses = NULL 
+                    WHERE chat_id = %s
+                ''', (chat_id,))
+            conn.commit()
+        logger.info(f"✅ تم مسح بيانات البوابة للمستخدم {chat_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ فشل في مسح بيانات البوابة للمستخدم {chat_id}: {e}")
+        return False
+
+
+
+def has_portal_data(chat_id):
+    """
+    التحقق إذا كان المستخدم لديه بيانات بوابة (فرع ومواد)
+    """
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT branch, portal_courses FROM users 
+                    WHERE chat_id = %s AND branch IS NOT NULL
+                ''', (chat_id,))
+                return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"❌ خطأ في التحقق من بيانات البوابة: {e}")
+        return False
+
+
+
+def get_courses_by_branch(branch_name):
+    """
+    جرد جميع المواد المتاحة في فرع معين عبر جميع المستخدمين
+    مفيد لعرض قائمة المواد في واجهة "منصة المواد المشتركة"
+    """
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT DISTINCT jsonb_array_elements_text(portal_courses::jsonb)
+                    FROM users 
+                    WHERE branch = %s AND portal_courses IS NOT NULL
+                ''', (branch_name,))
+                return [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"❌ خطأ في جرد المواد للفرع {branch_name}: {e}")
+        return []
+
+
+
+
+def find_potential_partners(chat_id, course_name):
+    """
+    البحث عن جميع المستخدمين المناسبين للدراسة في مادة معينة
+    يعود بجميع المستخدمين من نفس الفرع المسجلين في المادة
+    """
+    try:
+        user_data = get_user_branch_and_courses(chat_id)
+        user_branch = user_data.get('branch')
+        
+        if not user_branch:
+            return []
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT chat_id 
+                    FROM users 
+                    WHERE branch = %s 
+                    AND portal_courses::jsonb ? %s
+                    AND chat_id != %s
+                ''', (user_branch, course_name, chat_id))
+                return [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"❌ خطأ في البحث عن شركاء محتملين: {e}")
+        return []
+
+
+
+def get_portal_stats():
+    """
+    إحصائيات عن استخدام ميزة البوابة
+    """
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                # عدد المستخدمين الذين ربطوا بيانات البوابة
+                cur.execute('''
+                    SELECT COUNT(*) FROM users WHERE branch IS NOT NULL
+                ''')
+                linked_users = cur.fetchone()[0]
+                
+                # عدد الفروع النشطة
+                cur.execute('''
+                    SELECT COUNT(DISTINCT branch) FROM users WHERE branch IS NOT NULL
+                ''')
+                active_branches = cur.fetchone()[0]
+                
+                # عدد المواد المختلفة
+                cur.execute('''
+                    SELECT COUNT(DISTINCT jsonb_array_elements_text(portal_courses::jsonb))
+                    FROM users WHERE portal_courses IS NOT NULL
+                ''')
+                total_courses = cur.fetchone()[0]
+                
+                return {
+                    'linked_users': linked_users,
+                    'active_branches': active_branches,
+                    'total_courses': total_courses
+                }
+    except Exception as e:
+        logger.error(f"❌ خطأ في جلب إحصائيات البوابة: {e}")
+        return {}
+
+
+
+
+def update_portal_data(chat_id, branch, portal_courses):
+    """
+    تحديث بيانات البوابة بعد السكرابنق
+    """
+    try:
+        courses_json = json.dumps(portal_courses) if portal_courses else None
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    UPDATE users 
+                    SET branch = %s, portal_courses = %s
+                    WHERE chat_id = %s
+                ''', (branch, courses_json, chat_id))
+            conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating portal data: {e}")
+        return False
+
+def get_user_branch_and_courses(chat_id):
+    """
+    جلب فرع ومواد المستخدم
+    """
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT branch, portal_courses FROM users WHERE chat_id = %s
+                ''', (chat_id,))
+                row = cur.fetchone()
+                if row:
+                    branch, courses_json = row
+                    courses_list = json.loads(courses_json) if courses_json else []
+                    return {"branch": branch, "courses": courses_list}
+                return {"branch": None, "courses": []}
+    except Exception as e:
+        logger.error(f"Error getting user data: {e}")
+        return {"branch": None, "courses": []}
+
+
