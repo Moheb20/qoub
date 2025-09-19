@@ -179,11 +179,6 @@ def send_manasa_services(chat_id):
         types.KeyboardButton("👥 منصة المواد المشتركة"),
         types.KeyboardButton("🔗 ربط الحساب بمنصة المواد المشتركة")
     )
-        
-    # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
-    current_week_text = QOUScraper.get_current_week_type()
-    markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
-    
         # زر العودة
     markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
     
