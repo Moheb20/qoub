@@ -825,7 +825,6 @@ def get_courses_by_branch(branch_name):
 def find_potential_partners(chat_id, course_name):
     """
     البحث عن جميع المستخدمين المناسبين للدراسة في مادة معينة
-    يعود بجميع المستخدمين من نفس الفرع المسجلين في المادة
     """
     try:
         user_data = get_user_branch_and_courses(chat_id)
@@ -836,14 +835,27 @@ def find_potential_partners(chat_id, course_name):
 
         with get_conn() as conn:
             with conn.cursor() as cur:
+                # استعلام أكثر توافقاً
                 cur.execute('''
-                    SELECT chat_id 
+                    SELECT chat_id, portal_courses 
                     FROM users 
-                    WHERE branch = %s 
-                    AND portal_courses::jsonb ? %s
-                    AND chat_id != %s
-                ''', (user_branch, course_name, chat_id))
-                return [row[0] for row in cur.fetchall()]
+                    WHERE branch = %s AND chat_id != %s
+                    AND portal_courses IS NOT NULL
+                ''', (user_branch, chat_id))
+                
+                partners = []
+                for row in cur.fetchall():
+                    chat_id, courses_json = row
+                    if courses_json:
+                        try:
+                            courses_list = json.loads(courses_json)
+                            if course_name in courses_list:
+                                partners.append(chat_id)
+                        except json.JSONDecodeError:
+                            continue
+                
+                return partners
+                
     except Exception as e:
         logger.error(f"❌ خطأ في البحث عن شركاء محتملين: {e}")
         return []
@@ -926,5 +938,20 @@ def get_user_branch_and_courses(chat_id):
     except Exception as e:
         logger.error(f"Error getting user data: {e}")
         return {"branch": None, "courses": []}
+
+
+def get_portal_credentials(chat_id):
+    """
+    جلب بيانات الدخول للبوابة من بيانات المستخدم الأساسية
+    """
+    user = get_user(chat_id)
+    if user and user['student_id'] and user['password']:
+        return {
+            "success": True,
+            "username": user['student_id'],
+            "password": user['password']
+        }
+    else:
+        return {"success": False, "error": "No credentials found"}
 
 
