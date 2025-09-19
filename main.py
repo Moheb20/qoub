@@ -1444,11 +1444,11 @@ def handle_all_messages(message):
         
         return
     elif text == "👥 منصة المواد المشتركة":
-        # جلب بيانات المستخدم من قاعدة البيانات
-        user_data = get_user_branch_and_courses(chat_id)
+        # تغيير اسم المتغير لتجنب التعارض
+        portal_data = get_user_branch_and_courses(chat_id)
         
         # التحقق من وجود بيانات البوابة
-        if not user_data['branch']:
+        if not portal_data['branch']:
             bot.send_message(
                 chat_id, 
                 "❌ لم يتم ربط حساب البوابة بعد.\n\n"
@@ -1456,7 +1456,7 @@ def handle_all_messages(message):
             )
             return
         
-        if not user_data['courses']:
+        if not portal_data['courses']:
             bot.send_message(
                 chat_id, 
                 "❌ لا توجد مواد مسجلة في الفصل الحالي.\n\n"
@@ -1468,7 +1468,7 @@ def handle_all_messages(message):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
         
         # إضافة أزرار المواد مع تقصير الأسماء الطويلة
-        for course in user_data['courses']:
+        for course in portal_data['courses']:
             # تقصير اسم المادة إذا كان طويلاً مع الحفاظ على المعنى
             if len(course) > 20:
                 # محاولة تقسيم الاسم إلى كلمات وأخذ أول كلمتين
@@ -1484,8 +1484,8 @@ def handle_all_messages(message):
         
         # إرسال الرسالة مع المعلومات
         message_text = (
-            f"🏫 **فرعك: {user_data['branch']}**\n"
-            f"📚 **عدد المواد المسجلة: {len(user_data['courses'])}**\n\n"
+            f"🏫 **فرعك: {portal_data['branch']}**\n"
+            f"📚 **عدد المواد المسجلة: {len(portal_data['courses'])}**\n\n"
             "اختر المادة التي تريد التواصل مع زملائك فيها:"
         )
         
@@ -1496,16 +1496,16 @@ def handle_all_messages(message):
         # استخراج اسم المادة من النص
         selected_course = text.replace("📖 ", "").strip()
         
-        # جلب البيانات الكاملة للمستخدم
-        user_full_data = get_user_branch_and_courses(chat_id)
+        # جلب البيانات الكاملة للمستخدم (باسم متغير مختلف)
+        user_portal_data = get_user_branch_and_courses(chat_id)
         
-        if not user_full_data['branch'] or not user_full_data['courses']:
+        if not user_portal_data['branch'] or not user_portal_data['courses']:
             bot.send_message(chat_id, "❌ بيانات غير كافية. يرجى إعادة ربط حساب البوابة.")
             return
         
         # البحث عن الاسم الكامل للمادة (للتأكد من المطابقة)
         full_course_name = None
-        for course in user_full_data['courses']:
+        for course in user_portal_data['courses']:
             if selected_course in course or course.startswith(selected_course.replace("...", "")):
                 full_course_name = course
                 break
@@ -1545,7 +1545,7 @@ def handle_all_messages(message):
         
         bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
         
-        # حفظ حالة المستخدم للمراحل القادمة
+        # حفظ حالة المستخدم للمراحل القادمة (باستخدام المتغير العام)
         user_sessions[chat_id] = {
             'current_course': full_course_name,
             'action': 'awaiting_communication_choice'
@@ -1553,16 +1553,17 @@ def handle_all_messages(message):
     
     # معالج للعودة إلى قائمة المواد
     elif text == "⬅️ عودة للمواد":
-        user_data = get_user_branch_and_courses(chat_id)
+        # استخدام اسم متغير مختلف
+        portal_courses = get_user_branch_and_courses(chat_id)
         
-        if not user_data['courses']:
+        if not portal_courses['courses']:
             bot.send_message(chat_id, "❌ لا توجد مواد مسجلة.")
             return
         
         # إعادة إنشاء لوحة المفاتيح للمواد
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
         
-        for course in user_data['courses']:
+        for course in portal_courses['courses']:
             if len(course) > 20:
                 words = course.split()
                 short_name = ' '.join(words[:2]) + "..." if len(words) > 2 else course[:20] + "..."
@@ -1573,6 +1574,8 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
         
         bot.send_message(chat_id, "📚 اختر مادة:", reply_markup=markup)
+
+
     
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
