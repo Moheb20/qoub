@@ -173,15 +173,25 @@ def init_db():
                 cur.execute("""
                     DO $$
                     BEGIN
+                        -- التحقق من وجود عمود branch وإضافته إذا غير موجود
                         IF NOT EXISTS (
                             SELECT 1 
                             FROM information_schema.columns 
-                            WHERE table_name='student_courses' AND column_name='detailed_status'
+                            WHERE table_name='users' AND column_name='branch'
                         ) THEN
-                            ALTER TABLE student_courses ADD COLUMN detailed_status TEXT;
+                            ALTER TABLE users ADD COLUMN branch TEXT;
+                        END IF;
+                
+                        -- التحقق من وجود عمود portal_courses وإضافته إذا غير موجود
+                        IF NOT EXISTS (
+                            SELECT 1 
+                            FROM information_schema.columns 
+                            WHERE table_name='users' AND column_name='portal_courses'
+                        ) THEN
+                            ALTER TABLE users ADD COLUMN portal_courses TEXT;
                         END IF;
                     END$$;
-                """)  
+                """) 
                 # إنشاء فهرس لأداء أفضل
                 cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
                 try:
