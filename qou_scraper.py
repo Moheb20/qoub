@@ -919,3 +919,99 @@ class QOUScraper:
                     debug_info.append(f"   📝 الصف {j+1}: {col_data}")
         
         return "\n".join(debug_info)
+
+
+
+
+
+
+
+    def fetch_student_data_from_portal(student_id, password):
+        """
+        استخدام الكلاس الموجود لسحب بيانات الفرع والمواد من بوابة الجامعة
+        """
+        try:
+            # 1. إنشاء كائن السكرابر وتسجيل الدخول
+            scraper = QOUScraper(student_id, password)
+            login_success = scraper.login()
+            
+            if not login_success:
+                return {
+                    "success": False,
+                    "error": "فشل تسجيل الدخول إلى البوابة. الرجاء التحقق من البيانات والمحاولة مرة أخرى."
+                }
+    
+            # 2. جلب صفحة معلومات الطالب لاستخراج الفرع
+            info_url = "https://portal.qou.edu/student/changePassword.do#studInfo"
+            info_response = scraper.session.get(info_url, headers=scraper.headers)
+            
+            if info_response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"فشل في الوصول إلى صفحة المعلومات ({info_response.status_code})"
+                }
+    
+            # 3. استخراج الفرع من HTML
+            soup = BeautifulSoup(info_response.text, 'html.parser')
+            branch_name = "غير محدد"
+            
+            # البحث عن الفرع في الهيكل المحدد
+            form_groups = soup.find_all('div', class_='form-group')
+            for group in form_groups:
+                labels = group.find_all('label', class_='control-label')
+                for i, label in enumerate(labels):
+                    if 'الفرع:' in label.text:
+                        # العنصر التالي بعد التسمية يحتوي على اسم الفرع
+                        branch_divs = group.find_all('div', class_='col-sm-4 col-md-4 text-right')
+                        if len(branch_divs) > i:
+                            branch_name = branch_divs[i].get_text(strip=True)
+                            break
+    
+            # 4. جلب صفحة المواد المسجلة
+            courses_url = "https://portal.qou.edu/student/courseServices.do"
+            courses_response = scraper.session.get(courses_url, headers=scraper.headers)
+            
+            if courses_response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"فشل في الوصول إلى صفحة المواد ({courses_response.status_code})"
+                }
+    
+            # 5. استخراج أسماء المواد من HTML
+            courses_soup = BeautifulSoup(courses_response.text, 'html.parser')
+            courses_list = []
+            
+            # البحث عن جميع عناوين المواد في box-header
+            course_headers = courses_soup.find_all('div', class_='box-header')
+            
+            for header in course_headers:
+                pull_right = header.find('div', class_='pull-right')
+                if pull_right:
+                    course_text = pull_right.get_text(strip=True)
+                    # فصل الرقم عن اسم المادة (مثال: "2/0101 تعلم كيف تتعلم")
+                    if '/' in course_text and ' ' in course_text:
+                        # نأخذ الجزء بعد المسافة الأولى (اسم المادة)
+                        course_name = course_text.split(' ', 1)[1].strip()
+                        if course_name and course_name not in courses_list:
+                            courses_list.append(course_name)
+    
+            logger.info(f"تم سحب بيانات: الفرع={branch_name}, المواد={len(courses_list)}")
+    
+            return {
+                "success": True,
+                "branch": branch_name,
+                "courses": courses_list
+            }
+    
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ خطأ في الاتصال بالبوابة: {e}")
+            return {
+                "success": False,
+                "error": "فشل في الاتصال بالبوابة. الرجاء التحقق من الاتصال بالإنترنت."
+            }
+        except Exception as e:
+            logger.error(f"❌ خطأ غير متوقع في سحب البيانات: {e}")
+            return {
+                "success": False,
+                "error": f"حدث خطأ غير متوقع: {str(e)}"
+            }
