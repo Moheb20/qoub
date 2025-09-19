@@ -70,6 +70,7 @@ admin_states = {}
 admin_group_states = {}
 user_sessions = {}
 user_categories_data = {}
+user_data = {}
 
 
 plans_file_path = os.path.join(os.path.dirname(__file__), "qou.json")
