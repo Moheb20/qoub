@@ -12,7 +12,10 @@ from bs4 import BeautifulSoup
 from flask import Flask
 from telebot import types
 from bot_instance import bot
-import database
+# إضف مع باقي الاستيرادات
+from database import create_anonymous_chat, add_chat_message, get_chat_partner, end_chat
+import random
+import secrets
 from database import (
     init_db,
     get_all_users,
@@ -237,13 +240,56 @@ def handle_start(message):
 
     # إرسال القائمة الرئيسية للمستخدم
     send_main_menu(chat_id)
-
+@bot.message_handler(commands=['end'])
+def handle_end_chat(message):
+    chat_id = message.chat.id
+    
+    if chat_id in user_sessions and user_sessions[chat_id].get('in_chat'):
+        chat_token = user_sessions[chat_id]['chat_token']
+        partner_id = user_sessions[chat_id]['partner_id']
+        
+        # إنهاء المحادثة في الداتابيز
+        end_chat(chat_token)
+        
+        # إشعار للطرف الآخر
+        try:
+            bot.send_message(partner_id, "❌ الطرف الآخر أنهى المحادثة")
+        except:
+            pass
+        
+        bot.send_message(chat_id, "✅ تم إنهاء المحادثة")
+        del user_sessions[chat_id]
+    else:
+        bot.send_message(chat_id, "❌ لا توجد محادثة نشطة")
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     chat_id = message.chat.id
     text = (message.text or "").strip()
-
+    
+    # 1. أولاً: التحقق إذا كان المستخدم في محادثة نشطة
+    if chat_id in user_sessions and user_sessions[chat_id].get('in_chat'):
+        # إذا كتب /end استدعي معالج الإنتهاء
+        if text == '/end':
+            handle_end_chat(message)
+            return
+            
+        chat_token = user_sessions[chat_id]['chat_token']
+        partner_id = user_sessions[chat_id]['partner_id']
+        
+        # حفظ الرسالة في الداتابيز
+        add_chat_message(chat_token, chat_id, text)
+        
+        # إرسال الرسالة للشريك
+        try:
+            bot.send_message(partner_id, f"👤 [مجهول]: {text}")
+        except Exception as e:
+            bot.send_message(chat_id, "❌ تعذر إرسال الرسالة.可能 انتهت المحادثة.")
+            del user_sessions[chat_id]
+        
+        return  # توقف هنا ولا تكمل للمعالجات الأخرى
+    
+    # 2. ثانياً: معالجات الأدمن (الكود الحالي)
     if chat_id in ADMIN_CHAT_ID and admin_states.get(chat_id) == "awaiting_broadcast_text":
         broadcast_text = text
         header = "📢 رسالة عامة من الإدارة:\n\n"
@@ -268,7 +314,6 @@ def handle_all_messages(message):
                     full_name += f" {user_info.last_name}"
 
                 successful_users.append((str(user_id), username, full_name))
-
 
             except Exception as e:
                 logger.exception(f"Failed to send message to {target_chat_id}: {e}")
@@ -298,6 +343,7 @@ def handle_all_messages(message):
         admin_states.pop(chat_id, None)
         send_main_menu(chat_id)
         return
+    
 
 
     # --- مسار التسجيل (مفصول) ---
@@ -1582,8 +1628,92 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
         
         bot.send_message(chat_id, "📚 اختر مادة:", reply_markup=markup)
+    # معالج للمحادثة العشوائية - إضف هذا بعد باقي المعالجات
+    elif text.startswith("🎲 محادثة عشوائية - "):
+        course_name = text.replace("🎲 محادثة عشوائية - ", "").strip()
+        
+        # جلب بيانات المستخدم
+        user_data = get_user_branch_and_courses(chat_id)
+        if not user_data['branch']:
+            bot.send_message(chat_id, "❌ يرجى ربط حساب البوابة أولاً")
+            return
+        
+        # البحث عن زملاء
+        partners = find_potential_partners(chat_id, course_name)
+        
+        if not partners:
+            bot.send_message(chat_id, f"❌ لا يوجد زملاء في مادة {course_name} حالياً")
+            return
+        
+        # اختيار شريك عشوائي
+        partner_id = random.choice(partners)
+        
+        # إنشاء محادثة
+        chat_token = create_anonymous_chat(chat_id, partner_id, course_name)
+        
+        if not chat_token:
+            bot.send_message(chat_id, "❌ فشل في إنشاء المحادثة")
+            return
+        
+        # حفظ حالة المحادثة
+        user_sessions[chat_id] = {
+            'in_chat': True,
+            'chat_token': chat_token,
+            'partner_id': partner_id,
+            'course_name': course_name
+        }
+        
+        # إرسال إشعار للطرفين
+        bot.send_message(chat_id,
+            f"💬 **بدأت المحادثة المجهولة**\n\n"
+            f"📖 المادة: {course_name}\n"
+            f"👥 تم الاتصال بزميل دراسة\n\n"
+            f"⚡ ابدأ بالحديث الآن!\n"
+            f"❌ /end - لإنهاء المحادثة",
+            parse_mode="Markdown"
+        )
+        
+        # إشعار للشريك
+        try:
+            bot.send_message(partner_id,
+                f"💬 **بدعوة محادثة مجهولة**\n\n"
+                f"📖 المادة: {course_name}\n"
+                f"👤 أحد الزملاء يريد الدراسة معك\n\n"
+                f"⚡ ابدأ بالحديث الآن!\n"
+                f"❌ /end - لرفض المحادثة",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            bot.send_message(chat_id, "❌ تعذر الاتصال بالشريك")
+            del user_sessions[chat_id]
 
 
+    # إضف هذا الكود في handle_all_messages بعد باقي المعالجات
+    elif text == "👥 عرض قائمة الزملاء":
+        if chat_id not in user_sessions or 'current_course' not in user_sessions[chat_id]:
+            bot.send_message(chat_id, "❌ يرجى اختيار مادة أولاً من القائمة.")
+            return
+        
+        course_name = user_sessions[chat_id]['current_course']
+        
+        # البحث عن الزملاء
+        partners = find_potential_partners(chat_id, course_name)
+        
+        if not partners:
+            bot.send_message(chat_id, f"❌ لا يوجد زملاء متاحين في مادة {course_name} حالياً.")
+            return
+        
+        # عرض قائمة الزملاء
+        message = f"👥 **زملاؤك في مادة {course_name}:**\n\n"
+        for i, partner_id in enumerate(partners[:5], 1):  # عرض أول 5 فقط
+            message += f"{i}. 👤 زميل #{partner_id}\n"
+        
+        if len(partners) > 5:
+            message += f"\n... و{len(partners) - 5} زميل آخر"
+        
+        message += "\n🎲 اختر \"محادثة عشوائية\" للتواصل مع أحدهم!"
+        
+        bot.send_message(chat_id, message, parse_mode="Markdown")
     
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
