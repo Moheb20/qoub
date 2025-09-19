@@ -69,7 +69,7 @@ admin_states = {}
 # حفظ حالة الأدمن عند إضافة/تعديل/حذف القروبات
 admin_group_states = {}
 user_sessions = {}
-user_data = {}
+user_categories_data = {}
 
 
 plans_file_path = os.path.join(os.path.dirname(__file__), "qou.json")
@@ -1252,18 +1252,18 @@ def handle_all_messages(message):
             bot.send_message(chat_id, f"🚨 حدث خطأ: {str(e)}")
     
     # ⬇️⬇️⬇️ هذا السطر يجب أن يكون بنفس مستوى elif السابق ⬇️⬇️⬇️
-    elif chat_id in user_data and user_data[chat_id].get('action') == 'awaiting_category':
+    elif chat_id in user_categories_data and user_categories_data[chat_id].get('action') == 'awaiting_category':
         selected_text = message.text.strip()
         
         # ✅ التحقق من زر الرئيسية فقط
         if selected_text == "🏠 الرئيسية":
-            del user_data[chat_id]  # حذف حالة المستخدم
+            del user_categories_data[chat_id]  # حذف حالة المستخدم
             show_main_menu(chat_id)
             return
         
         # إذا لم يكن زر الرئيسية، نتعامل معه كفئة
         selected_category = selected_text.replace("📁 ", "").strip()
-        categories = user_data[chat_id]['categories']
+        categories = user_categories_data[chat_id]['categories']
         
         # البحث عن الفئة المطابقة
         matched_category = None
