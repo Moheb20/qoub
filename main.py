@@ -1428,9 +1428,11 @@ def handle_all_messages(message):
         if not creds['success']:
             bot.send_message(chat_id, "❌ لم أجد بيانات دخول صالحة.")
             return
-        
+        try:
+        # إنشاء كائن سكرابر جديد - هذا هو التصحيح المهم!
+            scraper = QOUScraper(creds['username'], creds['password'])
         # استدعاء دالة السكرابنق الجديدة
-        portal_data = scraper.fetch_student_data_from_portal(creds['username'], creds['password'])
+            portal_data = scraper.fetch_student_data_from_portal(creds['username'], creds['password'])
         
         # معالجة النتيجة
         if portal_data["success"]:
