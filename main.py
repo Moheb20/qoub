@@ -1430,7 +1430,7 @@ def handle_all_messages(message):
             return
         
         # استدعاء دالة السكرابنق الجديدة
-        portal_data = fetch_student_data_from_portal(creds['username'], creds['password'])
+        portal_data = scraper.fetch_student_data_from_portal(creds['username'], creds['password'])
         
         # معالجة النتيجة
         if portal_data["success"]:
