@@ -1704,25 +1704,27 @@ def handle_all_messages(message):
             f"👥 تم الاتصال بزميل دراسة\n\n"
             f"⚡ ابدأ بالحديث الآن!\n",
             parse_mode="Markdown",
-            reply_markup=markup  # أضف هذا
+            reply_markup=markup
         )
         
-        bot.send_message(partner_id,
-            f"💬 **بدعوة محادثة مجهولة**\n\n"
-            f"📖 المادة: {course_name}\n"
-            f"👤 أحد الزملاء يريد الدراسة معك\n\n"
-            f"⚡ ابدأ بالحديث الآن!\n", 
-            parse_mode="Markdown",
-            reply_markup=markup  # أضف هذا
-        )
+        try:
+            # محاولة إرسال الرسالة للشريك
+            bot.send_message(partner_id,
+                f"💬 **بدعوة محادثة مجهولة**\n\n"
+                f"📖 المادة: {course_name}\n"
+                f"👤 أحد الزملاء يريد الدراسة معك\n\n"
+                f"⚡ ابدأ بالحديث الآن!\n", 
+                parse_mode="Markdown",
+                reply_markup=markup
+            )
         except Exception as e:
+            # إذا فشل الإرسال للشريك
             bot.send_message(chat_id, "❌ تعذر الاتصال بالشريك. جرب محادثة أخرى.")
             # مسح حالة الطرفين إذا فشل
             if chat_id in user_sessions:
                 del user_sessions[chat_id]
             if partner_id in user_sessions:
                 del user_sessions[partner_id]
-
 
     elif text == "✖️ إنهاء المحادثة":
         if chat_id in user_sessions and user_sessions[chat_id].get('in_chat'):
