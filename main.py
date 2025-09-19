@@ -1429,28 +1429,33 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ لم أجد بيانات دخول صالحة.")
             return
         try:
-        # إنشاء كائن سكرابر جديد - هذا هو التصحيح المهم!
+            # إنشاء كائن سكرابر جديد - هذا هو التصحيح المهم!
             scraper = QOUScraper(creds['username'], creds['password'])
-        # استدعاء دالة السكرابنق الجديدة
-            portal_data = fetch_student_data_from_portal(creds['username'], creds['password'])
-        
-        # معالجة النتيجة
-        if portal_data["success"]:
-            # حفظ البيانات في DB
-            update_success = update_portal_data(chat_id, portal_data['branch'], portal_data['courses'])
             
-            if update_success:
-                message_text = (
-                    f"✅ تم ربط حساب البوابة بنجاح!\n\n"
-                    f"🏫 الفرع: {portal_data['branch']}\n"
-                    f"📚 عدد المواد المسجلة: {len(portal_data['courses'])}\n\n"
-                    f"يمكنك الآن استخدام ميزة \"منصة المواد المشتركة\" للتواصل مع زملائك!"
-                )
-                bot.send_message(chat_id, message_text)
+            # استدعاء دالة السكرابنق الجديدة
+            portal_data = fetch_student_data_from_portal(creds['username'], creds['password'])
+            
+            # معالجة النتيجة
+            if portal_data["success"]:
+                # حفظ البيانات في DB
+                update_success = update_portal_data(chat_id, portal_data['branch'], portal_data['courses'])
+                
+                if update_success:
+                    message_text = (
+                        f"✅ تم ربط حساب البوابة بنجاح!\n\n"
+                        f"🏫 الفرع: {portal_data['branch']}\n"
+                        f"📚 عدد المواد المسجلة: {len(portal_data['courses'])}\n\n"
+                        f"يمكنك الآن استخدام ميزة \"منصة المواد المشتركة\" للتواصل مع زملائك!"
+                    )
+                    bot.send_message(chat_id, message_text)
+                else:
+                    bot.send_message(chat_id, "❌ حدث خطأ في حفظ البيانات في قاعدة البيانات.")
             else:
-                bot.send_message(chat_id, "❌ حدث خطأ في حفظ البيانات في قاعدة البيانات.")
-        else:
-            bot.send_message(chat_id, f"❌ فشل في سحب البيانات: {portal_data['error']}")
+                bot.send_message(chat_id, f"❌ فشل في سحب البيانات: {portal_data['error']}")
+        
+        except Exception as e:
+            logger.error(f"Error in portal linking: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ غير متوقع أثناء ربط الحساب. حاول مرة أخرى لاحقاً.")
         
         return
     elif text == "👥 منصة المواد المشتركة":
