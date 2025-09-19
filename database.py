@@ -171,38 +171,29 @@ def init_db():
                         FOREIGN KEY (chat_id) REFERENCES student_stats(chat_id) ON DELETE CASCADE
                     )
                 ''')
-                cur.execute("""
-                    DO $$
-                    BEGIN
-                        -- التحقق من وجود عمود branch وإضافته إذا غير موجود
-                        IF NOT EXISTS (
-                            SELECT 1 
-                            FROM information_schema.columns 
-                            WHERE table_name='users' AND column_name='branch'
-                        ) THEN
-                            ALTER TABLE users ADD COLUMN branch TEXT;
-                        END IF;
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS anonymous_chats (
+                        chat_id SERIAL PRIMARY KEY,
+                        user1_id BIGINT NOT NULL,
+                        user2_id BIGINT NOT NULL,
+                        course_name TEXT NOT NULL,
+                        chat_token TEXT UNIQUE NOT NULL,
+                        status TEXT DEFAULT 'active',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
                 
-                        -- التحقق من وجود عمود portal_courses وإضافته إذا غير موجود
-                        IF NOT EXISTS (
-                            SELECT 1 
-                            FROM information_schema.columns 
-                            WHERE table_name='users' AND column_name='portal_courses'
-                        ) THEN
-                            ALTER TABLE users ADD COLUMN portal_courses TEXT;
-                        END IF;
-                    END$$;
-                """) 
-                # إنشاء فهرس لأداء أفضل
-                cur.execute('CREATE INDEX IF NOT EXISTS idx_student_courses_chat_id ON student_courses(chat_id)')
-                try:
-                    cur.execute("SELECT detailed_status FROM student_courses LIMIT 1")
-                except Exception:
-                    try:
-                        cur.execute("ALTER TABLE student_courses ADD COLUMN detailed_status TEXT")
-                        logger.info("تم إضافة العمود detailed_status إلى الجدول student_courses")
-                    except Exception as alter_error:
-                        logger.warning(f"لم يتمكن من إضافة العمود: {alter_error}")
+                # جدول رسائل المحادثات - إضف هذا
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        message_id SERIAL PRIMARY KEY,
+                        chat_token TEXT NOT NULL,
+                        sender_id BIGINT NOT NULL,
+                        message_text TEXT NOT NULL,
+                        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
             conn.commit()
             logger.info("Database tables initialized successfully")
 
@@ -835,37 +826,41 @@ def get_courses_by_branch(branch_name):
 
 def find_potential_partners(chat_id, course_name):
     """
-    البحث عن جميع المستخدمين المناسبين للدراسة في مادة معينة
+    البحث عن مستخدمين من نفس الفرع ونفس المادة
     """
     try:
+        # جلب فرع المستخدم الحالي
         user_data = get_user_branch_and_courses(chat_id)
         user_branch = user_data.get('branch')
         
         if not user_branch:
             return []
-
+        
+        # البحث في قاعدة البيانات
         with get_conn() as conn:
             with conn.cursor() as cur:
-                # استعلام أكثر توافقاً
                 cur.execute('''
-                    SELECT chat_id, portal_courses 
-                    FROM users 
+                    SELECT chat_id, portal_courses FROM users 
                     WHERE branch = %s AND chat_id != %s
                     AND portal_courses IS NOT NULL
                 ''', (user_branch, chat_id))
                 
                 partners = []
                 for row in cur.fetchall():
-                    chat_id, courses_json = row
+                    partner_id, courses_json = row
                     if courses_json:
                         try:
                             courses_list = json.loads(courses_json)
                             if course_name in courses_list:
-                                partners.append(chat_id)
-                        except json.JSONDecodeError:
+                                partners.append(partner_id)
+                        except:
                             continue
                 
                 return partners
+                
+    except Exception as e:
+        logger.error(f"Error finding partners: {e}")
+        return []
                 
     except Exception as e:
         logger.error(f"❌ خطأ في البحث عن شركاء محتملين: {e}")
@@ -966,3 +961,71 @@ def get_portal_credentials(chat_id):
         return {"success": False, "error": "No credentials found"}
 
 
+# دوال إدارة المحادثات المجهولة
+def create_anonymous_chat(user1_id, user2_id, course_name):
+    """إنشاء محادثة مجهولة جديدة"""
+    try:
+        import secrets
+        chat_token = secrets.token_hex(8)  # كود فريد للمحادثة
+        
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO anonymous_chats (user1_id, user2_id, course_name, chat_token)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING chat_token
+                ''', (user1_id, user2_id, course_name, chat_token))
+                result = cur.fetchone()
+            conn.commit()
+            return result[0] if result else None
+    except Exception as e:
+        logger.error(f"Error creating chat: {e}")
+        return None
+
+def add_chat_message(chat_token, sender_id, message_text):
+    """إضافة رسالة إلى المحادثة"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO chat_messages (chat_token, sender_id, message_text)
+                    VALUES (%s, %s, %s)
+                ''', (chat_token, sender_id, message_text))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error adding message: {e}")
+        return False
+
+def get_chat_partner(chat_token, current_user_id):
+    """جلب رقم الشريك في المحادثة"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    SELECT user1_id, user2_id FROM anonymous_chats 
+                    WHERE chat_token = %s AND status = 'active'
+                ''', (chat_token,))
+                result = cur.fetchone()
+                if result:
+                    user1, user2 = result
+                    return user2 if current_user_id == user1 else user1
+                return None
+    except Exception as e:
+        logger.error(f"Error getting partner: {e}")
+        return None
+
+def end_chat(chat_token):
+    """إنهاء المحادثة"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    UPDATE anonymous_chats SET status = 'ended' 
+                    WHERE chat_token = %s
+                ''', (chat_token,))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error ending chat: {e}")
+        return False
