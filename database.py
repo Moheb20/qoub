@@ -91,12 +91,16 @@ def init_db():
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                # جدول المستخدمين
+                # جدول المستخدمين (محدث بإضافة حقول البوابة)
                 cur.execute('''
                     CREATE TABLE IF NOT EXISTS users (
                         chat_id BIGINT PRIMARY KEY,
-                        student_id TEXT NOT NULL,
-                        password TEXT NOT NULL,
+                        student_id TEXT NOT NULL,  -- سيستخدم كـ portal_username
+                        password TEXT NOT NULL,    -- سيستخدم كـ portal_password
+                        -- الحقول الجديدة للبوابة --
+                        branch TEXT,               -- الفرع/التخصص (يُسحب من البوابة)
+                        portal_courses TEXT,       -- قائمة المواد (JSON) من البوابة
+                        -- الحقول الأصلية --
                         last_msg_id TEXT,
                         courses_data TEXT,
                         last_login TEXT,
