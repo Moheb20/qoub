@@ -32,6 +32,14 @@ from database import (
     get_categories,
     get_groups_by_category,
     get_deadline_by_id,
+    get_portal_credentials,      # لجلب بيانات الدخول
+    update_portal_data,          # لتحديث بيانات البوابة
+    get_user_branch_and_courses, # لجلب الفرع والمواد
+    find_potential_partners,     # للبحث عن زملاء دراسة
+    clear_portal_data,           # لمسح بيانات البوابة (اختياري)
+    has_portal_data,             # للتحقق من وجود بيانات (اختياري)
+    get_courses_by_branch,       # لجرد المواد حسب الفرع (اختياري)
+    get_portal_stats,
 
 
 )
