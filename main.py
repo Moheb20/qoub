@@ -99,6 +99,7 @@ def send_main_menu(chat_id):
     else:
         markup.add(types.KeyboardButton("📖 الخدمات الأكاديمية"))
         markup.add(types.KeyboardButton("📅 التـــقويــم"))
+        markup.add(types.KeyboardButton("🔗 منصة المواد المشتركة"))  # ← الزر الجديد
         markup.add(types.KeyboardButton("📚 أخرى"))
         markup.add(types.KeyboardButton("🚪 تسجيل الخروج"))
         if chat_id in ADMIN_CHAT_ID:
@@ -159,6 +160,26 @@ def send_cel_services(chat_id):
     markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
 
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
+
+
+    def send_manasa_services(chat_id):
+        """القائمة الفرعية للخدمات الأكاديمية والجدول والتقويم"""
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        
+        # أزرار التقويم
+        markup.add(
+            types.KeyboardButton("👥 منصة المواد المشتركة"),
+            types.KeyboardButton("🔗 ربط الحساب بمنصة المواد المشتركة")
+        )
+        
+        # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
+        current_week_text = QOUScraper.get_current_week_type()
+        markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
+    
+        # زر العودة
+        markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+    
+        bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
 
 def send_other_services(chat_id):
     """القائمة الفرعية للخدمات الأخرى"""
@@ -379,6 +400,9 @@ def handle_all_messages(message):
 
     elif text == "📖 الخطة الدراسية":
         send_academic_stats_menu(chat_id)
+
+    elif text == "🔗 منصة المواد المشتركة":
+        send_manasa_services(chat_id)
 
     elif text == "🏠 الرئيسية":
         if chat_id in user_data:
@@ -1381,6 +1405,175 @@ def handle_all_messages(message):
             
         except Exception as e:
             bot.send_message(chat_id, f"🚨 خطأ: {str(e)}")
+
+    elif text == "🔗 ربط الحساب بمنصة المواد المشتركة":
+        user = get_user(chat_id)
+        if not user or not user.get('student_id'):
+            bot.send_message(chat_id, "❌ يرجى تسجيل الدخول أولاً باستخدام /login")
+            return
+        
+        # إعلام المستخدم أن العملية جارية
+        bot.send_message(chat_id, "🔄 جاري سحب بياناتك من بوابة الجامعة...")
+        
+        # جلب بيانات الدخول من DB
+        creds = get_portal_credentials(chat_id)
+        if not creds['success']:
+            bot.send_message(chat_id, "❌ لم أجد بيانات دخول صالحة.")
+            return
+        
+        # استدعاء دالة السكرابنق الجديدة
+        portal_data = fetch_student_data_from_portal(creds['username'], creds['password'])
+        
+        # معالجة النتيجة
+        if portal_data["success"]:
+            # حفظ البيانات في DB
+            update_success = update_portal_data(chat_id, portal_data['branch'], portal_data['courses'])
+            
+            if update_success:
+                message_text = (
+                    f"✅ تم ربط حساب البوابة بنجاح!\n\n"
+                    f"🏫 الفرع: {portal_data['branch']}\n"
+                    f"📚 عدد المواد المسجلة: {len(portal_data['courses'])}\n\n"
+                    f"يمكنك الآن استخدام ميزة \"منصة المواد المشتركة\" للتواصل مع زملائك!"
+                )
+                bot.send_message(chat_id, message_text)
+            else:
+                bot.send_message(chat_id, "❌ حدث خطأ في حفظ البيانات في قاعدة البيانات.")
+        else:
+            bot.send_message(chat_id, f"❌ فشل في سحب البيانات: {portal_data['error']}")
+        
+        return
+    elif text == "👥 منصة المواد المشتركة":
+        # جلب بيانات المستخدم من قاعدة البيانات
+        user_data = get_user_branch_and_courses(chat_id)
+        
+        # التحقق من وجود بيانات البوابة
+        if not user_data['branch']:
+            bot.send_message(
+                chat_id, 
+                "❌ لم يتم ربط حساب البوابة بعد.\n\n"
+                "يرجى استخدام زر \"🔗 ربط حساب البوابة\" أولاً لسحب بيانات فرعك وموادك من بوابة الجامعة."
+            )
+            return
+        
+        if not user_data['courses']:
+            bot.send_message(
+                chat_id, 
+                "❌ لا توجد مواد مسجلة في الفصل الحالي.\n\n"
+                "إما أنك لم تسجل أي مواد هذا الفصل، أو هناك مشكلة في بيانات البوابة."
+            )
+            return
+        
+        # إنشاء لوحة المفاتيح مع أزرار المواد
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        
+        # إضافة أزرار المواد مع تقصير الأسماء الطويلة
+        for course in user_data['courses']:
+            # تقصير اسم المادة إذا كان طويلاً مع الحفاظ على المعنى
+            if len(course) > 20:
+                # محاولة تقسيم الاسم إلى كلمات وأخذ أول كلمتين
+                words = course.split()
+                short_name = ' '.join(words[:2]) + "..." if len(words) > 2 else course[:20] + "..."
+            else:
+                short_name = course
+            
+            markup.add(types.KeyboardButton(f"📖 {short_name}"))
+        
+        # زر العودة
+        markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+        
+        # إرسال الرسالة مع المعلومات
+        message_text = (
+            f"🏫 **فرعك: {user_data['branch']}**\n"
+            f"📚 **عدد المواد المسجلة: {len(user_data['courses'])}**\n\n"
+            "اختر المادة التي تريد التواصل مع زملائك فيها:"
+        )
+        
+        bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
+    
+    # معالج لاختيار مادة محددة
+    elif text.startswith("📖 "):
+        # استخراج اسم المادة من النص
+        selected_course = text.replace("📖 ", "").strip()
+        
+        # جلب البيانات الكاملة للمستخدم
+        user_full_data = get_user_branch_and_courses(chat_id)
+        
+        if not user_full_data['branch'] or not user_full_data['courses']:
+            bot.send_message(chat_id, "❌ بيانات غير كافية. يرجى إعادة ربط حساب البوابة.")
+            return
+        
+        # البحث عن الاسم الكامل للمادة (للتأكد من المطابقة)
+        full_course_name = None
+        for course in user_full_data['courses']:
+            if selected_course in course or course.startswith(selected_course.replace("...", "")):
+                full_course_name = course
+                break
+        
+        if not full_course_name:
+            bot.send_message(chat_id, "❌ لم أتعرف على المادة المحددة.")
+            return
+        
+        # البحث عن زملاء في نفس المادة والفرع
+        potential_partners = find_potential_partners(chat_id, full_course_name)
+        
+        # إنشاء لوحة مفاتيح جديدة
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        
+        if potential_partners:
+            partner_count = len(potential_partners)
+            message_text = (
+                f"📖 **المادة: {full_course_name}**\n"
+                f"👥 **عدد الزملاء المتاحين: {partner_count}**\n\n"
+                "اختر طريقة التواصل:"
+            )
+            
+            # إضافة أزرار الخيارات
+            markup.add(types.KeyboardButton(f"🎲 محادثة عشوائية - {selected_course}"))
+            markup.add(types.KeyboardButton("👥 عرض قائمة الزملاء"))
+            markup.add(types.KeyboardButton("⬅️ عودة للمواد"))
+            
+        else:
+            message_text = (
+                f"📖 **المادة: {full_course_name}**\n\n"
+                "❌ لا يوجد زملاء متاحين في هذه المادة حالياً.\n"
+                "يمكنك المحاولة لاحقاً أو اختيار مادة أخرى."
+            )
+            markup.add(types.KeyboardButton("⬅️ عودة للمواد"))
+        
+        markup.add(types.KeyboardButton("🏠 الرئيسية"))
+        
+        bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
+        
+        # حفظ حالة المستخدم للمراحل القادمة
+        user_sessions[chat_id] = {
+            'current_course': full_course_name,
+            'action': 'awaiting_communication_choice'
+        }
+    
+    # معالج للعودة إلى قائمة المواد
+    elif text == "⬅️ عودة للمواد":
+        user_data = get_user_branch_and_courses(chat_id)
+        
+        if not user_data['courses']:
+            bot.send_message(chat_id, "❌ لا توجد مواد مسجلة.")
+            return
+        
+        # إعادة إنشاء لوحة المفاتيح للمواد
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        
+        for course in user_data['courses']:
+            if len(course) > 20:
+                words = course.split()
+                short_name = ' '.join(words[:2]) + "..." if len(words) > 2 else course[:20] + "..."
+            else:
+                short_name = course
+            markup.add(types.KeyboardButton(f"📖 {short_name}"))
+        
+        markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+        
+        bot.send_message(chat_id, "📚 اختر مادة:", reply_markup=markup)
+    
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 if __name__ == "__main__":
