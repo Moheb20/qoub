@@ -267,27 +267,49 @@ def handle_all_messages(message):
     chat_id = message.chat.id
     text = (message.text or "").strip()
     
-    # 1. أولاً: التحقق إذا كان المستخدم في محادثة نشطة
+    # إذا كان المستخدم في محادثة نشطة
     if chat_id in user_sessions and user_sessions[chat_id].get('in_chat'):
-        # إذا كتب /end استدعي معالج الإنتهاء
-        if text == '/end':
-            handle_end_chat(message)
+        # إذا ضغط على زر إنهاء المحادثة
+        if text == "✖️ إنهاء المحادثة":
+            # استدعي معالج الإنتهاء
+            if chat_id in user_sessions and user_sessions[chat_id].get('in_chat'):
+                chat_token = user_sessions[chat_id]['chat_token']
+                partner_id = user_sessions[chat_id]['partner_id']
+                
+                end_chat(chat_token)
+                
+                if partner_id in user_sessions:
+                    del user_sessions[partner_id]
+                if chat_id in user_sessions:
+                    del user_sessions[chat_id]
+                
+                try:
+                    bot.send_message(partner_id, "❌ الطرف الآخر أنهى المحادثة")
+                    send_main_menu(partner_id)
+                except:
+                    pass
+                
+                bot.send_message(chat_id, "✅ تم إنهاء المحادثة")
+                send_main_menu(chat_id)
             return
             
+        # إذا كانت رسالة عادية
         chat_token = user_sessions[chat_id]['chat_token']
         partner_id = user_sessions[chat_id]['partner_id']
         
-        # حفظ الرسالة في الداتابيز
+        # حفظ الرسالة وإرسالها
         add_chat_message(chat_token, chat_id, text)
         
-        # إرسال الرسالة للشريك
         try:
-            bot.send_message(partner_id, f"👤 [مجهول]: {text}")
+            # إرسال الرسالة مع زر الإنهاء للشريك
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("✖️ إنهاء المحادثة")
+            bot.send_message(partner_id, f"👤 [مجهول]: {text}", reply_markup=markup)
         except Exception as e:
-            bot.send_message(chat_id, "❌ تعذر إرسال الرسالة.可能 انتهت المحادثة.")
+            bot.send_message(chat_id, "❌ تعذر إرسال الرسالة.")
             del user_sessions[chat_id]
         
-        return  # توقف هنا ولا تكمل للمعالجات الأخرى
+        return
     
     # 2. ثانياً: معالجات الأدمن (الكود الحالي)
     if chat_id in ADMIN_CHAT_ID and admin_states.get(chat_id) == "awaiting_broadcast_text":
@@ -1632,30 +1654,31 @@ def handle_all_messages(message):
     elif text.startswith("🎲 محادثة عشوائية - "):
         course_name = text.replace("🎲 محادثة عشوائية - ", "").strip()
         
-        # جلب بيانات المستخدم
-        user_data = get_user_branch_and_courses(chat_id)
-        if not user_data['branch']:
-            bot.send_message(chat_id, "❌ يرجى ربط حساب البوابة أولاً")
-            return
+        # حفظ المادة في session
+        if chat_id not in user_sessions:
+            user_sessions[chat_id] = {}
+        user_sessions[chat_id]['current_course'] = course_name
         
         # البحث عن زملاء
         partners = find_potential_partners(chat_id, course_name)
         
         if not partners:
-            bot.send_message(chat_id, f"❌ لا يوجد زملاء في مادة {course_name} حالياً")
+            bot.send_message(chat_id, f"❌ لا يوجد زملاء متاحين في مادة {course_name} حالياً.")
             return
         
         # اختيار شريك عشوائي
         partner_id = random.choice(partners)
         
-        # إنشاء محادثة
+        # إنشاء محادثة مجهولة
         chat_token = create_anonymous_chat(chat_id, partner_id, course_name)
         
         if not chat_token:
-            bot.send_message(chat_id, "❌ فشل في إنشاء المحادثة")
+            bot.send_message(chat_id, "❌ فشل في إنشاء المحادثة. حاول مرة أخرى.")
             return
         
-        # حفظ حالة المحادثة
+        # ✅✅✅ التصحيح المهم: حفظ حالة المحادثة للطرفين ✅✅✅
+        
+        # حفظ حالة المحادثة للطرف الأول (اللي ضغط الزر)
         user_sessions[chat_id] = {
             'in_chat': True,
             'chat_token': chat_token,
@@ -1663,31 +1686,68 @@ def handle_all_messages(message):
             'course_name': course_name
         }
         
+        # ✅ حفظ حالة المحادثة للطرف الثاني (اللي اتصِل فيه)
+        user_sessions[partner_id] = {
+            'in_chat': True, 
+            'chat_token': chat_token,
+            'partner_id': chat_id,  # العكس
+            'course_name': course_name
+        }
+        
         # إرسال إشعار للطرفين
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("✖️ إنهاء المحادثة")
+        
         bot.send_message(chat_id,
             f"💬 **بدأت المحادثة المجهولة**\n\n"
             f"📖 المادة: {course_name}\n"
             f"👥 تم الاتصال بزميل دراسة\n\n"
-            f"⚡ ابدأ بالحديث الآن!\n"
-            f"❌ /end - لإنهاء المحادثة",
-            parse_mode="Markdown"
+            f"⚡ ابدأ بالحديث الآن!\n",
+            parse_mode="Markdown",
+            reply_markup=markup  # أضف هذا
         )
         
-        # إشعار للشريك
-        try:
-            bot.send_message(partner_id,
-                f"💬 **بدعوة محادثة مجهولة**\n\n"
-                f"📖 المادة: {course_name}\n"
-                f"👤 أحد الزملاء يريد الدراسة معك\n\n"
-                f"⚡ ابدأ بالحديث الآن!\n"
-                f"❌ /end - لرفض المحادثة",
-                parse_mode="Markdown"
-            )
+        bot.send_message(partner_id,
+            f"💬 **بدعوة محادثة مجهولة**\n\n"
+            f"📖 المادة: {course_name}\n"
+            f"👤 أحد الزملاء يريد الدراسة معك\n\n"
+            f"⚡ ابدأ بالحديث الآن!\n", 
+            parse_mode="Markdown",
+            reply_markup=markup  # أضف هذا
+        )
         except Exception as e:
-            bot.send_message(chat_id, "❌ تعذر الاتصال بالشريك")
-            del user_sessions[chat_id]
+            bot.send_message(chat_id, "❌ تعذر الاتصال بالشريك. جرب محادثة أخرى.")
+            # مسح حالة الطرفين إذا فشل
+            if chat_id in user_sessions:
+                del user_sessions[chat_id]
+            if partner_id in user_sessions:
+                del user_sessions[partner_id]
 
 
+    elif text == "✖️ إنهاء المحادثة":
+        if chat_id in user_sessions and user_sessions[chat_id].get('in_chat'):
+            chat_token = user_sessions[chat_id]['chat_token']
+            partner_id = user_sessions[chat_id]['partner_id']
+            
+            # إنهاء المحادثة في الداتابيز
+            end_chat(chat_token)
+            
+            # مسح حالة الطرفين
+            if chat_id in user_sessions:
+                del user_sessions[chat_id]
+            if partner_id in user_sessions:
+                del user_sessions[partner_id]
+            
+            # إشعار للطرف الآخر
+            try:
+                bot.send_message(partner_id, "❌ الطرف الآخر أنهى المحادثة")
+            except:
+                pass
+            
+            bot.send_message(chat_id, "✅ تم إنهاء المحادثة")
+            send_main_menu(chat_id)  # العودة للقائمة الرئيسية
+        else:
+            bot.send_message(chat_id, "❌ لا توجد محادثة نشطة")
     # إضف هذا الكود في handle_all_messages بعد باقي المعالجات
     elif text == "👥 عرض قائمة الزملاء":
         if chat_id not in user_sessions or 'current_course' not in user_sessions[chat_id]:
