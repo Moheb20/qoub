@@ -925,15 +925,13 @@ class QOUScraper:
 
 
 
-
-    def fetch_student_data_from_portal(self):  
+    def fetch_student_data_from_portal(self):
         """
         استخدام الكلاس الموجود لسحب بيانات الفرع والمواد من بوابة الجامعة
         """
         try:
-            # 1. إنشاء كائن السكرابر وتسجيل الدخول
-            scraper = QOUScraper(student_id, password)
-            login_success = scraper.login()
+            # 1. تسجيل الدخول باستخدام بيانات الكائن (self.student_id, self.password)
+            login_success = self.login()
             
             if not login_success:
                 return {
@@ -943,7 +941,7 @@ class QOUScraper:
     
             # 2. جلب صفحة معلومات الطالب لاستخراج الفرع
             info_url = "https://portal.qou.edu/student/changePassword.do#studInfo"
-            info_response = scraper.session.get(info_url, headers=scraper.headers)
+            info_response = self.session.get(info_url, headers=self.headers)
             
             if info_response.status_code != 200:
                 return {
@@ -969,7 +967,7 @@ class QOUScraper:
     
             # 4. جلب صفحة المواد المسجلة
             courses_url = "https://portal.qou.edu/student/courseServices.do"
-            courses_response = scraper.session.get(courses_url, headers=scraper.headers)
+            courses_response = self.session.get(courses_url, headers=self.headers)
             
             if courses_response.status_code != 200:
                 return {
