@@ -926,7 +926,7 @@ class QOUScraper:
 
 
 
-    def fetch_student_data_from_portal(student_id, password):
+    def fetch_student_data_from_portal(self):  
         """
         استخدام الكلاس الموجود لسحب بيانات الفرع والمواد من بوابة الجامعة
         """
