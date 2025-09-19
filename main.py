@@ -1433,8 +1433,7 @@ def handle_all_messages(message):
             scraper = QOUScraper(creds['username'], creds['password'])
             
             # استدعاء دالة السكرابنق الجديدة
-            portal_data = scraper.fetch_student_data_from_portal(creds['username'], creds['password'])            
-            # معالجة النتيجة
+            portal_data = scraper.fetch_student_data_from_portal()            # معالجة النتيجة
             if portal_data["success"]:
                 # حفظ البيانات في DB
                 update_success = update_portal_data(chat_id, portal_data['branch'], portal_data['courses'])
