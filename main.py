@@ -169,10 +169,10 @@ def send_cel_services(chat_id):
     markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
     if chat_id in session_states:
         scraper = session_states[chat_id]
-        delay_status = scraper.get_delay_status()  # ✅ تعمل
+        delay_status = scraper.get_delay_status()
         markup.add(types.KeyboardButton(f"📅 {delay_status}"))
     else:
-        markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة"))  
+        markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة")) 
     markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
 
 
@@ -302,8 +302,16 @@ def handle_delay_refresh(message):
     scraper = QOUScraper(user["student_id"], user["password"])
     
     if scraper.login():
+        # حفظ الجلسة للتحديث
+        session_states[chat_id] = scraper
+        
+        # جلب الحالة الجديدة
         new_status = scraper.get_delay_status()
-        bot.send_message(chat_id, new_status)
+        
+        # إرسال الرسالة وإعادة عرض القائمة مع التحديث
+        bot.send_message(chat_id, f"✅ تم التحديث: {new_status}")
+        send_cel_services(chat_id)  # إعادة عرض القائمة مع الزر المحدث
+        
     else:
         bot.send_message(chat_id, "❌ فشل تسجيل الدخول")
         
