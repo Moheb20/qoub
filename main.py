@@ -173,8 +173,6 @@ def send_cel_services(chat_id):
         markup.add(types.KeyboardButton(f"📅 {delay_status}"))
     else:
         markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة"))  
-    delay_status = QOUScraper.get_delay_status()
-    markup.add(types.KeyboardButton(f"{delay_status}"))
     markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
 
 
