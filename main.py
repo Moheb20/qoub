@@ -287,18 +287,23 @@ def handle_delay_display(message):
 # المعالج لزر التحديث
 @bot.message_handler(func=lambda message: message.text == "🔄 تحديث حالة التأجيل")
 def handle_delay_refresh(message):
-    try:
-        # عرض رسالة "جاري التحقق"
-        bot.send_chat_action(message.chat.id, 'typing')
-        
-        # الحصول على أحدث حالة
-        new_status = QOUScraper.get_delay_status()
-        
-        # إرسال النتيجة
-        bot.send_message(message.chat.id, f"{new_status}\n\nتم التحديث في: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-    except Exception as e:
-        bot.send_message(message.chat.id, "❌ حدث خطأ أثناء التحقق من حالة التأجيل")
+    chat_id = message.chat.id
+    
+    if chat_id not in user_sessions:
+        bot.send_message(chat_id, "⚠️ يرجى تسجيل الدخول أولاً")
+        return
+    
+    bot.send_chat_action(chat_id, 'typing')
+    
+    # إنشاء instance جديد مع بيانات المستخدم
+    creds = user_credentials[chat_id]
+    scraper = QOUScraper(creds['username'], creds['password'])
+    
+    if scraper.login():
+        new_status = scraper.get_delay_status()
+        bot.send_message(chat_id, f"{new_status}")
+    else:
+        bot.send_message(chat_id, "❌ فشل تسجيل الدخول")
         
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
