@@ -1,4 +1,4 @@
-ْimport os
+import os
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
