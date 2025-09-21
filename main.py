@@ -167,6 +167,10 @@ def send_cel_services(chat_id):
     # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
     current_week_text = QOUScraper.get_current_week_type()
     markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
+    delay_status = QOUScraper.get_delay_status()
+    markup.add(types.KeyboardButton(f"{delay_status}"))
+    markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
+
 
     # زر العودة
     markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
@@ -269,6 +273,29 @@ def handle_end_chat(message):
     else:
         bot.send_message(chat_id, "❌ لا توجد محادثة نشطة")
 
+
+@bot.message_handler(func=lambda message: message.text.startswith("📅 فترة التأجيل:"))
+def handle_delay_display(message):
+    # فقط نعرض رسالة توضيحية أن هذا الزر للعرض فقط
+    bot.send_message(message.chat.id, "ℹ️ هذه العبارة توضح حالة التأجيل الحالية. للتحقق من أحدث حالة، اضغط على \"🔄 تحديث حالة التأجيل\"", 
+                    reply_markup=types.ReplyKeyboardRemove(selective=True))
+
+# المعالج لزر التحديث
+@bot.message_handler(func=lambda message: message.text == "🔄 تحديث حالة التأجيل")
+def handle_delay_refresh(message):
+    try:
+        # عرض رسالة "جاري التحقق"
+        bot.send_chat_action(message.chat.id, 'typing')
+        
+        # الحصول على أحدث حالة
+        new_status = QOUScraper.get_delay_status()
+        
+        # إرسال النتيجة
+        bot.send_message(message.chat.id, f"{new_status}\n\nتم التحديث في: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+    except Exception as e:
+        bot.send_message(message.chat.id, "❌ حدث خطأ أثناء التحقق من حالة التأجيل")
+        
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     chat_id = message.chat.id
