@@ -167,7 +167,7 @@ def send_cel_services(chat_id):
     # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
     current_week_text = QOUScraper.get_current_week_type()
     markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
-    delay_status = scraper.get_delay_status()
+    delay_status = QOUScraper.get_delay_status()
     markup.add(types.KeyboardButton(f"{delay_status}"))
     markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
 
