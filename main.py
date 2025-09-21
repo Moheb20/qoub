@@ -288,10 +288,7 @@ def handle_delay_display(message):
 @bot.message_handler(func=lambda message: message.text == "🔄 تحديث حالة التأجيل")
 def handle_delay_refresh(message):
     chat_id = message.chat.id
-    
-    if chat_id not in user_sessions:
-        bot.send_message(chat_id, "⚠️ يرجى تسجيل الدخول أولاً")
-        return
+
     
     bot.send_chat_action(chat_id, 'typing')
     
