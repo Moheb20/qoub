@@ -1,4 +1,4 @@
-import os
+ْimport os
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
@@ -303,7 +303,11 @@ def handle_delay_refresh(message):
     
     if scraper.login():
         # حفظ الجلسة للتحديث
-        session_states[chat_id] = scraper
+        session_states[chat_id] = {
+            'scraper': scraper,  # حفظ الobject هنا
+            'term_no': None,
+            'term_label': None
+        }
         
         # جلب الحالة الجديدة
         new_status = scraper.get_delay_status()
