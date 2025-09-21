@@ -510,6 +510,7 @@ def handle_all_messages(message):
         categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
         for category in categories:
             markup.add(types.KeyboardButton(category))
+        markup.add(types.KeyboardButton("🔍 بحث في القروبات"))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
         return
@@ -525,10 +526,11 @@ def handle_all_messages(message):
         return
 
     elif text == "العودة للقروبات":
+        categories = get_categories()  # لازم تجيب التصنيفات من جديد
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
         for category in categories:
             markup.add(types.KeyboardButton(category))
-            markup.add(types.KeyboardButton("🔍 بحث في القروبات"))
+        markup.add(types.KeyboardButton("🔍 بحث في القروبات"))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
         return
