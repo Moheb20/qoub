@@ -207,7 +207,27 @@ def send_other_services(chat_id):
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
     
 
-
+def process_search(message):
+    chat_id = message.chat.id
+    search_term = message.text.strip()
+        
+     with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT name, link FROM groups WHERE name ILIKE %s ORDER BY name",
+                (f"%{search_term}%",)
+            )
+            results = cur.fetchall()
+        
+    if results:
+        response = "🔍 نتائج البحث:\n\n"
+        for name, link in results:
+            response += f"• {name}\n{link}\n\n"
+        bot.send_message(chat_id, response)
+    else:
+        bot.send_message(chat_id, "❌ لا توجد نتائج")
+        
+    send_other_services(chat_id)
 
 def start_login(chat_id):
     """ابدأ مسار تسجيل الدخول للمستخدم: نحفظه في registration_states"""
@@ -488,6 +508,7 @@ def handle_all_messages(message):
         categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
         for category in categories:
             markup.add(types.KeyboardButton(category))
+            markup.add(types.KeyboardButton("🔍 بحث في القروبات"))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
         return
@@ -644,6 +665,12 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
         return
+
+    elif text == "🔍 بحث في القروبات":
+        msg = bot.send_message(chat_id, "🔍 اكتب كلمة للبحث في القروبات:")
+        bot.register_next_step_handler(msg, process_search)
+    
+
 
     elif text == "العودة للرئيسية":
         clear_states_for_home(chat_id)
