@@ -16,6 +16,7 @@ from bot_instance import bot
 from database import create_anonymous_chat, add_chat_message, get_chat_partner, end_chat
 import random
 import secrets
+from database import get_conn
 from database import (
     init_db,
     get_all_users,
