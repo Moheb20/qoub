@@ -485,14 +485,14 @@ class QOUScraper:
         return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
 
 
-def get_delay_status(self):
-    # جلب الصفحة مباشرة (الsession ستعيد التسجيل إذا needed)
-    resp = self.session.get("https://portal.qou.edu/student/studDelayAppList.do")
-    
-    if "التقدم بطلب تأجيل" in resp.text:
-        return "📅 فترة التأجيل: مفتوحة 🟢"
-    else:
-        return "📅 فترة التأجيل: مغلقة 🔴"
+    def get_delay_status(self):
+        # جلب الصفحة مباشرة (الsession ستعيد التسجيل إذا needed)
+        resp = self.session.get("https://portal.qou.edu/student/studDelayAppList.do")
+        
+        if "التقدم بطلب تأجيل" in resp.text:
+            return "📅 فترة التأجيل: مفتوحة 🟢"
+        else:
+            return "📅 فترة التأجيل: مغلقة 🔴"
         
 
     @staticmethod
