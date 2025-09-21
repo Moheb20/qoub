@@ -212,6 +212,12 @@ def clear_states_for_home(chat_id):
     registration_states.pop(chat_id, None)
     session_states.pop(chat_id, None)
 
+@bot.message_handler(func=lambda message: message.text.startswith("🟢"))
+def handle_info_button(message):
+    # فقط أظهر تفاعلاً بسيطاً دون فعل anything
+    bot.send_chat_action(message.chat.id, 'typing')
+    # أو لا تفعل شيئاً
+    pass
 # ---------- معالج الأوامر والرسائل ----------
 @bot.message_handler(commands=["start"])
 def handle_start(message):
