@@ -485,24 +485,22 @@ class QOUScraper:
         return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
 
 
-    def check_delay_status(session):
+def get_delay_status(self):
     try:
-        # استخدام نفس الجلسة المصادق عليها
-        resp = session.get(DELAY_APP_URL)
+        resp = self.session.get("https://portal.qou.edu/student/studDelayAppList.do")
         resp.raise_for_status()
-        
         soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # التحقق من وجود زر "التقدم بطلب تأجيل" النشط
+        # البحث عن زر التأجيل
         delay_button = soup.find('input', {'value': 'التقدم بطلب تأجيل'})
         
         if delay_button and 'btn-success' in delay_button.get('class', []):
-            return "🟢 فترة التأجيل: مفتوحة"
+            return "📅 فترة التأجيل: مفتوحة 🟢"
         else:
-            return "🔴 فترة التأجيل: مغلقة"
+            return "📅 فترة التأجيل: مغلقة 🔴"
             
     except Exception as e:
-        return f"❌ خطأ في التحقق: {str(e)}"
+        return f"📅 حالة التأجيل: غير متوفرة ❌"
         
 
     @staticmethod
