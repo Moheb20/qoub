@@ -522,6 +522,19 @@ def handle_all_messages(message):
         markup.add(types.KeyboardButton("العودة للقروبات"))
         bot.send_message(chat_id, f"📂 القروبات ضمن '{text}': اختر قروب:", reply_markup=markup)
         return
+
+    elif text == "العودة للقروبات":
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+        for category in categories:
+            markup.add(types.KeyboardButton(category))
+            markup.add(types.KeyboardButton("🔍 بحث في القروبات"))
+        markup.add(types.KeyboardButton("العودة للرئيسية"))
+        bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
+        return
+
+    elif text == "🔍 بحث في القروبات":
+        msg = bot.send_message(chat_id, "🔍 اكتب كلمة للبحث في القروبات:")
+        bot.register_next_step_handler(msg, process_search)
     
     # عرض رابط القروب عند اختيار اسمه
     if get_group_link(text):
@@ -658,18 +671,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب جدول المحاضرات. حاول مرة أخرى لاحقاً.")
         return
 
-    elif text == "العودة للقروبات":
-        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-        for group_type in groups.keys():
-            markup.add(types.KeyboardButton(group_type))
-        markup.add(types.KeyboardButton("العودة للرئيسية"))
-        bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
-        return
 
-    elif text == "🔍 بحث في القروبات":
-        msg = bot.send_message(chat_id, "🔍 اكتب كلمة للبحث في القروبات:")
-        bot.register_next_step_handler(msg, process_search)
-    
 
 
     elif text == "العودة للرئيسية":
