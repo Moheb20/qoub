@@ -63,7 +63,7 @@ ADMIN_CHAT_ID = [6292405444, 1851786931]  # عدله حسب معرف الأدم�
 # فصل حالات التسجيل عن حالات الجلسة (avoid overwriting)
 registration_states = {}  # للحالات المتعلقة بعملية التسجيل (login)
 session_states = {}       # لحالات الجلسة بعد التسجيل (اختيار الفصل، نوع الامتحان...) 
-
+session_statess = {}   
 # حالة الإدخال للأدمن عند إرسال رسالة جماعية
 admin_states = {}
 # حفظ حالة الأدمن عند إضافة/تعديل/حذف القروبات
@@ -167,8 +167,8 @@ def send_cel_services(chat_id):
     # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
     current_week_text = QOUScraper.get_current_week_type()
     markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
-    if chat_id in session_states:
-        scraper = session_states[chat_id]
+    if chat_id in session_statess:
+        scraper = session_statess[chat_id]
         delay_status = scraper.get_delay_status()
         markup.add(types.KeyboardButton(f"📅 {delay_status}"))
     else:
@@ -303,11 +303,9 @@ def handle_delay_refresh(message):
     
     if scraper.login():
         # حفظ الجلسة للتحديث
-        session_states[chat_id] = {
-            'scraper': scraper,  # حفظ الobject هنا
-            'term_no': None,
-            'term_label': None
-        }
+        session_statess[chat_id] = scraper
+
+
         
         # جلب الحالة الجديدة
         new_status = scraper.get_delay_status()
