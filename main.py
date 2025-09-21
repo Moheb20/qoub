@@ -208,10 +208,15 @@ def send_other_services(chat_id):
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
     
 
+@bot.message_handler(func=lambda m: m.text == "🔍 بحث في القروبات")
+def ask_search(message):
+    bot.send_message(message.chat.id, "🔍 اكتب كلمة للبحث في القروبات:")
+    bot.register_next_step_handler(message, process_search)
+
 def process_search(message):
     chat_id = message.chat.id
     search_term = message.text.strip()
-        
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -219,7 +224,7 @@ def process_search(message):
                 (f"%{search_term}%",)
             )
             results = cur.fetchall()
-        
+
     if results:
         response = "🔍 نتائج البحث:\n\n"
         for name, link in results:
@@ -227,8 +232,6 @@ def process_search(message):
         bot.send_message(chat_id, response)
     else:
         bot.send_message(chat_id, "❌ لا توجد نتائج")
-        
-    send_other_services(chat_id)
 
 
 def start_login(chat_id):
