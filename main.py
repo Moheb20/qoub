@@ -288,17 +288,22 @@ def handle_delay_display(message):
 @bot.message_handler(func=lambda message: message.text == "🔄 تحديث حالة التأجيل")
 def handle_delay_refresh(message):
     chat_id = message.chat.id
-
+    
+    # جلب بيانات المستخدم من DB مباشرة
+    user = get_user(chat_id)
+    
+    if not user or not user.get("student_id"):
+        bot.send_message(chat_id, "⚠️ يرجى تسجيل الدخول أولاً باستخدام /login")
+        return
     
     bot.send_chat_action(chat_id, 'typing')
     
-    # إنشاء instance جديد مع بيانات المستخدم
-    creds = user_credentials[chat_id]
-    scraper = QOUScraper(creds['username'], creds['password'])
+    # إنشاء instance وتسجيل الدخول
+    scraper = QOUScraper(user["student_id"], user["password"])
     
     if scraper.login():
         new_status = scraper.get_delay_status()
-        bot.send_message(chat_id, f"{new_status}")
+        bot.send_message(chat_id, new_status)
     else:
         bot.send_message(chat_id, "❌ فشل تسجيل الدخول")
         
