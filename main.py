@@ -211,7 +211,7 @@ def process_search(message):
     chat_id = message.chat.id
     search_term = message.text.strip()
         
-     with get_conn() as conn:
+    with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT name, link FROM groups WHERE name ILIKE %s ORDER BY name",
@@ -228,6 +228,7 @@ def process_search(message):
         bot.send_message(chat_id, "❌ لا توجد نتائج")
         
     send_other_services(chat_id)
+
 
 def start_login(chat_id):
     """ابدأ مسار تسجيل الدخول للمستخدم: نحفظه في registration_states"""
