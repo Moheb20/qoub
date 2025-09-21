@@ -510,7 +510,6 @@ def handle_all_messages(message):
         categories = get_categories()  # جلب كل التصنيفات من قاعدة البيانات
         for category in categories:
             markup.add(types.KeyboardButton(category))
-            markup.add(types.KeyboardButton("🔍 بحث في القروبات"))
         markup.add(types.KeyboardButton("العودة للرئيسية"))
         bot.send_message(chat_id, "📚 اختر نوع القروب:", reply_markup=markup)
         return
