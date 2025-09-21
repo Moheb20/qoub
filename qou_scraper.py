@@ -28,6 +28,8 @@ WEEKLY_MEETINGS_URL = 'https://portal.qou.edu/student/showTermSchedule.do'
 BALANCE_URL = 'https://portal.qou.edu/student/getSasStudFtermCardList.do'
 EXAMS_SCHEDULE_URL = 'https://portal.qou.edu/student/examsScheduleView.do'
 cel = 'https://portal.qou.edu/calendarProposed.do'
+DELAY_APP_URL = "https://portal.qou.edu/student/studDelayAppList.do"
+
 logger = logging.getLogger(__name__)
 EXAM_TYPE_MAP = {
     "MT&IM": "📝 النصفي",
@@ -481,6 +483,27 @@ class QOUScraper:
                 break
         
         return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
+
+
+    def check_delay_status(session):
+    try:
+        # استخدام نفس الجلسة المصادق عليها
+        resp = session.get(DELAY_APP_URL)
+        resp.raise_for_status()
+        
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # التحقق من وجود زر "التقدم بطلب تأجيل" النشط
+        delay_button = soup.find('input', {'value': 'التقدم بطلب تأجيل'})
+        
+        if delay_button and 'btn-success' in delay_button.get('class', []):
+            return "🟢 فترة التأجيل: مفتوحة"
+        else:
+            return "🔴 فترة التأجيل: مغلقة"
+            
+    except Exception as e:
+        return f"❌ خطأ في التحقق: {str(e)}"
+        
 
     @staticmethod
     def get_full_current_semester_calendar():
