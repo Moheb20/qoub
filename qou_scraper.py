@@ -1121,58 +1121,20 @@ class QOUScraper:
             
             week_info = self.get_current_week_type()
             
-            # استخراج معلومات الأسبوع الحالي
-            current_week = 1
-            week_type = "فردي"
-            if "الأسبوع" in week_info:
-                try:
-                    week_parts = week_info.split("الأسبوع ")[1].split(" ")
-                    current_week = int(week_parts[0])
-                    week_type = "فردي" if "فردي" in week_info else "زوجي"
-                except:
-                    pass
-    
             # الحصول على التاريخ والوقت الحالي
             now = datetime.now()
             current_time = now.time()
             current_weekday = now.weekday()  # 0=الإثنين, 6=الأحد
             
-            # تحويل أيام الأسبوع إلى العربية
-            weekdays_arabic = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+            # ترتيب أيام الأسبوع
             weekdays_order = {"الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6}
             
-            # دالة للتحقق إذا كانت المحاضرة فعالة هذا الأسبوع
-            def is_lecture_active(day_str):
-                if not day_str:
-                    return True  # إذا لم يكن هناك تحديد، نعتبرها فعالة
-                
-                # فصل اليوم عن نوع الجدول
-                day_parts = day_str.split('/')
-                day_name = day_parts[0].strip()
-                
-                if len(day_parts) == 1:
-                    return True  # أسبوعي
-                
-                schedule_type = day_parts[1].strip()
-                
-                # التحقق من الجدول
-                if schedule_type == "ز":
-                    return week_type == "زوجي"
-                elif schedule_type == "ف":
-                    return week_type == "فردي"
-                elif schedule_type == "ش-3":
-                    return current_week in [3, 7, 11, 15]
-                elif schedule_type == "ش-4":
-                    return current_week in [4, 8, 12, 16]
-                else:
-                    return True  # إذا كان نوع غير معروف، نعرضه
-                
-            # دالة لحساب الوقت المتبقي
+            # دالة لحساب الوقت المتبقي بالأسابيع والأيام
             def get_time_remaining(day_str, time_str):
-                if not day_str or not time_str or time_str == "--:-- - --:--":
+                if not day_str or day_str == "غير محدد" or not time_str or time_str == "--:-- - --:--":
                     return "⏳ غير محدد"
                 
-                # فصل اليوم عن نوع الجدول
+                # أخذ الجزء الأول فقط من اليوم (تجاهل ش-3/ز/ف)
                 day_name = day_str.split('/')[0].strip()
                 
                 # تحويل اليوم العربي إلى رقم
@@ -1190,12 +1152,12 @@ class QOUScraper:
                 if days_remaining < 0:
                     days_remaining += 7
                 
-                # تحويل الوقت إلى دقائق
-                try:
-                    start_time_str = time_str.split(' - ')[0]
-                    start_time = datetime.strptime(start_time_str, "%H:%M").time()
-                    
-                    if days_remaining == 0:  # نفس اليوم
+                # حساب الأسابيع والأيام
+                if days_remaining == 0:  # نفس اليوم
+                    try:
+                        start_time_str = time_str.split(' - ')[0]
+                        start_time = datetime.strptime(start_time_str, "%H:%M").time()
+                        
                         if current_time < start_time:
                             # حساب الدقائق المتبقية اليوم
                             time_diff = datetime.combine(now.date(), start_time) - now
@@ -1212,34 +1174,39 @@ class QOUScraper:
                                     return f"⏳ بعد {hours} ساعة"
                         else:
                             return "✅ بدأت"
+                    except:
+                        return "⏳ اليوم"
+                
+                else:
+                    # حساب الأسابيع والأيام
+                    weeks = days_remaining // 7
+                    remaining_days = days_remaining % 7
+                    
+                    if weeks > 0 and remaining_days > 0:
+                        return f"⏳ بعد {weeks} أسبوع و {remaining_days} أيام"
+                    elif weeks > 0:
+                        return f"⏳ بعد {weeks} أسبوع"
                     else:
-                        # في يوم قادم
-                        if days_remaining == 1:
+                        if remaining_days == 1:
                             return "⏳ غداً"
-                        elif days_remaining == 2:
+                        elif remaining_days == 2:
                             return "⏳ بعد غد"
                         else:
-                            return f"⏳ بعد {days_remaining} أيام"
-                            
-                except:
-                    return "⏳ غير محدد"
+                            return f"⏳ بعد {remaining_days} أيام"
             
-            # تصفية المحاضرات الفعالة هذا الأسبوع
-            active_lectures = []
-            for lecture in schedule:
+            # استخدام جميع المحاضرات بدون أي فلترة
+            active_lectures = schedule
+            
+            # تنظيف أسماء الأيام للجميع
+            for lecture in active_lectures:
                 day_str = lecture.get('day', '')
+                clean_day = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
+                schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
                 
-                if is_lecture_active(day_str):
-                    # تنظيف اسم اليوم للعرض
-                    clean_day = day_str.split('/')[0].strip() if day_str else "غير محدد"
-                    lecture['clean_day'] = clean_day
-                    lecture['schedule_type'] = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
-                    active_lectures.append(lecture)
+                lecture['clean_day'] = clean_day
+                lecture['schedule_type'] = schedule_type
             
-            if not active_lectures:
-                return f"📭 لا توجد محاضرات فعالة هذا الأسبوع ({week_info})"
-            
-            # ترتيب المحاضرات حسب القرب
+            # ترتيب المحاضرات حسب اليوم والوقت
             active_lectures.sort(key=lambda x: (
                 weekdays_order.get(x.get('clean_day', ''), 99),
                 x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
