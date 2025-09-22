@@ -1128,8 +1128,8 @@ class QOUScraper:
             if not schedule:
                 return "📭 لا توجد محاضرات مجدولة"
             
-            # معرفة الأسبوع الحالي
-            week_info = self.get_current_week_type()
+            # معرفة الأسبوع الحالي - بدون تمرير self
+            week_info = self.get_current_week_type()  # تم إصلاحها هنا
             current_week = int(week_info.split("الأسبوع ")[1].split(" ")[0]) if "الأسبوع" in week_info else 1
             week_type = "فردي" if "فردي" in week_info else "زوجي"
             
