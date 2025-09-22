@@ -1123,18 +1123,19 @@ class QOUScraper:
             
             # الحصول على التاريخ والوقت الحالي
             now = datetime.now()
+            current_date = now.date()
             current_time = now.time()
             current_weekday = now.weekday()  # 0=الإثنين, 6=الأحد
             
             # ترتيب أيام الأسبوع
             weekdays_order = {"الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6}
             
-            # دالة لحساب الوقت المتبقي بالأسابيع والأيام
+            # دالة لحساب الوقت المتبقي بشكل دقيق
             def get_time_remaining(day_str, time_str):
                 if not day_str or day_str == "غير محدد" or not time_str or time_str == "--:-- - --:--":
                     return "⏳ غير محدد"
                 
-                # أخذ الجزء الأول فقط من اليوم (تجاهل ش-3/ز/ف)
+                # أخذ الجزء الأول فقط من اليوم
                 day_name = day_str.split('/')[0].strip()
                 
                 # تحويل اليوم العربي إلى رقم
@@ -1147,52 +1148,74 @@ class QOUScraper:
                 if day_num == -1:
                     return "⏳ غير محدد"
                 
-                # حساب الأيام المتبقية
-                days_remaining = (day_num - current_weekday) % 7
-                if days_remaining < 0:
-                    days_remaining += 7
+                # حساب الأيام المتبقية حتى ذلك اليوم في الأسبوع الحالي أو القادم
+                days_until_next = (day_num - current_weekday) % 7
+                if days_until_next < 0:
+                    days_until_next += 7
                 
-                # حساب الأسابيع والأيام
-                if days_remaining == 0:  # نفس اليوم
-                    try:
-                        start_time_str = time_str.split(' - ')[0]
-                        start_time = datetime.strptime(start_time_str, "%H:%M").time()
-                        
-                        if current_time < start_time:
-                            # حساب الدقائق المتبقية اليوم
-                            time_diff = datetime.combine(now.date(), start_time) - now
-                            total_minutes = int(time_diff.total_seconds() / 60)
-                            
-                            if total_minutes < 60:
-                                return f"⏳ بعد {total_minutes} دقيقة"
-                            else:
-                                hours = total_minutes // 60
-                                minutes = total_minutes % 60
-                                if minutes > 0:
-                                    return f"⏳ بعد {hours} ساعة و{minutes} دقيقة"
-                                else:
-                                    return f"⏳ بعد {hours} ساعة"
-                        else:
-                            return "✅ بدأت"
-                    except:
-                        return "⏳ اليوم"
+                # التاريخ المتوقع للمحاضرة
+                target_date = current_date + timedelta(days=days_until_next)
                 
-                else:
-                    # حساب الأسابيع والأيام
-                    weeks = days_remaining // 7
-                    remaining_days = days_remaining % 7
+                try:
+                    start_time_str = time_str.split(' - ')[0]
+                    start_time = datetime.strptime(start_time_str, "%H:%M").time()
                     
-                    if weeks > 0 and remaining_days > 0:
-                        return f"⏳ بعد {weeks} أسبوع و {remaining_days} أيام"
-                    elif weeks > 0:
-                        return f"⏳ بعد {weeks} أسبوع"
-                    else:
-                        if remaining_days == 1:
-                            return "⏳ غداً"
-                        elif remaining_days == 2:
-                            return "⏳ بعد غد"
+                    # الجمع بين التاريخ والوقت
+                    target_datetime = datetime.combine(target_date, start_time)
+                    
+                    # حساب الفرق الزمني
+                    time_diff = target_datetime - now
+                    total_seconds = int(time_diff.total_seconds())
+                    
+                    if total_seconds <= 0:
+                        return "✅ بدأت"
+                    
+                    # حساب الأسابيع والأيام والساعات والدقائق
+                    total_days = total_seconds // (24 * 3600)
+                    weeks = total_days // 7
+                    days = total_days % 7
+                    
+                    remaining_seconds = total_seconds % (24 * 3600)
+                    hours = remaining_seconds // 3600
+                    minutes = (remaining_seconds % 3600) // 60
+                    
+                    # بناء النص المناسب
+                    if weeks > 0:
+                        if days > 0:
+                            if hours > 0:
+                                return f"⏳ بعد {weeks} أسبوع و {days} أيام و {hours} ساعة"
+                            else:
+                                return f"⏳ بعد {weeks} أسبوع و {days} أيام"
                         else:
-                            return f"⏳ بعد {remaining_days} أيام"
+                            if hours > 0:
+                                return f"⏳ بعد {weeks} أسبوع و {hours} ساعة"
+                            else:
+                                return f"⏳ بعد {weeks} أسبوع"
+                    elif total_days > 0:
+                        if hours > 0:
+                            return f"⏳ بعد {total_days} أيام و {hours} ساعة"
+                        else:
+                            if total_days == 1:
+                                return "⏳ غداً"
+                            elif total_days == 2:
+                                return "⏳ بعد غد"
+                            else:
+                                return f"⏳ بعد {total_days} أيام"
+                    else:
+                        if hours > 0:
+                            if minutes > 0:
+                                return f"⏳ بعد {hours} ساعة و {minutes} دقيقة"
+                            else:
+                                return f"⏳ بعد {hours} ساعة"
+                        else:
+                            if minutes > 0:
+                                return f"⏳ بعد {minutes} دقيقة"
+                            else:
+                                return "⏳ الآن"
+                                
+                except Exception as e:
+                    logger.debug(f"Error calculating time: {e}")
+                    return "⏳ غير محدد"
             
             # استخدام جميع المحاضرات بدون أي فلترة
             active_lectures = schedule
@@ -1223,7 +1246,7 @@ class QOUScraper:
             }
             
             current_day = ""
-            for lecture in active_lectures:
+            for i, lecture in enumerate(active_lectures):
                 day_str = lecture.get('day', '')
                 clean_day = lecture.get('clean_day', 'غير محدد')
                 time_str = lecture.get('time', '--:-- - --:--')
@@ -1236,10 +1259,8 @@ class QOUScraper:
                 # حساب الوقت المتبقي
                 time_remaining = get_time_remaining(day_str, time_str)
                 
-                # إضافة رمز الجدول إذا لم يكن أسبوعي
-                schedule_badge = ""
-                if schedule_type != "أسبوعي":
-                    schedule_badge = f" ({schedule_type})"
+                # إضافة رمز الجدول
+                schedule_badge = f" ({schedule_type})" if schedule_type != "أسبوعي" else ""
                 
                 # عرض اليوم إذا تغير
                 if clean_day != current_day:
@@ -1259,7 +1280,18 @@ class QOUScraper:
                 if lecturer and lecturer != "غير محدد":
                     message += f"   👨‍🏫 {lecturer}\n"
                 
-                message += "\n"
+                # إضافة فاصل بين المحاضرات (ما عدا الأخيرة)
+                if i < len(active_lectures) - 1:
+                    next_lecture = active_lectures[i + 1]
+                    next_day = next_lecture.get('clean_day', '')
+                    
+                    # فقط إذا كانت المحاضرة التالية في يوم مختلف
+                    if next_day != clean_day:
+                        message += "─────────────────────\n\n"
+                    else:
+                        message += "\n"
+                else:
+                    message += "\n"
             
             return message
             
