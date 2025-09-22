@@ -296,13 +296,15 @@ class QOUScraper:
         if not table:
             return schedule
     
-        rows = table.find("tbody").find_all("tr")
+        # البحث عن جميع صفوف الجدول باستخدام CSS selector أكثر تحديداً
+        rows = table.select("tbody > tr:not(:has(input))")
+        
         for row in rows:
             cols = row.find_all("td")
             if len(cols) < 9:
                 continue
             
-            # استخراج البيانات من الأعمدة
+            # استخراج البيانات
             course_code_full = cols[0].get_text(strip=True)
             course_name = cols[1].get_text(strip=True)
             section = cols[3].get_text(strip=True)
@@ -310,10 +312,10 @@ class QOUScraper:
             time = cols[5].get_text(strip=True)
             building = cols[6].get_text(strip=True)
             room = cols[7].get_text(strip=True)
+            lecturer = cols[8].get_text(strip=True)
             
-            # استخراج اسم المحاضر
-            lecturer_link = cols[8].find('a')
-            lecturer = lecturer_link.get_text(strip=True) if lecturer_link else cols[8].get_text(strip=True)
+            # تنظيف النصوص
+            lecturer = lecturer.replace('عرض', '').replace('📧', '').strip()
             
             # فصل رمز المقرر
             if "/" in course_code_full:
@@ -323,7 +325,7 @@ class QOUScraper:
             
             meeting = {
                 "course_code": course_code,
-                "course_name": course_name,  # اسم المادة هو الأساس
+                "course_name": course_name,
                 "section": section,
                 "day": day,
                 "time": time,
