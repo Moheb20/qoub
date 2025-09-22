@@ -148,39 +148,30 @@ class QOUScraper:
             courses.append(course)
         return courses
 
-    def fetch_lectures_schedule(self) -> List[dict]:
-        resp = self.session.get(WEEKLY_MEETINGS_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-
-        meetings = []
-        table = soup.find('table', class_='table table-hover table-condensed table-striped table-curved')
-        if not table:
-            return meetings
-
-        rows = table.find('tbody').find_all('tr')
-        for row in rows:
-            cols = row.find_all('td')
-            if len(cols) < 12:
-                continue
-
-            meeting = {
-                'course_code': cols[0].get_text(strip=True),
-                'course_name': cols[1].get_text(strip=True),
-                'credit_hours': cols[2].get_text(strip=True),
-                'section': cols[3].get_text(strip=True),
-                'day': cols[4].get_text(strip=True),
-                'time': cols[5].get_text(strip=True),
-                'building': cols[6].get_text(strip=True),
-                'room': cols[7].get_text(strip=True),
-                'lecturer': cols[8].get_text(strip=True),
-                'office_hours': cols[9].get_text(strip=True),
-                'course_content_link': cols[10].find('a')['href'] if cols[10].find('a') else '',
-                'study_plan_link': cols[11].find('a')['href'] if cols[11].find('a') else ''
-            }
-            meetings.append(meeting)
-
-        return meetings
+    def fetch_discussion_sessions(self) -> List[dict]:
+            resp = self.session.get(WEEKLY_MEETINGS_URL)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, 'html.parser')
+    
+            sessions = []
+            table = soup.find("table", {"id": "dataTable"})
+            if not table:
+                return sessions
+    
+            rows = table.find("tbody").find_all("tr")
+            for row in rows:
+                cols = row.find_all("td")
+                if len(cols) < 5:
+                    continue
+                session = {
+                    "course_code": cols[0].get_text(strip=True),
+                    "course_name": cols[1].get_text(strip=True),
+                    "section": cols[2].get_text(strip=True),
+                    "date": cols[3].get_text(strip=True),  # 17/08/2025
+                    "time": cols[4].get_text(strip=True)   # 11:00 - 12:00
+                }
+                sessions.append(session)
+            return sessions
 
     def fetch_term_summary_stats(self) -> dict:
         resp = self.session.get(TERM_SUMMARY_URL)
