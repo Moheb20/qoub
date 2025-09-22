@@ -1063,3 +1063,134 @@ class QOUScraper:
                 "success": False,
                 "error": f"حدث خطأ غير متوقع: {str(e)}"
             }
+
+
+
+
+
+
+    def get_upcoming_lectures(self, chat_id) -> str:
+        try:
+            # جلب الجدول الأساسي
+            schedule = self.fetch_lectures_schedule()
+            if not schedule:
+                return "📭 لا توجد محاضرات مجدولة"
+            
+            # معرفة الأسبوع الحالي
+            week_info = self.get_current_week_type()
+            current_week = int(week_info.split("الأسبوع ")[1].split(" ")[0]) if "الأسبوع" in week_info else 1
+            week_type = "فردي" if "فردي" in week_info else "زوجي"
+            
+            # تصفية المحاضرات الفعالة هذا الأسبوع
+            active_lectures = []
+            for lecture in schedule:
+                day = lecture.get('day', '')
+                
+                # تحليل نوع الجدول من اليوم
+                schedule_type = "أسبوعي"  # افتراضي
+                
+                if "ش-1" in day or "/ش-1" in day:
+                    schedule_type = "ش-1"
+                    valid_weeks = [1, 5, 9, 13]
+                elif "ش-2" in day or "/ش-2" in day:
+                    schedule_type = "ش-2"
+                    valid_weeks = [2, 6, 10, 14]
+                elif "ش-3" in day or "/ش-3" in day:
+                    schedule_type = "ش-3"
+                    valid_weeks = [3, 7, 11, 15]
+                elif "ش-4" in day or "/ش-4" in day:
+                    schedule_type = "ش-4"
+                    valid_weeks = [4, 8, 12, 16]
+                elif "ز" in day:
+                    schedule_type = "زوجي"
+                    valid_weeks = [2,4,6,8,10,12,14,16]
+                elif "ف" in day:
+                    schedule_type = "فردي"
+                    valid_weeks = [1,3,5,7,9,11,13,15]
+                
+                # التحقق إذا كانت المحاضرة فعالة هذا الأسبوع
+                is_active = False
+                if schedule_type == "أسبوعي":
+                    is_active = True
+                elif schedule_type == "زوجي" and week_type == "زوجي":
+                    is_active = True
+                elif schedule_type == "فردي" and week_type == "فردي":
+                    is_active = True
+                elif schedule_type in ["ش-1", "ش-2", "ش-3", "ش-4"] and current_week in valid_weeks:
+                    is_active = True
+                
+                if is_active:
+                    # تنظيف اسم اليوم
+                    clean_day = day.split('/')[0].strip()
+                    lecture['clean_day'] = clean_day
+                    lecture['schedule_type'] = schedule_type
+                    active_lectures.append(lecture)
+            
+            if not active_lectures:
+                return f"📭 لا توجد محاضرات فعالة هذا الأسبوع ({week_info})"
+            
+            # ترتيب الأيام
+            days_order = {"السبت": 0, "الأحد": 1, "الاثنين": 2, "الثلاثاء": 3, 
+                         "الأربعاء": 4, "الخميس": 5, "الجمعة": 6, "غير محدد": 7}
+            
+            # ترتيب المحاضرات حسب اليوم والوقت
+            active_lectures.sort(key=lambda x: (
+                days_order.get(x['clean_day'], 8),
+                x['time'].split(' - ')[0] if ' - ' in x['time'] else '00:00'
+            ))
+            
+            # تجميع المحاضرات حسب اليوم
+            lectures_by_day = {}
+            for lecture in active_lectures:
+                day = lecture['clean_day']
+                lectures_by_day.setdefault(day, []).append(lecture)
+            
+            # بناء الرسالة
+            message = f"📢 **المحاضرات القادمة**\n"
+            message += f"_{week_info}_\n\n"
+            
+            # إيموجيات للأيام
+            day_emojis = {
+                "السبت": "🟣", "الأحد": "🔵", "الاثنين": "🟢", 
+                "الثلاثاء": "🟡", "الأربعاء": "🟠", "الخميس": "🔴", 
+                "الجمعة": "⚫", "غير محدد": "⚪"
+            }
+            
+            for day in ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]:
+                if day in lectures_by_day:
+                    emoji = day_emojis.get(day, "📅")
+                    message += f"{emoji} **{day}**:\n"
+                    
+                    for lecture in lectures_by_day[day]:
+                        time = lecture['time']
+                        course = lecture['course_name']
+                        building = lecture['building']
+                        room = lecture['room']
+                        lecturer = lecture['lecturer']
+                        schedule_type = lecture['schedule_type']
+                        
+                        # إضافة رمز الجدول إذا لم يكن أسبوعي
+                        schedule_badge = ""
+                        if schedule_type != "أسبوعي":
+                            schedule_badge = f" ({schedule_type})"
+                        
+                        message += f"   📘 {course}{schedule_badge}\n"
+                        message += f"   ⏰ {time}\n"
+                        
+                        if building and building != "غير محدد":
+                            message += f"   📍 {building}"
+                            if room and room != "غير محدد":
+                                message += f" - {room}"
+                            message += "\n"
+                        
+                        if lecturer and lecturer != "غير محدد":
+                            message += f"   👨‍🏫 {lecturer}\n"
+                        
+                        message += "\n"
+            
+            return message
+            
+        except Exception as e:
+            logger.exception(f"Error getting upcoming lectures for {chat_id}: {e}")
+            return "❌ حدث خطأ أثناء جلب المحاضرات القادمة"
+        
