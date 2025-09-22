@@ -518,40 +518,46 @@ class QOUScraper:
             return "ما لقيت أحداث حالياً 🤷‍♂️"
     
         return events[0]  # أول حدث فعال
-    
-    def get_current_week_type(target_date=None):
-        start_date = datetime.strptime("13/09/2025", "%d/%m/%Y")
         
-        if target_date:
-            today = datetime.strptime(target_date, "%d/%m/%Y")
-        else:
-            today = datetime.today()
+    def get_current_week_type(self, target_date=None):
+        try:
+            start_date = datetime.strptime("13/09/2025", "%d/%m/%Y")
+            
+            if target_date and isinstance(target_date, str):
+                today = datetime.strptime(target_date, "%d/%m/%Y")
+            else:
+                today = datetime.today()
+            
+            delta_days = (today - start_date).days
+            if delta_days < 0:
+                return "📅 الأسبوع الحالي: لم يبدأ بعد"
+            
+            # حساب رقم الأسبوع (يبدأ من 1)
+            week_number = (delta_days // 7) + 1
+            
+            # تحديد النوع (فردي/زوجي)
+            week_type = "فردي" if week_number % 2 == 1 else "زوجي"
+            
+            # تحديد الجدول (ش-1، ش-2، ش-3، ش-4)
+            schedule_groups = {
+                "ش-1": [1, 5, 9, 13],
+                "ش-2": [2, 6, 10, 14], 
+                "ش-3": [3, 7, 11, 15],
+                "ش-4": [4, 8, 12, 16]
+            }
+            
+            current_schedule = "لا يوجد جدول"
+            for schedule_name, weeks in schedule_groups.items():
+                if week_number in weeks:
+                    current_schedule = schedule_name
+                    break
+            
+            return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
         
-        delta_days = (today - start_date).days
-        if delta_days < 0:
-            return "📅 الأسبوع الحالي: لم يبدأ بعد"
-        
-        # حساب رقم الأسبوع (يبدأ من 1)
-        week_number = (delta_days // 7) + 1
-        
-        # تحديد النوع (فردي/زوجي)
-        week_type = "فردي" if week_number % 2 == 1 else "زوجي"
-        
-        # تحديد الجدول (ش-1، ش-2، ش-3، ش-4)
-        schedule_groups = {
-            "ش-1": [1, 5, 9, 13],
-            "ش-2": [2, 6, 10, 14], 
-            "ش-3": [3, 7, 11, 15],
-            "ش-4": [4, 8, 12, 16]
-        }
-        
-        current_schedule = "لا يوجد جدول"
-        for schedule_name, weeks in schedule_groups.items():
-            if week_number in weeks:
-                current_schedule = schedule_name
-                break
-        
-        return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
+        except Exception as e:
+            logger.error(f"Error in get_current_week_type: {e}")
+            return "📅 الأسبوع الحالي: غير محدد"
+
 
 
     def get_delay_status(self):
@@ -1119,8 +1125,8 @@ class QOUScraper:
 
 
 
-
-
+    
+    
     def get_upcoming_lectures(self, chat_id) -> str:
         try:
             # جلب الجدول الأساسي
@@ -1128,10 +1134,21 @@ class QOUScraper:
             if not schedule:
                 return "📭 لا توجد محاضرات مجدولة"
             
-            # معرفة الأسبوع الحالي - بدون تمرير self
-            week_info = self.get_current_week_type()  # تم إصلاحها هنا
-            current_week = int(week_info.split("الأسبوع ")[1].split(" ")[0]) if "الأسبوع" in week_info else 1
-            week_type = "فردي" if "فردي" in week_info else "زوجي"
+            # معرفة الأسبوع الحالي - تصحيح الاستدعاء
+            week_info = self.get_current_week_type()  # بدون أي معاملات
+            
+            # استخراج معلومات الأسبوع بشكل آمن
+            try:
+                if "الأسبوع" in week_info:
+                    week_parts = week_info.split("الأسبوع ")[1].split(" ")
+                    current_week = int(week_parts[0])
+                    week_type = "فردي" if "فردي" in week_info else "زوجي"
+                else:
+                    current_week = 1
+                    week_type = "فردي"
+            except:
+                current_week = 1
+                week_type = "فردي"
             
             # تصفية المحاضرات الفعالة هذا الأسبوع
             active_lectures = []
@@ -1141,16 +1158,16 @@ class QOUScraper:
                 # تحليل نوع الجدول من اليوم
                 schedule_type = "أسبوعي"  # افتراضي
                 
-                if "ش-1" in day or "/ش-1" in day:
+                if "ش-1" in day:
                     schedule_type = "ش-1"
                     valid_weeks = [1, 5, 9, 13]
-                elif "ش-2" in day or "/ش-2" in day:
+                elif "ش-2" in day:
                     schedule_type = "ش-2"
                     valid_weeks = [2, 6, 10, 14]
-                elif "ش-3" in day or "/ش-3" in day:
+                elif "ش-3" in day:
                     schedule_type = "ش-3"
                     valid_weeks = [3, 7, 11, 15]
-                elif "ش-4" in day or "/ش-4" in day:
+                elif "ش-4" in day:
                     schedule_type = "ش-4"
                     valid_weeks = [4, 8, 12, 16]
                 elif "ز" in day:
@@ -1170,25 +1187,31 @@ class QOUScraper:
                     is_active = True
                 elif schedule_type in ["ش-1", "ش-2", "ش-3", "ش-4"] and current_week in valid_weeks:
                     is_active = True
+                else:
+                    is_active = True  # إذا لم نتمكن من التحديد، نعرضها جميعاً
                 
                 if is_active:
                     # تنظيف اسم اليوم
-                    clean_day = day.split('/')[0].strip()
+                    clean_day = day.split('/')[0].strip() if day else "غير محدد"
                     lecture['clean_day'] = clean_day
                     lecture['schedule_type'] = schedule_type
                     active_lectures.append(lecture)
             
             if not active_lectures:
-                return f"📭 لا توجد محاضرات فعالة هذا الأسبوع ({week_info})"
+                # إذا لم توجد محاضرات فعالة، نعرض جميع المحاضرات
+                active_lectures = schedule
+                for lecture in active_lectures:
+                    lecture['clean_day'] = lecture.get('day', '').split('/')[0].strip() if lecture.get('day') else "غير محدد"
+                    lecture['schedule_type'] = "أسبوعي"
             
             # ترتيب الأيام
             days_order = {"السبت": 0, "الأحد": 1, "الاثنين": 2, "الثلاثاء": 3, 
-                         "الأربعاء": 4, "الخميس": 5, "الجمعة": 6, "غير محدد": 7}
+                         "الأربعاء": 4, "الخميس": 5, "الجمعة": 6}
             
             # ترتيب المحاضرات حسب اليوم والوقت
             active_lectures.sort(key=lambda x: (
-                days_order.get(x['clean_day'], 8),
-                x['time'].split(' - ')[0] if ' - ' in x['time'] else '00:00'
+                days_order.get(x['clean_day'], 99),  # 99 للأيام غير المعروفة
+                x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
             ))
             
             # تجميع المحاضرات حسب اليوم
@@ -1208,18 +1231,22 @@ class QOUScraper:
                 "الجمعة": "⚫", "غير محدد": "⚪"
             }
             
+            displayed_days = set()
+            
+            # عرض الأيام المعروفة أولاً
             for day in ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]:
                 if day in lectures_by_day:
+                    displayed_days.add(day)
                     emoji = day_emojis.get(day, "📅")
                     message += f"{emoji} **{day}**:\n"
                     
                     for lecture in lectures_by_day[day]:
-                        time = lecture['time']
-                        course = lecture['course_name']
-                        building = lecture['building']
-                        room = lecture['room']
-                        lecturer = lecture['lecturer']
-                        schedule_type = lecture['schedule_type']
+                        time = lecture.get('time', '--:-- - --:--')
+                        course = lecture.get('course_name', 'غير محدد')
+                        building = lecture.get('building', '')
+                        room = lecture.get('room', '')
+                        lecturer = lecture.get('lecturer', '')
+                        schedule_type = lecture.get('schedule_type', 'أسبوعي')
                         
                         # إضافة رمز الجدول إذا لم يكن أسبوعي
                         schedule_badge = ""
@@ -1236,6 +1263,33 @@ class QOUScraper:
                             message += "\n"
                         
                         if lecturer and lecturer != "غير محدد":
+                            message += f"   👨‍🏫 {lecturer}\n"
+                        
+                        message += "\n"
+            
+            # عرض الأيام الأخرى
+            for day, lectures in lectures_by_day.items():
+                if day not in displayed_days:
+                    emoji = day_emojis.get(day, "📅")
+                    message += f"{emoji} **{day}**:\n"
+                    
+                    for lecture in lectures:
+                        time = lecture.get('time', '--:-- - --:--')
+                        course = lecture.get('course_name', 'غير محدد')
+                        building = lecture.get('building', '')
+                        room = lecture.get('room', '')
+                        lecturer = lecture.get('lecturer', '')
+                        
+                        message += f"   📘 {course}\n"
+                        message += f"   ⏰ {time}\n"
+                        
+                        if building:
+                            message += f"   📍 {building}"
+                            if room:
+                                message += f" - {room}"
+                            message += "\n"
+                        
+                        if lecturer:
                             message += f"   👨‍🏫 {lecturer}\n"
                         
                         message += "\n"
