@@ -303,22 +303,13 @@ def handle_upcoming_lectures(call):
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_schedule")
 def handle_back_to_schedule(call):
     chat_id = call.message.chat.id
-    user = get_user(chat_id)
     
-    if not user:
-        bot.answer_callback_query(call.id, "❌ لم يتم العثور على بياناتك.")
-        return
-
     try:
         # حذف الرسالة الحالية
         bot.delete_message(chat_id, call.message.message_id)
         
-        # إعادة عرض جدول المحاضرات
-        # (يمكنك إعادة استخدام الكود السابق أو استدعاء الدالة المناسبة)
-        bot.send_message(chat_id, "⏳ جاري إعادة تحميل جدول المحاضرات...")
-        
-        # هنا يمكنك إعادة تنفيذ كود جدول المحاضرات
-        # أو يمكنك حفظ الرسالة الأصلية وإعادة عرضها
+        # نرسل الأمر مباشرة وكأن المستخدم كتبه
+        bot.send_message(chat_id, "🗓️ جدول المحاضرات")
         
     except Exception as e:
         logger.exception(f"Error in back to schedule for {chat_id}: {e}")
