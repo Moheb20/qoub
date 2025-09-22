@@ -295,30 +295,54 @@ class QOUScraper:
             "cumulative_gpa": clean_gpa_value(stats.get('cumulative', {}).get('gpa'))
         }
 
-    def fetch_discussion_sessions(self) -> List[dict]:
+    def fetch_lectures_schedule(self) -> List[dict]:
         resp = self.session.get(WEEKLY_MEETINGS_URL)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
-
-        sessions = []
-        table = soup.find("table", {"id": "dataTable"})
+    
+        schedule = []
+        table = soup.find("table", {"class": "table table-hover table-condensed table-striped table-curved"})
         if not table:
-            return sessions
-
+            return schedule
+    
         rows = table.find("tbody").find_all("tr")
         for row in rows:
             cols = row.find_all("td")
-            if len(cols) < 5:
+            if len(cols) < 9:
                 continue
-            session = {
-                "course_code": cols[0].get_text(strip=True),
-                "course_name": cols[1].get_text(strip=True),
-                "section": cols[2].get_text(strip=True),
-                "date": cols[3].get_text(strip=True),  # 17/08/2025
-                "time": cols[4].get_text(strip=True)   # 11:00 - 12:00
+            
+            # استخراج البيانات من الأعمدة
+            course_code_full = cols[0].get_text(strip=True)
+            course_name = cols[1].get_text(strip=True)
+            section = cols[3].get_text(strip=True)
+            day = cols[4].get_text(strip=True)
+            time = cols[5].get_text(strip=True)
+            building = cols[6].get_text(strip=True)
+            room = cols[7].get_text(strip=True)
+            
+            # استخراج اسم المحاضر
+            lecturer_link = cols[8].find('a')
+            lecturer = lecturer_link.get_text(strip=True) if lecturer_link else cols[8].get_text(strip=True)
+            
+            # فصل رمز المقرر
+            if "/" in course_code_full:
+                course_code = course_code_full.split("/")[1]
+            else:
+                course_code = course_code_full
+            
+            meeting = {
+                "course_code": course_code,
+                "course_name": course_name,  # اسم المادة هو الأساس
+                "section": section,
+                "day": day,
+                "time": time,
+                "building": building,
+                "room": room,
+                "lecturer": lecturer
             }
-            sessions.append(session)
-        return sessions
+            schedule.append(meeting)
+        
+        return schedule
     def fetch_balance_table_pdf(self) -> BytesIO:
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
