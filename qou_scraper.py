@@ -316,50 +316,36 @@ class QOUScraper:
                 logger.warning("tbody not found")
                 return schedule
     
-            # البحث عن جميع العناصر tr داخل tbody (بغض النظر عن العناصر الأخرى)
+            # البحث عن جميع العناصر tr داخل tbody - بدون أي فلترة أولية
             rows = tbody.find_all("tr")
             logger.info(f"Found {len(rows)} raw tr elements")
     
             if not rows:
                 return schedule
     
-            valid_rows = []
             for i, row in enumerate(rows):
-                # تخطي الصفوف التي تحتوي فقط على input (بدون td)
-                if row.find('input') and not row.find('td'):
-                    logger.debug(f"Skipping row {i} - contains only input")
-                    continue
-                    
-                # التأكد من أن الصف يحتوي على خلايا td
-                cols = row.find_all("td")
-                if len(cols) >= 5:  # تقليل الحد الأدنى لأن بعض الأعمدة قد تكون فارغة
-                    valid_rows.append(row)
-                    logger.debug(f"Row {i} has {len(cols)} td columns")
-                else:
-                    logger.debug(f"Skipping row {i} - only {len(cols)} td columns")
-    
-            logger.info(f"After filtering: {len(valid_rows)} valid rows")
-    
-            for i, row in enumerate(valid_rows):
                 try:
+                    # البحث عن خلايا td داخل الصف - حتى لو كان هناك input
                     cols = row.find_all("td")
+                    if len(cols) < 9:  # يجب أن يكون هناك على الأقل 9 أعمدة
+                        logger.debug(f"Skipping row {i} - only {len(cols)} columns")
+                        continue
                     
-                    # استخراج البيانات - استخدام الفهارس الصحيحة حسب الجدول
-                    course_code_full = cols[0].get_text(strip=True) if len(cols) > 0 else "غير محدد"
-                    course_name = cols[1].get_text(strip=True) if len(cols) > 1 else "غير محدد"
-                    # العمود 2: س.م (تخطيه)
-                    section = cols[3].get_text(strip=True) if len(cols) > 3 else "غير محدد"
-                    day = cols[4].get_text(strip=True) if len(cols) > 4 else "غير محدد"
-                    time = cols[5].get_text(strip=True) if len(cols) > 5 else "--:-- - --:--"
-                    building = cols[6].get_text(strip=True) if len(cols) > 6 else ""
-                    room = cols[7].get_text(strip=True) if len(cols) > 7 else ""
-                    lecturer_text = cols[8].get_text(strip=True) if len(cols) > 8 else ""
+                    # استخراج البيانات من الأعمدة
+                    course_code_full = cols[0].get_text(strip=True)
+                    course_name = cols[1].get_text(strip=True)
+                    section = cols[3].get_text(strip=True)
+                    day = cols[4].get_text(strip=True)
+                    time = cols[5].get_text(strip=True)
+                    building = cols[6].get_text(strip=True)
+                    room = cols[7].get_text(strip=True)
+                    lecturer_text = cols[8].get_text(strip=True)
     
-                    # تنظيف اسم المحاضر من الرموز غير الضرورية
+                    # تنظيف اسم المحاضر
                     lecturer = lecturer_text.replace('عرض', '').replace('📧', '').strip()
                     
-                    # فصل رمز المقرر (مثال: "0/0002" → "0002")
-                    if course_code_full and "/" in course_code_full:
+                    # فصل رمز المقرر
+                    if "/" in course_code_full:
                         course_code = course_code_full.split("/")[-1]
                     else:
                         course_code = course_code_full
@@ -376,7 +362,7 @@ class QOUScraper:
                     }
                     
                     schedule.append(meeting)
-                    logger.debug(f"Processed meeting: {course_name}")
+                    logger.debug(f"Processed meeting {i+1}: {course_name} - {day} - {time}")
                     
                 except Exception as e:
                     logger.warning(f"Error processing row {i}: {e}")
@@ -1127,189 +1113,189 @@ class QOUScraper:
 
     
     
-def get_upcoming_lectures(self, chat_id) -> str:
-    try:
-        schedule = self.fetch_lectures_schedule()
-        if not schedule:
-            return "📭 لا توجد محاضرات مجدولة"
-        
-        week_info = self.get_current_week_type()
-        
-        # استخراج معلومات الأسبوع الحالي
-        current_week = 1
-        week_type = "فردي"
-        if "الأسبوع" in week_info:
-            try:
-                week_parts = week_info.split("الأسبوع ")[1].split(" ")
-                current_week = int(week_parts[0])
-                week_type = "فردي" if "فردي" in week_info else "زوجي"
-            except:
-                pass
-
-        # الحصول على التاريخ والوقت الحالي
-        now = datetime.now()
-        current_time = now.time()
-        current_weekday = now.weekday()  # 0=الإثنين, 6=الأحد
-        
-        # تحويل أيام الأسبوع إلى العربية
-        weekdays_arabic = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
-        weekdays_order = {"الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6}
-        
-        # دالة للتحقق إذا كانت المحاضرة فعالة هذا الأسبوع
-        def is_lecture_active(day_str):
-            if not day_str:
-                return True  # إذا لم يكن هناك تحديد، نعتبرها فعالة
+    def get_upcoming_lectures(self, chat_id) -> str:
+        try:
+            schedule = self.fetch_lectures_schedule()
+            if not schedule:
+                return "📭 لا توجد محاضرات مجدولة"
             
-            # فصل اليوم عن نوع الجدول
-            day_parts = day_str.split('/')
-            day_name = day_parts[0].strip()
+            week_info = self.get_current_week_type()
             
-            if len(day_parts) == 1:
-                return True  # أسبوعي
+            # استخراج معلومات الأسبوع الحالي
+            current_week = 1
+            week_type = "فردي"
+            if "الأسبوع" in week_info:
+                try:
+                    week_parts = week_info.split("الأسبوع ")[1].split(" ")
+                    current_week = int(week_parts[0])
+                    week_type = "فردي" if "فردي" in week_info else "زوجي"
+                except:
+                    pass
+    
+            # الحصول على التاريخ والوقت الحالي
+            now = datetime.now()
+            current_time = now.time()
+            current_weekday = now.weekday()  # 0=الإثنين, 6=الأحد
             
-            schedule_type = day_parts[1].strip()
+            # تحويل أيام الأسبوع إلى العربية
+            weekdays_arabic = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+            weekdays_order = {"الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6}
             
-            # التحقق من الجدول
-            if schedule_type == "ز":
-                return week_type == "زوجي"
-            elif schedule_type == "ف":
-                return week_type == "فردي"
-            elif schedule_type == "ش-3":
-                return current_week in [3, 7, 11, 15]
-            elif schedule_type == "ش-4":
-                return current_week in [4, 8, 12, 16]
-            else:
-                return True  # إذا كان نوع غير معروف، نعرضه
+            # دالة للتحقق إذا كانت المحاضرة فعالة هذا الأسبوع
+            def is_lecture_active(day_str):
+                if not day_str:
+                    return True  # إذا لم يكن هناك تحديد، نعتبرها فعالة
+                
+                # فصل اليوم عن نوع الجدول
+                day_parts = day_str.split('/')
+                day_name = day_parts[0].strip()
+                
+                if len(day_parts) == 1:
+                    return True  # أسبوعي
+                
+                schedule_type = day_parts[1].strip()
+                
+                # التحقق من الجدول
+                if schedule_type == "ز":
+                    return week_type == "زوجي"
+                elif schedule_type == "ف":
+                    return week_type == "فردي"
+                elif schedule_type == "ش-3":
+                    return current_week in [3, 7, 11, 15]
+                elif schedule_type == "ش-4":
+                    return current_week in [4, 8, 12, 16]
+                else:
+                    return True  # إذا كان نوع غير معروف، نعرضه
+                
+            # دالة لحساب الوقت المتبقي
+            def get_time_remaining(day_str, time_str):
+                if not day_str or not time_str or time_str == "--:-- - --:--":
+                    return "⏳ غير محدد"
+                
+                # فصل اليوم عن نوع الجدول
+                day_name = day_str.split('/')[0].strip()
+                
+                # تحويل اليوم العربي إلى رقم
+                day_to_num = {
+                    "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, 
+                    "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6
+                }
+                
+                day_num = day_to_num.get(day_name, -1)
+                if day_num == -1:
+                    return "⏳ غير محدد"
+                
+                # حساب الأيام المتبقية
+                days_remaining = (day_num - current_weekday) % 7
+                if days_remaining < 0:
+                    days_remaining += 7
+                
+                # تحويل الوقت إلى دقائق
+                try:
+                    start_time_str = time_str.split(' - ')[0]
+                    start_time = datetime.strptime(start_time_str, "%H:%M").time()
+                    
+                    if days_remaining == 0:  # نفس اليوم
+                        if current_time < start_time:
+                            # حساب الدقائق المتبقية اليوم
+                            time_diff = datetime.combine(now.date(), start_time) - now
+                            total_minutes = int(time_diff.total_seconds() / 60)
+                            
+                            if total_minutes < 60:
+                                return f"⏳ بعد {total_minutes} دقيقة"
+                            else:
+                                hours = total_minutes // 60
+                                minutes = total_minutes % 60
+                                if minutes > 0:
+                                    return f"⏳ بعد {hours} ساعة و{minutes} دقيقة"
+                                else:
+                                    return f"⏳ بعد {hours} ساعة"
+                        else:
+                            return "✅ بدأت"
+                    else:
+                        # في يوم قادم
+                        if days_remaining == 1:
+                            return "⏳ غداً"
+                        elif days_remaining == 2:
+                            return "⏳ بعد غد"
+                        else:
+                            return f"⏳ بعد {days_remaining} أيام"
+                            
+                except:
+                    return "⏳ غير محدد"
             
-        # دالة لحساب الوقت المتبقي
-        def get_time_remaining(day_str, time_str):
-            if not day_str or not time_str or time_str == "--:-- - --:--":
-                return "⏳ غير محدد"
+            # تصفية المحاضرات الفعالة هذا الأسبوع
+            active_lectures = []
+            for lecture in schedule:
+                day_str = lecture.get('day', '')
+                
+                if is_lecture_active(day_str):
+                    # تنظيف اسم اليوم للعرض
+                    clean_day = day_str.split('/')[0].strip() if day_str else "غير محدد"
+                    lecture['clean_day'] = clean_day
+                    lecture['schedule_type'] = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
+                    active_lectures.append(lecture)
             
-            # فصل اليوم عن نوع الجدول
-            day_name = day_str.split('/')[0].strip()
+            if not active_lectures:
+                return f"📭 لا توجد محاضرات فعالة هذا الأسبوع ({week_info})"
             
-            # تحويل اليوم العربي إلى رقم
-            day_to_num = {
-                "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, 
-                "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6
+            # ترتيب المحاضرات حسب القرب
+            active_lectures.sort(key=lambda x: (
+                weekdays_order.get(x.get('clean_day', ''), 99),
+                x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
+            ))
+            
+            # بناء الرسالة
+            message = f"📢 **المحاضرات القادمة**\n"
+            message += f"_{week_info}_\n\n"
+            
+            day_emojis = {
+                "السبت": "🟣", "الأحد": "🔵", "الاثنين": "🟢", 
+                "الثلاثاء": "🟡", "الأربعاء": "🟠", "الخميس": "🔴", 
+                "الجمعة": "⚫", "غير محدد": "⚪"
             }
             
-            day_num = day_to_num.get(day_name, -1)
-            if day_num == -1:
-                return "⏳ غير محدد"
-            
-            # حساب الأيام المتبقية
-            days_remaining = (day_num - current_weekday) % 7
-            if days_remaining < 0:
-                days_remaining += 7
-            
-            # تحويل الوقت إلى دقائق
-            try:
-                start_time_str = time_str.split(' - ')[0]
-                start_time = datetime.strptime(start_time_str, "%H:%M").time()
+            current_day = ""
+            for lecture in active_lectures:
+                day_str = lecture.get('day', '')
+                clean_day = lecture.get('clean_day', 'غير محدد')
+                time_str = lecture.get('time', '--:-- - --:--')
+                course = lecture.get('course_name', 'غير محدد')
+                building = lecture.get('building', '')
+                room = lecture.get('room', '')
+                lecturer = lecture.get('lecturer', '')
+                schedule_type = lecture.get('schedule_type', 'أسبوعي')
                 
-                if days_remaining == 0:  # نفس اليوم
-                    if current_time < start_time:
-                        # حساب الدقائق المتبقية اليوم
-                        time_diff = datetime.combine(now.date(), start_time) - now
-                        total_minutes = int(time_diff.total_seconds() / 60)
-                        
-                        if total_minutes < 60:
-                            return f"⏳ بعد {total_minutes} دقيقة"
-                        else:
-                            hours = total_minutes // 60
-                            minutes = total_minutes % 60
-                            if minutes > 0:
-                                return f"⏳ بعد {hours} ساعة و{minutes} دقيقة"
-                            else:
-                                return f"⏳ بعد {hours} ساعة"
-                    else:
-                        return "✅ بدأت"
-                else:
-                    # في يوم قادم
-                    if days_remaining == 1:
-                        return "⏳ غداً"
-                    elif days_remaining == 2:
-                        return "⏳ بعد غد"
-                    else:
-                        return f"⏳ بعد {days_remaining} أيام"
-                        
-            except:
-                return "⏳ غير محدد"
-        
-        # تصفية المحاضرات الفعالة هذا الأسبوع
-        active_lectures = []
-        for lecture in schedule:
-            day_str = lecture.get('day', '')
-            
-            if is_lecture_active(day_str):
-                # تنظيف اسم اليوم للعرض
-                clean_day = day_str.split('/')[0].strip() if day_str else "غير محدد"
-                lecture['clean_day'] = clean_day
-                lecture['schedule_type'] = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
-                active_lectures.append(lecture)
-        
-        if not active_lectures:
-            return f"📭 لا توجد محاضرات فعالة هذا الأسبوع ({week_info})"
-        
-        # ترتيب المحاضرات حسب القرب
-        active_lectures.sort(key=lambda x: (
-            weekdays_order.get(x.get('clean_day', ''), 99),
-            x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
-        ))
-        
-        # بناء الرسالة
-        message = f"📢 **المحاضرات القادمة**\n"
-        message += f"_{week_info}_\n\n"
-        
-        day_emojis = {
-            "السبت": "🟣", "الأحد": "🔵", "الاثنين": "🟢", 
-            "الثلاثاء": "🟡", "الأربعاء": "🟠", "الخميس": "🔴", 
-            "الجمعة": "⚫", "غير محدد": "⚪"
-        }
-        
-        current_day = ""
-        for lecture in active_lectures:
-            day_str = lecture.get('day', '')
-            clean_day = lecture.get('clean_day', 'غير محدد')
-            time_str = lecture.get('time', '--:-- - --:--')
-            course = lecture.get('course_name', 'غير محدد')
-            building = lecture.get('building', '')
-            room = lecture.get('room', '')
-            lecturer = lecture.get('lecturer', '')
-            schedule_type = lecture.get('schedule_type', 'أسبوعي')
-            
-            # حساب الوقت المتبقي
-            time_remaining = get_time_remaining(day_str, time_str)
-            
-            # إضافة رمز الجدول إذا لم يكن أسبوعي
-            schedule_badge = ""
-            if schedule_type != "أسبوعي":
-                schedule_badge = f" ({schedule_type})"
-            
-            # عرض اليوم إذا تغير
-            if clean_day != current_day:
-                current_day = clean_day
-                emoji = day_emojis.get(clean_day, "📅")
-                message += f"{emoji} **{clean_day}**:\n"
-            
-            message += f"   📘 {course}{schedule_badge}\n"
-            message += f"   ⏰ {time_str} {time_remaining}\n"
-            
-            if building and building != "غير محدد":
-                message += f"   📍 {building}"
-                if room and room != "غير محدد":
-                    message += f" - {room}"
+                # حساب الوقت المتبقي
+                time_remaining = get_time_remaining(day_str, time_str)
+                
+                # إضافة رمز الجدول إذا لم يكن أسبوعي
+                schedule_badge = ""
+                if schedule_type != "أسبوعي":
+                    schedule_badge = f" ({schedule_type})"
+                
+                # عرض اليوم إذا تغير
+                if clean_day != current_day:
+                    current_day = clean_day
+                    emoji = day_emojis.get(clean_day, "📅")
+                    message += f"{emoji} **{clean_day}**:\n"
+                
+                message += f"   📘 {course}{schedule_badge}\n"
+                message += f"   ⏰ {time_str} {time_remaining}\n"
+                
+                if building and building != "غير محدد":
+                    message += f"   📍 {building}"
+                    if room and room != "غير محدد":
+                        message += f" - {room}"
+                    message += "\n"
+                
+                if lecturer and lecturer != "غير محدد":
+                    message += f"   👨‍🏫 {lecturer}\n"
+                
                 message += "\n"
             
-            if lecturer and lecturer != "غير محدد":
-                message += f"   👨‍🏫 {lecturer}\n"
+            return message
             
-            message += "\n"
-        
-        return message
-        
-    except Exception as e:
-        logger.exception(f"Error getting upcoming lectures for {chat_id}: {e}")
-        return "❌ حدث خطأ أثناء جلب المحاضرات القادمة"
+        except Exception as e:
+            logger.exception(f"Error getting upcoming lectures for {chat_id}: {e}")
+            return "❌ حدث خطأ أثناء جلب المحاضرات القادمة"
