@@ -308,8 +308,69 @@ def handle_back_to_schedule(call):
         # حذف الرسالة الحالية
         bot.delete_message(chat_id, call.message.message_id)
         
-        # نرسل الأمر مباشرة وكأن المستخدم كتبه
-        bot.send_message(chat_id, "🗓️ جدول المحاضرات")
+        # ننفذ نفس كود جدول المحاضرات مباشرة
+        user = get_user(chat_id)
+        if not user:
+            bot.answer_callback_query(call.id, "❌ لم يتم العثور على بياناتك.")
+            return
+
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+            return
+
+        schedule = scraper.fetch_lectures_schedule()
+        if not schedule:
+            bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
+            return
+
+        # كود عرض الجدول
+        days_order = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]
+        schedule_by_day = {}
+
+        for meeting in schedule:
+            day = meeting.get('day', '').strip()
+            if not day:
+                day = "غير محدد"
+
+            time = meeting.get('time', '--:-- - --:--')
+            course_name = meeting.get('course_name', 'غير محدد')
+            building = meeting.get('building', '')
+            room = meeting.get('room', '')
+            lecturer = meeting.get('lecturer', '')
+
+            entry_text = f"📘 {course_name}\n⏰ {time}\n"
+            
+            if building or room:
+                entry_text += f"📍 {building} - {room}\n"
+            if lecturer:
+                entry_text += f"👨‍🏫 {lecturer}"
+
+            schedule_by_day.setdefault(day, []).append(entry_text)
+
+        text_msg = "🗓️ *جدول المحاضرات:*\n\n"
+        
+        for day in days_order:
+            if day in schedule_by_day:
+                text_msg += f"📅 *{day}:*\n"
+                for entry in schedule_by_day[day]:
+                    text_msg += f"{entry}\n\n"
+
+        for day, entries in schedule_by_day.items():
+            if day not in days_order:
+                text_msg += f"📅 *{day}:*\n"
+                for entry in entries:
+                    text_msg += f"{entry}\n\n"
+
+        # إضافة زر عرض المواعيد
+        keyboard = types.InlineKeyboardMarkup()
+        show_schedule_btn = types.InlineKeyboardButton(
+            text="📢 عرض المحاضرات القادمة", 
+            callback_data="show_upcoming_lectures"
+        )
+        keyboard.add(show_schedule_btn)
+
+        bot.send_message(chat_id, text_msg, parse_mode="Markdown", reply_markup=keyboard)
         
     except Exception as e:
         logger.exception(f"Error in back to schedule for {chat_id}: {e}")
