@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta  
 import logging
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
