@@ -1121,22 +1121,36 @@ class QOUScraper:
             
             week_info = self.get_current_week_type()
             
+            # استخراج معلومات الأسبوع الحالي
+            current_week = 1
+            week_type = "فردي"
+            if "الأسبوع" in week_info:
+                try:
+                    week_parts = week_info.split("الأسبوع ")[1].split(" ")
+                    current_week = int(week_parts[0])
+                    week_type = "فردي" if "فردي" in week_info else "زوجي"
+                except:
+                    pass
+    
             # الحصول على التاريخ والوقت الحالي
             now = datetime.now()
             current_date = now.date()
             current_time = now.time()
-            current_weekday = now.weekday()  # 0=الإثنين, 6=الأحد
+            
+            # تاريخ بداية الفصل الدراسي
+            semester_start = datetime(2025, 9, 13).date()
             
             # ترتيب أيام الأسبوع
             weekdays_order = {"الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6}
             
-            # دالة لحساب الوقت المتبقي بشكل دقيق
+            # دالة لحساب الوقت المتبقي بشكل صحيح مع مراعاة الجداول الأسبوعية
             def get_time_remaining(day_str, time_str):
                 if not day_str or day_str == "غير محدد" or not time_str or time_str == "--:-- - --:--":
                     return "⏳ غير محدد"
                 
                 # أخذ الجزء الأول فقط من اليوم
                 day_name = day_str.split('/')[0].strip()
+                schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
                 
                 # تحويل اليوم العربي إلى رقم
                 day_to_num = {
@@ -1148,13 +1162,27 @@ class QOUScraper:
                 if day_num == -1:
                     return "⏳ غير محدد"
                 
-                # حساب الأيام المتبقية حتى ذلك اليوم في الأسبوع الحالي أو القادم
-                days_until_next = (day_num - current_weekday) % 7
-                if days_until_next < 0:
-                    days_until_next += 7
+                # تحديد الأسبوع الفعلي للمحاضرة
+                target_week = current_week
                 
-                # التاريخ المتوقع للمحاضرة
-                target_date = current_date + timedelta(days=days_until_next)
+                if schedule_type == "ز" and week_type != "زوجي":
+                    # البحث عن أقرب أسبوع زوجي
+                    target_week = current_week + 1 if current_week % 2 == 1 else current_week
+                elif schedule_type == "ف" and week_type != "فردي":
+                    # البحث عن أقرب أسبوع فردي
+                    target_week = current_week + 1 if current_week % 2 == 0 else current_week
+                elif schedule_type == "ش-3":
+                    # البحث عن أقرب أسبوع ش-3
+                    target_week = next((w for w in [3, 7, 11, 15] if w >= current_week), 3)
+                elif schedule_type == "ش-4":
+                    # البحث عن أقرب أسبوع ش-4
+                    target_week = next((w for w in [4, 8, 12, 16] if w >= current_week), 4)
+                
+                # حساب تاريخ المحاضرة الفعلي
+                weeks_diff = target_week - 1  # الأسابيع من بداية الفصل
+                days_from_start = weeks_diff * 7 + day_num  # الأيام من بداية الفصل
+                
+                target_date = semester_start + timedelta(days=days_from_start)
                 
                 try:
                     start_time_str = time_str.split(' - ')[0]
@@ -1166,6 +1194,27 @@ class QOUScraper:
                     # حساب الفرق الزمني
                     time_diff = target_datetime - now
                     total_seconds = int(time_diff.total_seconds())
+                    
+                    if total_seconds <= 0:
+                        # إذا انتهت المحاضرة، نبحث عن التالية
+                        if schedule_type != "أسبوعي":
+                            # للمحاضرات الدورية، نبحث عن الموعد التالي
+                            if schedule_type == "ز":
+                                target_week += 2
+                            elif schedule_type == "ف":
+                                target_week += 2
+                            elif schedule_type == "ش-3":
+                                target_week = next((w for w in [3, 7, 11, 15] if w > current_week), 3)
+                            elif schedule_type == "ش-4":
+                                target_week = next((w for w in [4, 8, 12, 16] if w > current_week), 4)
+                            
+                            # إعادة حساب التاريخ الجديد
+                            weeks_diff = target_week - 1
+                            days_from_start = weeks_diff * 7 + day_num
+                            target_date = semester_start + timedelta(days=days_from_start)
+                            target_datetime = datetime.combine(target_date, start_time)
+                            time_diff = target_datetime - now
+                            total_seconds = int(time_diff.total_seconds())
                     
                     if total_seconds <= 0:
                         return "✅ بدأت"
