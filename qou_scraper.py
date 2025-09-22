@@ -285,57 +285,102 @@ class QOUScraper:
             "term_gpa": clean_gpa_value(stats.get('term', {}).get('gpa')),
             "cumulative_gpa": clean_gpa_value(stats.get('cumulative', {}).get('gpa'))
         }
-
     def fetch_lectures_schedule(self) -> List[dict]:
-        resp = self.session.get(WEEKLY_MEETINGS_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        try:
+            # إضافة timeout لمنع التجميد
+            resp = self.session.get(WEEKLY_MEETINGS_URL, timeout=10)
+            resp.raise_for_status()
+            
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout for weekly meetings")
+            return []
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error: {e}")
+            return []
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return []
     
-        schedule = []
-        table = soup.find("table", {"class": "table table-hover table-condensed table-striped table-curved"})
-        if not table:
+        try:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            schedule = []
+            table = soup.find("table", {"class": "table table-hover table-condensed table-striped table-curved"})
+            
+            if not table:
+                logger.warning("Table not found - maybe no schedule available")
+                return schedule
+    
+            # البحث عن الصفوف بطريقتين للاحتياط
+            tbody = table.find("tbody")
+            if not tbody:
+                logger.warning("Table body not found")
+                return schedule
+    
+            # الطريقة الأولى: CSS selector
+            rows = table.select("tbody > tr:not(:has(input))")
+            
+            # إذا لم تعثر على صفوف، جرب الطريقة التقليدية
+            if not rows:
+                rows = tbody.find_all("tr")
+                # تصفية الصفوف التي تحتوي على input
+                rows = [row for row in rows if not row.find('input')]
+            
+            logger.info(f"Found {len(rows)} schedule rows")
+            
+            for i, row in enumerate(rows):
+                try:
+                    cols = row.find_all("td")
+                    if len(cols) < 9:
+                        logger.debug(f"Row {i} has only {len(cols)} columns, skipping")
+                        continue
+                    
+                    # استخراج البيانات مع معالجة القيم الفارغة
+                    course_code_full = cols[0].get_text(strip=True) or "غير محدد"
+                    course_name = cols[1].get_text(strip=True) or "غير محدد"
+                    section = cols[3].get_text(strip=True) or "غير محدد"
+                    day = cols[4].get_text(strip=True) or "غير محدد"
+                    time = cols[5].get_text(strip=True) or "--:-- - --:--"
+                    building = cols[6].get_text(strip=True) or ""
+                    room = cols[7].get_text(strip=True) or ""
+                    lecturer_text = cols[8].get_text(strip=True) or ""
+                    
+                    # تنظيف اسم المحاضر
+                    lecturer = lecturer_text.replace('عرض', '').replace('📧', '').strip()
+                    
+                    # فصل رمز المقرر بشكل آمن
+                    if "/" in course_code_full:
+                        try:
+                            course_code = course_code_full.split("/")[1]
+                        except IndexError:
+                            course_code = course_code_full
+                    else:
+                        course_code = course_code_full
+                    
+                    meeting = {
+                        "course_code": course_code,
+                        "course_name": course_name,
+                        "section": section,
+                        "day": day,
+                        "time": time,
+                        "building": building,
+                        "room": room,
+                        "lecturer": lecturer
+                    }
+                    schedule.append(meeting)
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing row {i}: {e}")
+                    continue  # استمرار مع الصفوف الأخرى
+            
+            logger.info(f"Successfully processed {len(schedule)} meetings")
             return schedule
-    
-        # البحث عن جميع صفوف الجدول باستخدام CSS selector أكثر تحديداً
-        rows = table.select("tbody > tr:not(:has(input))")
-        
-        for row in rows:
-            cols = row.find_all("td")
-            if len(cols) < 9:
-                continue
             
-            # استخراج البيانات
-            course_code_full = cols[0].get_text(strip=True)
-            course_name = cols[1].get_text(strip=True)
-            section = cols[3].get_text(strip=True)
-            day = cols[4].get_text(strip=True)
-            time = cols[5].get_text(strip=True)
-            building = cols[6].get_text(strip=True)
-            room = cols[7].get_text(strip=True)
-            lecturer = cols[8].get_text(strip=True)
-            
-            # تنظيف النصوص
-            lecturer = lecturer.replace('عرض', '').replace('📧', '').strip()
-            
-            # فصل رمز المقرر
-            if "/" in course_code_full:
-                course_code = course_code_full.split("/")[1]
-            else:
-                course_code = course_code_full
-            
-            meeting = {
-                "course_code": course_code,
-                "course_name": course_name,
-                "section": section,
-                "day": day,
-                "time": time,
-                "building": building,
-                "room": room,
-                "lecturer": lecturer
-            }
-            schedule.append(meeting)
-        
-        return schedule
+        except Exception as e:
+            logger.error(f"Error parsing schedule HTML: {e}")
+            return []
     def fetch_balance_table_pdf(self) -> BytesIO:
         resp = self.session.get(BALANCE_URL)
         resp.raise_for_status()
