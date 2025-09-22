@@ -646,42 +646,44 @@ def handle_all_messages(message):
                 bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
                 return
     
-            days_order = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+            # ترتيب الأيام
+            days_order = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]
             schedule_by_day = {}
     
             for meeting in schedule:
                 day = meeting.get('day', '').strip()
                 if not day:
-                    day = "غير محدد"  # إذا كان اليوم فارغاً
+                    day = "غير محدد"
     
-                time = meeting.get('time', '--:-- - --:--')  # نعرض حتى لو كان فارغاً
-                course_name = meeting.get('course_name', 'غير محدد')  # اسم المادة هو الأساس
-                building = meeting.get('building', 'غير محدد')
-                room = meeting.get('room', 'غير محدد')
-                lecturer = meeting.get('lecturer', 'غير محدد')
+                time = meeting.get('time', '--:-- - --:--')
+                course_name = meeting.get('course_name', 'غير محدد')
+                building = meeting.get('building', '')
+                room = meeting.get('room', '')
+                lecturer = meeting.get('lecturer', '')
     
-                # التركيز على اسم المادة كعنصر رئيسي
+                # بناء النص
                 entry_text = f"📘 {course_name}\n"
                 entry_text += f"⏰ {time}\n"
                 
-                # إضافة المعلومات الأخرى إذا كانت متوفرة
-                if building != 'غير محدد' or room != 'غير محدد':
+                if building or room:
                     entry_text += f"📍 {building} - {room}\n"
-                if lecturer != 'غير محدد':
+                if lecturer:
                     entry_text += f"👨‍🏫 {lecturer}"
     
                 schedule_by_day.setdefault(day, []).append(entry_text)
     
             text_msg = "🗓️ *جدول المحاضرات:*\n\n"
+            
+            # عرض الأيام المرتبة أولاً
             for day in days_order:
                 if day in schedule_by_day:
                     text_msg += f"📅 *{day}:*\n"
                     for entry in schedule_by_day[day]:
                         text_msg += f"{entry}\n\n"
     
-            # إذا لم نجد أياماً مرتبة، نعرض جميع الأيام الموجودة
-            if text_msg == "🗓️ *جدول المحاضرات:*\n\n":
-                for day, entries in schedule_by_day.items():
+            # عرض الأيام الأخرى غير المرتبة
+            for day, entries in schedule_by_day.items():
+                if day not in days_order:
                     text_msg += f"📅 *{day}:*\n"
                     for entry in entries:
                         text_msg += f"{entry}\n\n"
