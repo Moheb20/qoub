@@ -252,6 +252,77 @@ def handle_info_button(message):
     # أو لا تفعل شيئاً
     pass
 # ---------- معالج الأوامر والرسائل ----------
+@bot.callback_query_handler(func=lambda call: call.data == "show_upcoming_lectures")
+def handle_upcoming_lectures(call):
+    chat_id = call.message.chat.id
+    user = get_user(chat_id)
+    
+    if not user:
+        bot.answer_callback_query(call.id, "❌ لم يتم العثور على بياناتك. أرسل /start أولاً.")
+        return
+
+    try:
+        # حذف الرسالة القديمة
+        bot.delete_message(chat_id, call.message.message_id)
+        
+        # عرض رسالة انتظار
+        wait_msg = bot.send_message(chat_id, "⏳ جاري تحضير المحاضرات القادمة...")
+        
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.delete_message(chat_id, wait_msg.message_id)
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+            return
+
+        # جلب المحاضرات القادمة
+        upcoming_lectures = scraper.get_upcoming_lectures(chat_id)
+        
+        # حذف رسالة الانتظار
+        bot.delete_message(chat_id, wait_msg.message_id)
+        
+        # إضافة زر للعودة لجدول المحاضرات
+        keyboard = types.InlineKeyboardMarkup()
+        back_btn = types.InlineKeyboardButton(
+            text="↩️ العودة لجدول المحاضرات", 
+            callback_data="back_to_schedule"
+        )
+        keyboard.add(back_btn)
+        
+        # إرسال المحاضرات القادمة
+        bot.send_message(
+            chat_id, 
+            upcoming_lectures, 
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+        
+    except Exception as e:
+        logger.exception(f"Error in upcoming lectures callback for {chat_id}: {e}")
+        bot.answer_callback_query(call.id, "❌ حدث خطأ. حاول مرة أخرى.")
+
+@bot.callback_query_handler(func=lambda call: call.data == "back_to_schedule")
+def handle_back_to_schedule(call):
+    chat_id = call.message.chat.id
+    user = get_user(chat_id)
+    
+    if not user:
+        bot.answer_callback_query(call.id, "❌ لم يتم العثور على بياناتك.")
+        return
+
+    try:
+        # حذف الرسالة الحالية
+        bot.delete_message(chat_id, call.message.message_id)
+        
+        # إعادة عرض جدول المحاضرات
+        # (يمكنك إعادة استخدام الكود السابق أو استدعاء الدالة المناسبة)
+        bot.send_message(chat_id, "⏳ جاري إعادة تحميل جدول المحاضرات...")
+        
+        # هنا يمكنك إعادة تنفيذ كود جدول المحاضرات
+        # أو يمكنك حفظ الرسالة الأصلية وإعادة عرضها
+        
+    except Exception as e:
+        logger.exception(f"Error in back to schedule for {chat_id}: {e}")
+        bot.answer_callback_query(call.id, "❌ حدث خطأ.")
 @bot.message_handler(commands=["start"])
 def handle_start(message):
     log_chat_id(message.chat.id)
@@ -629,71 +700,84 @@ def handle_all_messages(message):
         )
         return 
     # جدول المحاضرات
-    elif text == "🗓️ جدول المحاضرات":
-        user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
-            return
-    
-        try:
-            scraper = QOUScraper(user['student_id'], user['password'])
-            if not scraper.login():
-                bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
-                return
-    
-            schedule = scraper.fetch_lectures_schedule()
-            if not schedule:
-                bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
-                return
-    
-            # ترتيب الأيام
-            days_order = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]
-            schedule_by_day = {}
-    
-            for meeting in schedule:
-                day = meeting.get('day', '').strip()
-                if not day:
-                    day = "غير محدد"
-    
-                time = meeting.get('time', '--:-- - --:--')
-                course_name = meeting.get('course_name', 'غير محدد')
-                building = meeting.get('building', '')
-                room = meeting.get('room', '')
-                lecturer = meeting.get('lecturer', '')
-    
-                # بناء النص
-                entry_text = f"📘 {course_name}\n"
-                entry_text += f"⏰ {time}\n"
-                
-                if building or room:
-                    entry_text += f"📍 {building} - {room}\n"
-                if lecturer:
-                    entry_text += f"👨‍🏫 {lecturer}"
-    
-                schedule_by_day.setdefault(day, []).append(entry_text)
-    
-            text_msg = "🗓️ *جدول المحاضرات:*\n\n"
-            
-            # عرض الأيام المرتبة أولاً
-            for day in days_order:
-                if day in schedule_by_day:
-                    text_msg += f"📅 *{day}:*\n"
-                    for entry in schedule_by_day[day]:
-                        text_msg += f"{entry}\n\n"
-    
-            # عرض الأيام الأخرى غير المرتبة
-            for day, entries in schedule_by_day.items():
-                if day not in days_order:
-                    text_msg += f"📅 *{day}:*\n"
-                    for entry in entries:
-                        text_msg += f"{entry}\n\n"
-    
-            bot.send_message(chat_id, text_msg, parse_mode="Markdown")
-            
-        except Exception as e:
-            logger.exception(f"Error fetching schedule for {chat_id}: {e}")
-            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب جدول المحاضرات. حاول مرة أخرى لاحقاً.")
+elif text == "🗓️ جدول المحاضرات":
+    user = get_user(chat_id)
+    if not user:
+        bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
         return
+
+    try:
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
+            return
+
+        schedule = scraper.fetch_lectures_schedule()
+        if not schedule:
+            bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
+            return
+
+        # ترتيب الأيام
+        days_order = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]
+        schedule_by_day = {}
+
+        for meeting in schedule:
+            day = meeting.get('day', '').strip()
+            if not day:
+                day = "غير محدد"
+
+            time = meeting.get('time', '--:-- - --:--')
+            course_name = meeting.get('course_name', 'غير محدد')
+            building = meeting.get('building', '')
+            room = meeting.get('room', '')
+            lecturer = meeting.get('lecturer', '')
+
+            # بناء النص
+            entry_text = f"📘 {course_name}\n"
+            entry_text += f"⏰ {time}\n"
+            
+            if building or room:
+                entry_text += f"📍 {building} - {room}\n"
+            if lecturer:
+                entry_text += f"👨‍🏫 {lecturer}"
+
+            schedule_by_day.setdefault(day, []).append(entry_text)
+
+        text_msg = "🗓️ *جدول المحاضرات:*\n\n"
+        
+        # عرض الأيام المرتبة أولاً
+        for day in days_order:
+            if day in schedule_by_day:
+                text_msg += f"📅 *{day}:*\n"
+                for entry in schedule_by_day[day]:
+                    text_msg += f"{entry}\n\n"
+
+        # عرض الأيام الأخرى غير المرتبة
+        for day, entries in schedule_by_day.items():
+            if day not in days_order:
+                text_msg += f"📅 *{day}:*\n"
+                for entry in entries:
+                    text_msg += f"{entry}\n\n"
+
+        # إنشاء الكيبورد مع زر عرض المواعيد
+        keyboard = types.InlineKeyboardMarkup()
+        show_schedule_btn = types.InlineKeyboardButton(
+            text="📢 عرض المحاضرات القادمة", 
+            callback_data="show_upcoming_lectures"
+        )
+        keyboard.add(show_schedule_btn)
+
+        bot.send_message(
+            chat_id, 
+            text_msg, 
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+        
+    except Exception as e:
+        logger.exception(f"Error fetching schedule for {chat_id}: {e}")
+        bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب جدول المحاضرات. حاول مرة أخرى لاحقاً.")
+    return
 
 
 
