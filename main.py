@@ -634,44 +634,60 @@ def handle_all_messages(message):
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-
+    
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
             if not scraper.login():
                 bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
                 return
-
+    
             schedule = scraper.fetch_lectures_schedule()
             if not schedule:
                 bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
                 return
-
+    
             days_order = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
             schedule_by_day = {}
-
+    
             for meeting in schedule:
                 day = meeting.get('day', '').strip()
                 if not day:
-                    continue
-
-                time = meeting.get('time', '-')
-                course = f"{meeting.get('course_code', '-')}: {meeting.get('course_name', '-') }"
-                building = meeting.get('building', '-')
-                room = meeting.get('room', '-')
-                lecturer = meeting.get('lecturer', '-')
-
-                schedule_by_day.setdefault(day, []).append(
-                    f"⏰ {time}\n📘 {course}\n📍 {building} - {room}\n👨‍🏫 {lecturer}"
-                )
-
+                    day = "غير محدد"  # إذا كان اليوم فارغاً
+    
+                time = meeting.get('time', '--:-- - --:--')  # نعرض حتى لو كان فارغاً
+                course_name = meeting.get('course_name', 'غير محدد')  # اسم المادة هو الأساس
+                building = meeting.get('building', 'غير محدد')
+                room = meeting.get('room', 'غير محدد')
+                lecturer = meeting.get('lecturer', 'غير محدد')
+    
+                # التركيز على اسم المادة كعنصر رئيسي
+                entry_text = f"📘 {course_name}\n"
+                entry_text += f"⏰ {time}\n"
+                
+                # إضافة المعلومات الأخرى إذا كانت متوفرة
+                if building != 'غير محدد' or room != 'غير محدد':
+                    entry_text += f"📍 {building} - {room}\n"
+                if lecturer != 'غير محدد':
+                    entry_text += f"👨‍🏫 {lecturer}"
+    
+                schedule_by_day.setdefault(day, []).append(entry_text)
+    
             text_msg = "🗓️ *جدول المحاضرات:*\n\n"
             for day in days_order:
                 if day in schedule_by_day:
                     text_msg += f"📅 *{day}:*\n"
                     for entry in schedule_by_day[day]:
                         text_msg += f"{entry}\n\n"
-
+    
+            # إذا لم نجد أياماً مرتبة، نعرض جميع الأيام الموجودة
+            if text_msg == "🗓️ *جدول المحاضرات:*\n\n":
+                for day, entries in schedule_by_day.items():
+                    text_msg += f"📅 *{day}:*\n"
+                    for entry in entries:
+                        text_msg += f"{entry}\n\n"
+    
             bot.send_message(chat_id, text_msg, parse_mode="Markdown")
+            
         except Exception as e:
             logger.exception(f"Error fetching schedule for {chat_id}: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب جدول المحاضرات. حاول مرة أخرى لاحقاً.")
