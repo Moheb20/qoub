@@ -287,7 +287,6 @@ class QOUScraper:
         }
     def fetch_lectures_schedule(self) -> List[dict]:
         try:
-            # إضافة timeout لمنع التجميد
             resp = self.session.get(WEEKLY_MEETINGS_URL, timeout=10)
             resp.raise_for_status()
             
@@ -297,9 +296,6 @@ class QOUScraper:
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection error: {e}")
             return []
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error: {e}")
-            return []
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return []
@@ -307,74 +303,85 @@ class QOUScraper:
         try:
             soup = BeautifulSoup(resp.text, 'html.parser')
             schedule = []
+            
             table = soup.find("table", {"class": "table table-hover table-condensed table-striped table-curved"})
             
             if not table:
-                logger.warning("Table not found - maybe no schedule available")
+                logger.warning("Table not found")
                 return schedule
     
-            # البحث عن الصفوف بطريقتين للاحتياط
+            # البحث عن tbody أولاً
             tbody = table.find("tbody")
             if not tbody:
-                logger.warning("Table body not found")
+                logger.warning("tbody not found")
                 return schedule
     
-            # الطريقة الأولى: CSS selector
-            rows = table.select("tbody > tr:not(:has(input))")
-            
-            # إذا لم تعثر على صفوف، جرب الطريقة التقليدية
+            # البحث عن جميع العناصر tr داخل tbody (بغض النظر عن العناصر الأخرى)
+            rows = tbody.find_all("tr")
+            logger.info(f"Found {len(rows)} raw tr elements")
+    
             if not rows:
-                rows = tbody.find_all("tr")
-                # تصفية الصفوف التي تحتوي على input
-                rows = [row for row in rows if not row.find('input')]
-            
-            logger.info(f"Found {len(rows)} schedule rows")
-            
+                return schedule
+    
+            valid_rows = []
             for i, row in enumerate(rows):
+                # تخطي الصفوف التي تحتوي فقط على input (بدون td)
+                if row.find('input') and not row.find('td'):
+                    logger.debug(f"Skipping row {i} - contains only input")
+                    continue
+                    
+                # التأكد من أن الصف يحتوي على خلايا td
+                cols = row.find_all("td")
+                if len(cols) >= 5:  # تقليل الحد الأدنى لأن بعض الأعمدة قد تكون فارغة
+                    valid_rows.append(row)
+                    logger.debug(f"Row {i} has {len(cols)} td columns")
+                else:
+                    logger.debug(f"Skipping row {i} - only {len(cols)} td columns")
+    
+            logger.info(f"After filtering: {len(valid_rows)} valid rows")
+    
+            for i, row in enumerate(valid_rows):
                 try:
                     cols = row.find_all("td")
-                    if len(cols) < 9:
-                        logger.debug(f"Row {i} has only {len(cols)} columns, skipping")
-                        continue
                     
-                    # استخراج البيانات مع معالجة القيم الفارغة
-                    course_code_full = cols[0].get_text(strip=True) or "غير محدد"
-                    course_name = cols[1].get_text(strip=True) or "غير محدد"
-                    section = cols[3].get_text(strip=True) or "غير محدد"
-                    day = cols[4].get_text(strip=True) or "غير محدد"
-                    time = cols[5].get_text(strip=True) or "--:-- - --:--"
-                    building = cols[6].get_text(strip=True) or ""
-                    room = cols[7].get_text(strip=True) or ""
-                    lecturer_text = cols[8].get_text(strip=True) or ""
-                    
-                    # تنظيف اسم المحاضر
+                    # استخراج البيانات - استخدام الفهارس الصحيحة حسب الجدول
+                    course_code_full = cols[0].get_text(strip=True) if len(cols) > 0 else "غير محدد"
+                    course_name = cols[1].get_text(strip=True) if len(cols) > 1 else "غير محدد"
+                    # العمود 2: س.م (تخطيه)
+                    section = cols[3].get_text(strip=True) if len(cols) > 3 else "غير محدد"
+                    day = cols[4].get_text(strip=True) if len(cols) > 4 else "غير محدد"
+                    time = cols[5].get_text(strip=True) if len(cols) > 5 else "--:-- - --:--"
+                    building = cols[6].get_text(strip=True) if len(cols) > 6 else ""
+                    room = cols[7].get_text(strip=True) if len(cols) > 7 else ""
+                    lecturer_text = cols[8].get_text(strip=True) if len(cols) > 8 else ""
+    
+                    # تنظيف اسم المحاضر من الرموز غير الضرورية
                     lecturer = lecturer_text.replace('عرض', '').replace('📧', '').strip()
                     
-                    # فصل رمز المقرر بشكل آمن
-                    if "/" in course_code_full:
-                        try:
-                            course_code = course_code_full.split("/")[1]
-                        except IndexError:
-                            course_code = course_code_full
+                    # فصل رمز المقرر (مثال: "0/0002" → "0002")
+                    if course_code_full and "/" in course_code_full:
+                        course_code = course_code_full.split("/")[-1]
                     else:
                         course_code = course_code_full
-                    
+    
                     meeting = {
-                        "course_code": course_code,
-                        "course_name": course_name,
-                        "section": section,
-                        "day": day,
-                        "time": time,
-                        "building": building,
-                        "room": room,
-                        "lecturer": lecturer
+                        "course_code": course_code or "غير محدد",
+                        "course_name": course_name or "غير محدد",
+                        "section": section or "غير محدد",
+                        "day": day or "غير محدد",
+                        "time": time or "--:-- - --:--",
+                        "building": building or "",
+                        "room": room or "",
+                        "lecturer": lecturer or "غير محدد"
                     }
+                    
                     schedule.append(meeting)
+                    logger.debug(f"Processed meeting: {course_name}")
                     
                 except Exception as e:
                     logger.warning(f"Error processing row {i}: {e}")
-                    continue  # استمرار مع الصفوف الأخرى
-            
+                    continue
+    
             logger.info(f"Successfully processed {len(schedule)} meetings")
             return schedule
             
