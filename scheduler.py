@@ -125,7 +125,7 @@ def check_for_course_updates():
                         update_user_courses(chat_id, json.dumps(courses))
                 except Exception as ex:
                     logger.warning(f"[{chat_id}] خطأ أثناء فحص تحديث العلامات: {ex}")
-            time.sleep(5*60)
+            time.sleep(60*60)
         except Exception as e:
             logger.error(f"❌ خطأ عام في تحديث العلامات: {e}")
             time.sleep(60)
@@ -214,77 +214,112 @@ def check_for_gpa_changes():
 
 
 def check_discussion_sessions():
-    notified_today = {}
-    notified_half_hour = {}
-    last_known_sessions = {}
+    """
+    فحص حلقات النقاش وإرسال التذكيرات المبرمجة
+    """
+    # تخزين محلي لحلقات النقاش المعروفة لكل مستخدم
+    known_sessions = {}
+    
     while True:
         try:
             now = datetime.now(PALESTINE_TZ)
             today_str = now.strftime("%d/%m/%Y")
             users = get_all_users()
+            
             for user in users:
                 chat_id = user['chat_id']
-                scraper = QOUScraper(user['student_id'], user['password'])
-                if scraper.login():
+                student_id = user['student_id']
+                password = user['password']
+                
+                # ✅ إنشاء جلسة جديدة لكل مستخدم
+                scraper = QOUScraper(student_id, password)
+                if not scraper.login():
+                    logger.warning(f"[{chat_id}] فشل تسجيل الدخول لفحص حلقات النقاش")
+                    continue
+                
+                try:
                     sessions = scraper.fetch_discussion_sessions()
-                    today_sessions = [s for s in sessions if s['date'] == today_str]
-                    if today_sessions and chat_id not in notified_today:
-                        msg = "📅 حــلقـــات الـــنقـــاش الـــيـــوم:\n\n"
-                        for s in today_sessions:
-                            msg += f"📘 {s['course_name']} ({s['course_code']}) - {s['time']}\n"
-                        send_message(bot, chat_id, msg)
-                        notified_today[chat_id] = now.date()
-                    current_ids = set(f"{s['course_code']}_{s['date']}_{s['time']}" for s in sessions)
-                    previous_ids = last_known_sessions.get(chat_id, set())
-                    new_ids = current_ids - previous_ids
-                    for new_id in new_ids:
-                        for s in sessions:
-                            if f"{s['course_code']}_{s['date']}_{s['time']}" == new_id:
-                                msg = f"🆕 تمـــت إضـــافـــة حـــلـقـة نــقــاش جــديـــدة:\n📘 {s['course_name']} ({s['course_code']}) - {s['time']}"
-                                send_message(bot, chat_id, msg)
-                    last_known_sessions[chat_id] = current_ids
-                    for s in today_sessions:
-                        try:
-                            start_raw = s['time'].split('-')[0].strip()   # "11:00"
-                            # parse لوقت البداية
-                            start_time = datetime.strptime(
-                                f"{s['date']} {start_raw}", "%d/%m/%Y %H:%M"
-                            ).replace(tzinfo=PALESTINE_TZ)
-                        except ValueError:
-                            try:
-                                # لو فيه ثواني
-                                start_time = datetime.strptime(
-                                    f"{s['date']} {start_raw}", "%d/%m/%Y %H:%M:%S"
-                                ).replace(tzinfo=PALESTINE_TZ)
-                            except ValueError:
-                                continue  # لو فشل، يتجاوزها
+                    logger.info(f"[{chat_id}] تم جلب {len(sessions)} حلقة نقاش")
+                except Exception as e:
+                    logger.error(f"[{chat_id}] خطأ في جلب حلقات النقاش: {e}")
+                    continue
+                
+                # ✅ الحصول على الحلقات المعروفة سابقاً لهذا المستخدم
+                user_known_sessions = known_sessions.get(chat_id, set())
+                current_sessions = set()
+                
+                # ✅ فحص الحلقات الجديدة
+                new_sessions = []
+                for session in sessions:
+                    session_key = f"{session['course_code']}_{session['date']}_{session['time']}"
+                    current_sessions.add(session_key)
                     
-                        diff = (start_time - now).total_seconds() / 60
-                        half_hour_key = f"{chat_id}_{s['course_code']}_{s['date']}_half"
-                        start_key = f"{chat_id}_{s['course_code']}_{s['date']}_start"
+                    if session_key not in user_known_sessions:
+                        new_sessions.append(session)
+                        logger.info(f"[{chat_id}] اكتشفت حلقة نقاش جديدة: {session_key}")
+                
+                # ✅ إرسال إشعار بالحلقات الجديدة
+                if new_sessions:
+                    msg = "🆕 تمـــت إضـــافـــة حـــلـقـــات نــقــاش جــديـــدة:\n\n"
+                    for session in new_sessions:
+                        msg += f"📘 {session['course_name']} ({session['course_code']})\n"
+                        msg += f"📅 {session['date']} - ⏰ {session['time']}\n\n"
                     
-                        # ⏰ تذكير قبل نص ساعة
-                        if 0 < diff <= 30 and half_hour_key not in notified_half_hour:
-                            send_message(
-                                bot, chat_id,
-                                f"⏰ تـــذكــــيـر: حـــلقـــة الـــنقــاش {s['course_name']} بعـد أقــل مـن نـصــف ســاعــة"
-                            )
-                            notified_half_hour[half_hour_key] = True
+                    send_message(bot, chat_id, msg)
+                
+                # ✅ جدولة التذكيرات لجميع حلقات النقاش (الجديدة والقديمة)
+                for session in sessions:
+                    try:
+                        # ✅ تحويل وقت الحلقة
+                        start_raw = session['time'].split('-')[0].strip()
+                        start_time = datetime.strptime(
+                            f"{session['date']} {start_raw}", "%d/%m/%Y %H:%M"
+                        ).replace(tzinfo=PALESTINE_TZ)
+                        
+                        # ✅ إنشاء مفتاح فريد لهذه الحلقة
+                        session_key = f"{chat_id}_{session['course_code']}_{session['date']}_{session['time']}"
+                        
+                        # ✅ التذكيرات المطلوبة
+                        reminders = [
+                            (start_time - timedelta(hours=2), "2h_before", 
+                             f"⏰ باقي ساعتين على حلقة النقاش: {session['course_name']}"),
+                            (start_time - timedelta(hours=1), "1h_before", 
+                             f"⚡ باقي ساعة على حلقة النقاش: {session['course_name']}"),
+                            (start_time, "start_time", 
+                             f"🚀 بدأت الآن حلقة النقاش: {session['course_name']} بالتوفيق! ❤️")
+                        ]
+                        
+                        for reminder_time, reminder_type, reminder_msg in reminders:
+                            if reminder_time > now:
+                                job_id = f"disc_{session_key}_{reminder_type}"
+                                try:
+                                    exam_scheduler.add_job(
+                                        send_message,
+                                        'date',
+                                        run_date=reminder_time,
+                                        args=[bot, chat_id, reminder_msg],
+                                        id=job_id,
+                                        replace_existing=True
+                                    )
+                                    logger.info(f"[{chat_id}] تم جدولة تذكير {reminder_type} لحلقة النقاش {session['course_name']}")
+                                except Exception as e:
+                                    logger.error(f"[{chat_id}] فشل جدولة التذكير: {e}")
                     
-                        # 🚀 تذكير عند بداية الحلقة
-                        if -1 <= diff <= 1 and start_key not in notified_half_hour:
-                            send_message(
-                                bot, chat_id,
-                                f"🚀 بــــدأت الآن حــلقــة الــــنقـــاش: {s['course_name']} ({s['course_code']})"
-                            )
-                            notified_half_hour[start_key] = True
-                    if now.hour == 0 and now.minute == 0:
-                        notified_today.clear()
-                        notified_half_hour.clear()
-            time.sleep(30*60)
+                    except Exception as e:
+                        logger.error(f"[{chat_id}] خطأ في معالجة حلقة النقاش {session['course_name']}: {e}")
+                        continue
+                
+                # ✅ تحديث الحلقات المعروفة للمستخدم
+                known_sessions[chat_id] = current_sessions
+            
+            # ✅ الانتظار ساعة قبل الفحص التالي
+            logger.info("💤 انتظار 24 ساعة للفحص التالي لحلقات النقاش")
+            time.sleep(86400)
+
+            
         except Exception as e:
-            logger.error(f"❌ خطأ في حلقات النقاش: {e}")
-            time.sleep(60)
+            logger.error(f"❌ خطأ عام في فحص حلقات النقاش: {e}")
+            time.sleep(60 * 10)  # انتظار 10 دقائق عند الخطأ
 
 def send_reminder_for_new_deadline():
     while True:
@@ -315,66 +350,107 @@ def check_today_lectures():
         now = datetime.now(PALESTINE_TZ)
         today = now.date()
 
+        # ✅ تعريف days_map داخل الدالة
         days_map = {
-            "الاثنين": 0,
-            "الثلاثاء": 1,
-            "الأربعاء": 2,
-            "الخميس": 3,
-            "الجمعة": 4,
-            "السبت": 5,
-            "الأحد": 6
+            "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3,
+            "الجمعة": 4, "السبت": 5, "الأحد": 6
         }
+
+        # ✅ الحصول على اليوم الحالي بالعربية
+        arabic_days = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+        today_arabic = arabic_days[today.weekday()]
+        
+        logger.info(f"📅 اليوم هو: {today_arabic} ({today.strftime('%Y-%m-%d')})")
+
+        lecture_count = 0
+        reminder_count = 0
 
         for user in users:
             user_id = user['chat_id']
-            student_id = decrypt_text(user['student_id'])
-            password = decrypt_text(user['password'])
+            
+            # ✅ استخدام البيانات المشفرة مباشرة (بدون فك تشفير)
+            student_id = user['student_id']
+            password = user['password']
+            
+            if not student_id or not password:
+                logger.warning(f"[{user_id}] بيانات تسجيل الدخول غير كافية")
+                continue
 
+            # ✅ إنشاء كائن scraper جديد لكل مستخدم
             scraper = QOUScraper(student_id, password)
             if not scraper.login():
                 logger.warning(f"[{user_id}] فشل تسجيل الدخول")
-                continue  # يكمل على باقي الطلاب وما يوقف
+                continue
 
-            lectures = scraper.fetch_lectures_schedule()
+            try:
+                lectures = scraper.fetch_lectures_schedule()
+                logger.info(f"[{user_id}] تم جلب {len(lectures)} محاضرة")
+            except Exception as e:
+                logger.error(f"[{user_id}] خطأ في جلب المحاضرات: {e}")
+                continue
+
+            user_lectures_today = 0
+            
             for lecture in lectures:
                 lecture_day = lecture["day"].strip()
-                if lecture_day not in days_map:
+                
+                # ✅ التحقق إذا كان اليوم مطابق
+                if lecture_day != today_arabic:
+                    continue
+                
+                user_lectures_today += 1
+                lecture_count += 1
+
+                # ✅ وقت بداية المحاضرة مع معالجة الأخطاء
+                try:
+                    start_time_str = lecture["time"].split("-")[0].strip()
+                    hour, minute = map(int, start_time_str.split(":"))
+                    
+                    # ✅ إنشاء datetime مع المنطقة الزمنية
+                    lecture_start = PALESTINE_TZ.localize(
+                        datetime(today.year, today.month, today.day, hour, minute, 0)
+                    )
+                    
+                    logger.info(f"[{user_id}] محاضرة اليوم: {lecture['course_name']} الساعة {hour:02d}:{minute:02d}")
+                    
+                except Exception as e:
+                    logger.error(f"[{user_id}] خطأ في تحويل وقت المحاضرة {lecture['course_name']}: {e}")
                     continue
 
-                if days_map[lecture_day] != today.weekday():
-                    continue
-
-                # وقت بداية المحاضرة
-                start_time_str = lecture["time"].split("-")[0].strip()
-                hour, minute = map(int, start_time_str.split(":"))
-                lecture_start = datetime.combine(
-                    today, datetime.min.time()
-                ).replace(hour=hour, minute=minute, tzinfo=PALESTINE_TZ)
-
-                # رسائل التذكير
+                # ✅ رسائل التذكير
                 reminders = [
-                    (lecture_start - timedelta(hours=1),
+                    (lecture_start - timedelta(hours=1), "1h_before",
                      f"⏰ بعد ساعة عندك محاضرة {lecture['course_name']} ({lecture['time']})"),
-                    (lecture_start - timedelta(minutes=15),
+                    (lecture_start - timedelta(minutes=15), "15m_before",
                      f"⚡ بعد ربع ساعة محاضرة {lecture['course_name']}"),
-                    (lecture_start,
+                    (lecture_start, "start_time",
                      f"🚀 بدأت الآن محاضرة {lecture['course_name']} بالتوفيق ❤️"),
                 ]
 
-                # جدولة التذكيرات
-                for remind_time, msg in reminders:
+                # ✅ جدولة التذكيرات
+                for remind_time, reminder_type, msg in reminders:
                     if remind_time > now:
-                        scheduler.add_job(
-                            send_message,
-                            'date',
-                            run_date=remind_time,
-                            args=[bot, user_id, msg],
-                            id=f"lec_{user_id}_{lecture['course_code']}_{remind_time}",
-                            replace_existing=True
-                        )
-                        logger.info(f"[{user_id}] جدولت تذكير: {msg} في {remind_time}")
+                        try:
+                            job_id = f"lec_{user_id}_{lecture['course_code']}_{reminder_type}_{int(remind_time.timestamp())}"
+                            
+                            exam_scheduler.add_job(
+                                send_message,
+                                'date',
+                                run_date=remind_time,
+                                args=[bot, user_id, msg],
+                                id=job_id,
+                                replace_existing=True
+                            )
+                            reminder_count += 1
+                            logger.info(f"[{user_id}] تم جدولة تذكير: {msg} في {remind_time.strftime('%H:%M')}")
+                            
+                        except Exception as e:
+                            logger.error(f"[{user_id}] فشل جدولة التذكير: {e}")
 
-        logger.info("✅ انتهى فحص محاضرات اليوم")
+            if user_lectures_today > 0:
+                logger.info(f"[{user_id}] لديه {user_lectures_today} محاضرة اليوم")
+
+        logger.info(f"✅ انتهى فحص محاضرات اليوم: {lecture_count} محاضرة, {reminder_count} تذكير مجدول")
 
     except Exception as e:
         logger.exception(f"❌ خطأ أثناء فحص المحاضرات: {e}")
@@ -382,18 +458,44 @@ def check_today_lectures():
 
 def daily_lecture_checker_loop():
     """
-    حلقة لا نهائية تشغل check_today_lectures كل يوم الساعة 00:00.
+    حلقة لا نهائية تشغل check_today_lectures كل يوم الساعة 00:05 (بعد منتصف الليل بـ5 دقائق)
     """
+    logger.info("🎯 بدء مراقب المحاضرات اليومية")
+    
+    # ✅ الانتظار قليلاً عند البدء
+    time.sleep(10)
+    
     while True:
-        now = datetime.now(PALESTINE_TZ)
-        # حساب الوقت حتى منتصف الليل
-        next_run = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        seconds_to_sleep = (next_run - now).total_seconds()
-        logger.info(f"🕛 الانتظار حتى منتصف الليل: {int(seconds_to_sleep)} ثانية")
-        time.sleep(seconds_to_sleep)
-        # تنفيذ فحص المحاضرات
-        check_today_lectures()
-
+        try:
+            now = datetime.now(PALESTINE_TZ)
+            
+            # ✅ حساب وقت التشغيل التالي (00:05 من اليوم التالي)
+            if now.hour == 0 and now.minute < 5:
+                # إذا كنا بعد منتصف الليل مباشرة، انتظر حتى 00:05
+                next_run = now.replace(hour=0, minute=5, second=0, microsecond=0)
+            else:
+                # انتظر حتى 00:05 من اليوم التالي
+                next_run = (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+            
+            seconds_to_sleep = (next_run - now).total_seconds()
+            
+            logger.info(f"🕛 الانتظار حتى {next_run.strftime('%Y-%m-%d %H:%M')} لفحص المحاضرات: {int(seconds_to_sleep)} ثانية")
+            
+            time.sleep(seconds_to_sleep)
+            
+            # ✅ تنفيذ فحص المحاضرات
+            logger.info("🔍 بدء فحص محاضرات اليوم الجديد")
+            check_today_lectures()
+            
+            # ✅ انتظار دقيقة إضافية لتجنب التشغيل المتكرر
+            time.sleep(60)
+            
+        except KeyboardInterrupt:
+            logger.info("⏹️ إيقاف مراقب المحاضرات بطلب من المستخدم")
+            break
+        except Exception as e:
+            logger.error(f"❌ خطأ في مراقب المحاضرات: {e}")
+            time.sleep(300)  # انتظار 5 دقائق قبل إعادة المحاولة
 def check_today_exams():
     """
     فحص امتحانات اليوم لكل الطلاب وإرسال الرسائل والتذكيرات.
