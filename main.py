@@ -73,10 +73,6 @@ def home():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-def log_chat_interaction(chat_id, action):
-    """تسجيل تفاعلات المستخدم"""
-    logger.info(f"👤 {chat_id} - {action}")
-
 def cleanup_states(chat_id):
     """تنظيف حالات المستخدم"""
     states_to_clean = [
@@ -279,6 +275,25 @@ def handle_admin_commands(chat_id, text):
     elif text == "إرسال رسالة":
         bot.send_message(chat_id, "✍️ الرجاء كتابة نص الرسالة التي تريد إرسالها لجميع المستخدمين:")
         admin_states[chat_id] = "awaiting_broadcast_text"
+        return True
+    
+    # إدارة المواعيد
+    elif text == "إدارة المواعيد":
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        markup.add(
+            types.KeyboardButton("➕ إضافة موعد"),
+            types.KeyboardButton("✏️ تعديل موعد"),
+            types.KeyboardButton("❌ حذف موعد"),
+            types.KeyboardButton("📋 عرض كل المواعيد"),
+            types.KeyboardButton("العودة للقائمة")
+        )
+        bot.send_message(chat_id, "⚙️ إدارة المواعيد: اختر خياراً", reply_markup=markup)
+        return True
+    
+    # إضافة قروب
+    elif text == "إضافة قروب":
+        admin_group_states[chat_id] = {"stage": "awaiting_type"}
+        bot.send_message(chat_id, "📂 اختر نوع القروب:\n1️⃣ مواد\n2️⃣ تخصصات\n3️⃣ جامعة")
         return True
     
     return False
@@ -519,9 +534,188 @@ def handle_academic_services(chat_id, text):
             bot.send_message(chat_id, totals_text, reply_markup=markup)
             return True
 
+        # جدول الامتحانات
+        elif text == "📅 جدول الامتحانات":
+            available_terms = scraper.get_last_two_terms()
+            if not available_terms:
+                bot.send_message(chat_id, "⚠️ تعذر جلب الفصول المتاحة.")
+                return True
+
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            for term in available_terms:
+                markup.add(types.KeyboardButton(f"📅 {term['label']}|{term['value']}"))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+            bot.send_message(chat_id, "📌 اختر الفصل الدراسي:", reply_markup=markup)
+            return True
+
     except Exception as e:
         logger.error(f"Academic service error for {chat_id}: {e}")
         bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب البيانات.")
+    
+    return False
+
+# ================================
+# 📊 قسم الإحصائيات والمقررات
+# ================================
+
+def handle_academic_stats(chat_id, text):
+    """معالجة الإحصائيات والمقررات"""
+    user = get_user(chat_id)
+    if not user or not user['student_id'] or not user['password']:
+        bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
+        return True
+
+    try:
+        scraper = QOUScraper(user['student_id'], user['password'])
+        
+        # إحصائياتي
+        if text == "📊 إحصائياتي":
+            study_plan = scraper.fetch_study_plan()
+            stats = study_plan['stats']
+
+            if not stats or study_plan['status'] != 'success':
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب تحديث بياناتك أولاً.")
+                return True
+
+            reply = f"""📊 *إحصائياتك الحالية:*
+✅ الساعات المطلوبة: {stats['total_hours_required']}
+🎯 الساعات المجتازة: {stats['total_hours_completed']}
+🔄 المحتسبة: {stats['total_hours_transferred']}
+📅 عدد الفصول: {stats['semesters_count']}
+📈 الإنجاز: {stats['completion_percentage']}%
+🏁 حالة الخطة: {"مكتملة ✅" if stats['plan_completed'] else "غير مكتملة ⏳"}"
+            """
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
+            return True
+
+        # مقرراتي
+        elif text == "📚 مقرراتي":
+            loading_msg = bot.send_message(chat_id, "🎓 جاري تحضير مقرراتك...")
+            
+            study_plan = scraper.fetch_study_plan()
+            
+            if study_plan.get('status') != 'success':
+                bot.delete_message(chat_id, loading_msg.message_id)
+                bot.send_message(chat_id, "⚠️ لم أتمكن من جلب المقررات. حاول لاحقاً.")
+                return True
+            
+            courses_list = study_plan['courses']
+            
+            # تجميع المقررات حسب الفئة
+            categories_data = {}
+            for course in courses_list:
+                category = course.get('category', 'غير مصنف')
+                if category not in categories_data:
+                    categories_data[category] = {'courses': [], 'completed': 0, 'total': 0, 'hours': 0}
+                
+                categories_data[category]['courses'].append(course)
+                categories_data[category]['total'] += 1
+                categories_data[category]['hours'] += course.get('hours', 0)
+                if course.get('status') == 'completed':
+                    categories_data[category]['completed'] += 1
+            
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
+            if not categories_data:
+                bot.send_message(chat_id, "📭 لا توجد مقررات مسجلة حالياً.")
+                return True
+            
+            # إرسال البطاقة الرئيسية
+            main_card = f"""🎯 *الخطة الدراسية الشاملة* 
+━━━━━━━━━━━━━━━━━━━━
+📊 *الإحصاءات العامة:*
+• 📚 عدد المقررات في الخطة: {len(courses_list)}
+• ✅ عدد المقررات المكتملة: {sum(1 for c in courses_list if c.get('status') == 'completed')}
+• 🕒 مجموع الساعات المكتملة: {sum(c.get('hours', 0) for c in courses_list)}
+        
+👇 اختر الفئة لعرض المقررات:"""
+            
+            # إنشاء keyboard للفئات
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+            buttons = []
+            for category in categories_data.keys():
+                short_name = category[:15] + "..." if len(category) > 15 else category
+                buttons.append(types.KeyboardButton(f"📁 {short_name}"))
+            
+            for i in range(0, len(buttons), 2):
+                if i + 1 < len(buttons):
+                    markup.row(buttons[i], buttons[i+1])
+                else:
+                    markup.row(buttons[i])
+            
+            markup.row(types.KeyboardButton("🏠 الرئيسية"))
+            
+            bot.send_message(chat_id, main_card, parse_mode="Markdown", reply_markup=markup)
+            
+            # حفظ البيانات للمرحلة القادمة
+            user_categories_data[chat_id] = {
+                'categories': categories_data, 
+                'action': 'awaiting_category'
+            }
+            return True
+
+        # مقررات حالية
+        elif text == "📌 مقررات حالية":
+            loading_msg = bot.send_message(chat_id, "🔄 جاري جلب المقررات...")
+            
+            study_plan = scraper.fetch_study_plan()
+            current_courses = [
+                c for c in study_plan.get('courses', []) 
+                if c.get('status') in ['in_progress', 'registered', 'current']
+            ]
+            
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
+            if not current_courses:
+                bot.send_message(chat_id, "⏳ لا توجد مقررات قيد الدراسة هذا الفصل.")
+                return True
+            
+            total_hours = sum(c.get('hours', 0) for c in current_courses)
+            reply = f"📌 **المقررات الحالية** ({len(current_courses)} مقرر)\n🕒 **مجموع الساعات:** {total_hours}\n\n"
+            
+            for i, course in enumerate(current_courses, 1):
+                status_emoji = "📚" if course.get('is_elective', False) else "📖"
+                reply += f"{i}. {status_emoji} **{course['course_code']}** - {course['course_name']}\n⏰ {course.get('hours', 0)} ساعة\n\n"
+            
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
+            return True
+
+        # نسبة الإنجاز
+        elif text == "🎯 نسبة الإنجاز":
+            stats = scraper.fetch_study_plan().get('stats', {})
+            if not stats:
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتك.")
+                return True
+
+            percentage = stats['completion_percentage']
+            progress_bar = "🟩" * int(percentage / 10) + "⬜" * (10 - int(percentage / 10))
+            remaining_hours = stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']
+
+            reply = f"""🎯 *نسبة إنجازك الدراسي:*
+{progress_bar}
+{percentage}% مكتمل
+
+📊 التفاصيل:
+• المطلوب: {stats['total_hours_required']} ساعة
+• المكتمل: {stats['total_hours_completed']} ساعة
+• المحتسب: {stats['total_hours_transferred']} ساعة
+• المتبقي: {remaining_hours if remaining_hours > 0 else 0} ساعة"""
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
+            return True
+
+        # تحديث البيانات
+        elif text == "🔄 تحديث بياناتي":
+            bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
+            success = scraper.update_student_data(chat_id)
+            if success:
+                bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
+            else:
+                bot.send_message(chat_id, "⚠️ فشل التحديث، تحقق من بياناتك وحاول لاحقاً.")
+            return True
+
+    except Exception as e:
+        logger.error(f"Academic stats error for {chat_id}: {e}")
+        bot.send_message(chat_id, f"❌ حدث خطأ: {str(e)}")
     
     return False
 
@@ -558,8 +752,6 @@ def handle_all_messages(message):
     chat_id = message.chat.id
     text = (message.text or "").strip()
     
-    log_chat_interaction(chat_id, text)
-    
     # 1. معالجة المحادثات النشطة أولاً
     if handle_active_chats(chat_id, text):
         return
@@ -572,19 +764,27 @@ def handle_all_messages(message):
     if handle_login_stages(chat_id, text):
         return
         
-    # 4. معالجة أوامر الأدمن
+    # 4. معالجة اختيار الفئة في المقررات
+    if handle_category_selection(chat_id, text):
+        return
+        
+    # 5. معالجة أوامر الأدمن
     if handle_admin_commands(chat_id, text):
         return
         
-    # 5. معالجة القروبات والبحث
+    # 6. معالجة القروبات والبحث
     if handle_groups_search(chat_id, text):
         return
         
-    # 6. معالجة الخدمات الأكاديمية
+    # 7. معالجة الخدمات الأكاديمية
     if handle_academic_services(chat_id, text):
         return
         
-    # 7. معالجة الأزرار العامة
+    # 8. معالجة الإحصائيات والمقررات
+    if handle_academic_stats(chat_id, text):
+        return
+        
+    # 9. معالجة الأزرار العامة
     handle_general_buttons(chat_id, text)
 
 def handle_active_chats(chat_id, text):
@@ -606,7 +806,8 @@ def handle_active_chats(chat_id, text):
             bot.send_message(partner_id, f"👤 [مجهول]: {text}", reply_markup=markup)
         except Exception as e:
             bot.send_message(chat_id, "❌ تعذر إرسال الرسالة.")
-            del user_sessions[chat_id]
+            if chat_id in user_sessions:
+                del user_sessions[chat_id]
         
         return True
     return False
@@ -633,6 +834,99 @@ def end_active_chat(chat_id):
         bot.send_message(chat_id, "✅ تم إنهاء المحادثة")
         send_main_menu(chat_id)
 
+def handle_category_selection(chat_id, text):
+    """معالجة اختيار الفئة في المقررات"""
+    if chat_id in user_categories_data and user_categories_data[chat_id].get('action') == 'awaiting_category':
+        selected_text = text.strip()
+        
+        # التحقق من زر الرئيسية
+        if selected_text == "🏠 الرئيسية":
+            if chat_id in user_categories_data:
+                del user_categories_data[chat_id]
+            send_main_menu(chat_id)
+            return True
+        
+        # إذا لم يكن زر الرئيسية، نتعامل معه كفئة
+        selected_category = selected_text.replace("📁 ", "").strip()
+        categories = user_categories_data[chat_id]['categories']
+        
+        # البحث عن الفئة المطابقة
+        matched_category = None
+        for category in categories.keys():
+            clean_selected = selected_category.replace("...", "").strip()
+            clean_category = category.replace("...", "").strip()
+            
+            if (clean_selected in clean_category or 
+                clean_category in clean_selected or 
+                clean_selected.startswith(clean_category[:5]) or
+                clean_category.startswith(clean_selected[:5])):
+                matched_category = category
+                break
+        
+        if matched_category:
+            category_data = categories[matched_category]
+            completion_percent = 0
+            if category_data['total'] > 0:
+                completion_percent = (category_data['completed'] / category_data['total']) * 100
+            
+            category_card = f"""📋 *{matched_category}*
+━━━━━━━━━━━━━━━━━━━━
+📊 *إحصاءات الفئة:*
+• 📚 عدد المقررات: {category_data['total']}
+• ✅ مكتمل: {category_data['completed']}
+• 📈 نسبة الإنجاز: {completion_percent:.1f}%
+• 🕒 مجموع الساعات: {category_data['hours']}
+
+🎓 *المقررات:*"""
+            
+            bot.send_message(chat_id, category_card, parse_mode="Markdown")
+            
+            # إرسال المقررات
+            courses_text = ""
+            for course in category_data['courses']:
+                status_emoji = {
+                    'completed': '✅', 'failed': '❌', 'in_progress': '⏳',
+                    'exempted': '⚡', 'registered': '📝', 'not_taken': '🔘'
+                }.get(course.get('status', 'unknown'), '❔')
+                
+                course_type = "اختياري" if course.get('is_elective', False) else "إجباري"
+                grade = course.get('grade', '')
+                grade_display = f" | 🎯 {grade}" if grade else ""
+                
+                course_line = f"{status_emoji} {course.get('course_code', '')} - {course.get('course_name', '')} ({course.get('hours', 0)} س){grade_display}\n"
+                
+                if len(courses_text + course_line) > 3500:
+                    bot.send_message(chat_id, courses_text, parse_mode="Markdown")
+                    courses_text = course_line
+                else:
+                    courses_text += course_line
+            
+            if courses_text:
+                bot.send_message(chat_id, courses_text, parse_mode="Markdown")
+            
+            # إعادة عرض keyboard الفئات
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+            buttons = []
+            for category in categories.keys():
+                short_name = category[:15] + "..." if len(category) > 15 else category
+                buttons.append(types.KeyboardButton(f"📁 {short_name}"))
+            
+            for i in range(0, len(buttons), 2):
+                if i + 1 < len(buttons):
+                    markup.row(buttons[i], buttons[i+1])
+                else:
+                    markup.row(buttons[i])
+            
+            markup.row(types.KeyboardButton("🏠 الرئيسية"))
+            
+            bot.send_message(chat_id, "👇 اختر فئة أخرى أو العودة للرئيسية:", reply_markup=markup)
+        else:
+            bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة. اختر من القائمة:")
+        
+        return True
+    
+    return False
+
 def handle_general_buttons(chat_id, text):
     """معالجة الأزرار العامة"""
     # الأزرار الرئيسية
@@ -646,6 +940,8 @@ def handle_general_buttons(chat_id, text):
         send_cel_services(chat_id)
     elif text == "🔗 منصة المواد المشتركة":
         send_manasa_services(chat_id)
+    elif text == "📖 الخطة الدراسية":
+        send_academic_stats_menu(chat_id)
     elif text == "🏠 الرئيسية":
         cleanup_states(chat_id)
         send_main_menu(chat_id)
@@ -655,6 +951,34 @@ def handle_general_buttons(chat_id, text):
         send_main_menu(chat_id)
     elif text == "✉️ إرسال اقتراح":
         bot.send_message(chat_id, "📬 لإرسال اقتراح، اضغط على الرابط التالي للتواصل عبر بوت الاقتراحات:\nhttps://t.me/QOUSUGBOT")
+    elif text == "⬅️ عودة للرئيسية":
+        cleanup_states(chat_id)
+        send_main_menu(chat_id)
+    elif text == "📅 التقويم الحالي":
+        try:
+            calendar = QOUScraper.get_active_calendar()
+            bot.send_message(chat_id, calendar)
+        except Exception as e:
+            bot.send_message(chat_id, f"⚠️ صار خطأ أثناء جلب التقويم:\n{e}")
+    elif text == "📅 عرض التقويم القادم للفصل الحالي":
+        calendar_text1 = QOUScraper.get_full_current_semester_calendar()
+        bot.send_message(chat_id, calendar_text1)
+    elif text == "🔄 تحديث حالة التأجيل":
+        user = get_user(chat_id)
+        if not user or not user.get("student_id"):
+            bot.send_message(chat_id, "⚠️ يرجى تسجيل الدخول أولاً باستخدام /login")
+            return
+        
+        bot.send_chat_action(chat_id, 'typing')
+        scraper = QOUScraper(user["student_id"], user["password"])
+        
+        if scraper.login():
+            session_statess[chat_id] = scraper
+            new_status = scraper.get_delay_status()
+            bot.send_message(chat_id, f"✅ تم التحديث: {new_status}")
+            send_cel_services(chat_id)
+        else:
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول")
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 
