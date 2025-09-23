@@ -129,27 +129,32 @@ def send_academic_services(chat_id):
     bot.send_message(chat_id, "⬇️ اختر خدمة أكاديمية:", reply_markup=markup)
 
 def send_cel_services(chat_id):
-    """خدمات التقويم"""
+    """القائمة الفرعية للخدمات الأكاديمية والجدول والتقويم"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     
-    current_week_text = QOUScraper.get_current_week_type()
+    # أزرار التقويم
     markup.add(
         types.KeyboardButton("📅 التقويم الحالي"),
         types.KeyboardButton("📅 عرض التقويم القادم للفصل الحالي")
     )
-    markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
     
+    # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
+    current_week_text = QOUScraper.get_current_week_type()
+    markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
     if chat_id in session_statess:
         scraper = session_statess[chat_id]
         delay_status = scraper.get_delay_status()
         markup.add(types.KeyboardButton(f"📅 {delay_status}"))
     else:
-        markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة"))
-    
+        markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة")) 
     markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
+
+
+    # زر العودة
     markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
 
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
+
 
 def send_manasa_services(chat_id):
     """منصة المواد المشتركة"""
