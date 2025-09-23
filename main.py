@@ -129,32 +129,66 @@ def send_academic_services(chat_id):
     bot.send_message(chat_id, "⬇️ اختر خدمة أكاديمية:", reply_markup=markup)
 
 def send_cel_services(chat_id):
-    """القائمة الفرعية للخدمات الأكاديمية والجدول والتقويم"""
+    """خدمات التقويم"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     
-    # أزرار التقويم
+    # ✅ نسخة محسنة مع معالجة أفضل للأخطاء
+    def calculate_week_type():
+        """دالة بديلة لحساب نوع الأسبوع بدون الاعتماد على QOUScraper"""
+        try:
+            start_date = datetime.strptime("13/09/2025", "%d/%m/%Y")
+            today = datetime.today()
+            
+            delta_days = (today - start_date).days
+            if delta_days < 0:
+                return "📅 الأسبوع الحالي: لم يبدأ بعد"
+            
+            week_number = (delta_days // 7) + 1
+            week_type = "فردي" if week_number % 2 == 1 else "زوجي"
+            
+            schedule_groups = {
+                "ش-1": [1, 5, 9, 13],
+                "ش-2": [2, 6, 10, 14], 
+                "ش-3": [3, 7, 11, 15],
+                "ش-4": [4, 8, 12, 16]
+            }
+            
+            current_schedule = "لا يوجد جدول"
+            for schedule_name, weeks in schedule_groups.items():
+                if week_number in weeks:
+                    current_schedule = schedule_name
+                    break
+            
+            return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
+        
+        except Exception as e:
+            logger.error(f"Error calculating week type: {e}")
+            return "📅 الأسبوع الحالي: غير محدد"
+    
+    current_week_text = calculate_week_type()
+    
     markup.add(
         types.KeyboardButton("📅 التقويم الحالي"),
         types.KeyboardButton("📅 عرض التقويم القادم للفصل الحالي")
     )
-    
-    # زر نوع الأسبوع الحالي (غير قابل للضغط على أنه إجراء، فقط عرض)
-    current_week_text = QOUScraper.get_current_week_type()
     markup.add(types.KeyboardButton(f"🟢 {current_week_text}"))
+    
+    # حالة التأجيل
     if chat_id in session_statess:
         scraper = session_statess[chat_id]
-        delay_status = scraper.get_delay_status()
-        markup.add(types.KeyboardButton(f"📅 {delay_status}"))
+        try:
+            delay_status = scraper.get_delay_status()
+            markup.add(types.KeyboardButton(f"📅 {delay_status}"))
+        except Exception as e:
+            logger.error(f"Error getting delay status: {e}")
+            markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة"))
     else:
-        markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة")) 
+        markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة"))
+    
     markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
-
-
-    # زر العودة
     markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
 
     bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
-
 
 def send_manasa_services(chat_id):
     """منصة المواد المشتركة"""
