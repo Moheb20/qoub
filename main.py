@@ -1507,8 +1507,15 @@ def handle_all_messages(message):
             
             bot.send_message(chat_id, main_card, parse_mode="Markdown", reply_markup=markup)
             
-            # حفظ بيانات الفئات في الذاكرة المؤقتة للاستجابة للاختيارات
-            user_data[chat_id] = {'categories': categories_data, 'action': 'awaiting_category'}
+            # ✅ التصحيح: استخدام متغير ثابت (user_categories_data) في كلا الجزئين
+            if chat_id not in user_categories_data:
+                user_categories_data[chat_id] = {}
+            
+            user_categories_data[chat_id] = {
+                'categories': categories_data, 
+                'action': 'awaiting_category',
+                'timestamp': datetime.now().timestamp()
+            }
             
         except Exception as e:
             try:
@@ -1517,7 +1524,7 @@ def handle_all_messages(message):
                 pass
             bot.send_message(chat_id, f"🚨 حدث خطأ: {str(e)}")
     
-    # ⬇️⬇️⬇️ هذا السطر يجب أن يكون بنفس مستوى elif السابق ⬇️⬇️⬇️
+    # ✅ التصحيح: استخدام نفس المتغير (user_categories_data) في كلا الجزئين
     elif chat_id in user_categories_data and user_categories_data[chat_id].get('action') == 'awaiting_category':
         selected_text = message.text.strip()
         
@@ -1531,18 +1538,27 @@ def handle_all_messages(message):
         selected_category = selected_text.replace("📁 ", "").strip()
         categories = user_categories_data[chat_id]['categories']
         
-        # البحث عن الفئة المطابقة
+        # البحث عن الفئة المطابقة (بتحسين البحث)
         matched_category = None
         for category in categories.keys():
-            if selected_category in category or category in selected_category:
+            # ✅ تحسين البحث ليكون أكثر مرونة
+            clean_selected = selected_category.replace("...", "").strip()
+            clean_category = category.replace("...", "").strip()
+            
+            if (clean_selected in clean_category or 
+                clean_category in clean_selected or 
+                clean_selected.startswith(clean_category[:5]) or
+                clean_category.startswith(clean_selected[:5])):
                 matched_category = category
                 break
         
         if matched_category:
             category_data = categories[matched_category]
             
-            # إنشاء بطاقة الفئة
-            completion_percent = (category_data['completed'] / category_data['total'] * 100) if category_data['total'] > 0 else 0
+            # ✅ حساب نسبة الإنجاز بشكل آمن
+            completion_percent = 0
+            if category_data['total'] > 0:
+                completion_percent = (category_data['completed'] / category_data['total']) * 100
             
             category_card = f"""
     📋 *{matched_category}*
@@ -1559,27 +1575,36 @@ def handle_all_messages(message):
             # إرسال بطاقة الفئة
             bot.send_message(chat_id, category_card, parse_mode="Markdown")
             
-            # إرسال كل مقرر كبطاقة منفصلة
-            for course in category_data['courses']:
+            # ✅ إرسال المقررات بشكل مجمع لتجنب Flood
+            courses_text = ""
+            for i, course in enumerate(category_data['courses']):
                 status_emoji = {
                     'completed': '✅',
                     'failed': '❌', 
                     'in_progress': '⏳',
-                    'exempted': '⚡'
+                    'exempted': '⚡',
+                    'registered': '📝',
+                    'not_taken': '🔘'
                 }.get(course.get('status', 'unknown'), '❔')
                 
-                course_card = f"""
-    {status_emoji} *{course.get('course_code', '')} - {course.get('course_name', '')}*
-    ┌───────────────────
-    │ 📊 الحالة: {course.get('detailed_status', '')}
-    │ 🕒 الساعات: {course.get('hours', 0)}
-    │ 📁 النوع: {'اختياري' if course.get('is_elective', False) else 'إجباري'}
-    └───────────────────
-                """
+                course_type = "اختياري" if course.get('is_elective', False) else "إجباري"
+                grade = course.get('grade', '')
+                grade_display = f" | 🎯 {grade}" if grade else ""
                 
-                bot.send_message(chat_id, course_card, parse_mode="Markdown")
+                course_line = f"{status_emoji} {course.get('course_code', '')} - {course.get('course_name', '')} ({course.get('hours', 0)} س){grade_display}\n"
+                
+                # ✅ إذا تجاوز النص حد معين، أرسل الجزء الحالي وابدأ جديد
+                if len(courses_text + course_line) > 3500:
+                    bot.send_message(chat_id, courses_text, parse_mode="Markdown")
+                    courses_text = course_line
+                else:
+                    courses_text += course_line
             
-            # إعادة عرض keyboard الفئات
+            # ✅ إرسال ما تبقى من المقررات
+            if courses_text:
+                bot.send_message(chat_id, courses_text, parse_mode="Markdown")
+            
+            # ✅ إعادة عرض keyboard الفئات
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
             buttons = []
             for category in categories.keys():
@@ -1597,8 +1622,7 @@ def handle_all_messages(message):
             bot.send_message(chat_id, "👇 اختر فئة أخرى أو العودة للرئيسية:", reply_markup=markup)
             
         else:
-            bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة.")
-    
+            bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة. اختر من القائمة:")
     elif text == "📌 مقررات حالية":
         user = get_user(chat_id)
         if not user or not user['student_id'] or not user['password']:
@@ -1606,22 +1630,42 @@ def handle_all_messages(message):
             return
     
         try:
+            loading_msg = bot.send_message(chat_id, "🔄 جاري جلب المقررات...")
+            
             scraper = QOUScraper(user['student_id'], user['password'])
             study_plan = scraper.fetch_study_plan()
-            current_courses = [c for c in study_plan['courses'] if c['status'] == 'in_progress']
-    
+            
+            # ✅ فلترة المقررات الحالية
+            current_courses = [
+                c for c in study_plan.get('courses', []) 
+                if c.get('status') in ['in_progress', 'registered', 'current']
+            ]
+            
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
             if not current_courses:
-                bot.send_message(chat_id, "⏳ لا يوجد مقررات قيد الدراسة.")
+                bot.send_message(chat_id, "⏳ لا توجد مقررات قيد الدراسة هذا الفصل.")
                 return
-    
-            reply = "📌 *المقررات الحالية:*\n\n"
-            for c in current_courses:
-                reply += f"▫️ {c['course_code']} - {c['course_name']} ({c['hours']} س)\n"
-    
+            
+            # ✅ إنشاء رسالة منظمة
+            total_hours = sum(c.get('hours', 0) for c in current_courses)
+            
+            reply = f"📌 **المقررات الحالية** ({len(current_courses)} مقرر)\n"
+            reply += f"🕒 **مجموع الساعات:** {total_hours}\n\n"
+            
+            for i, course in enumerate(current_courses, 1):
+                status_emoji = "📚" if course.get('is_elective', False) else "📖"
+                reply += f"{i}. {status_emoji} **{course['course_code']}** - {course['course_name']}\n"
+                reply += f"   ⏰ {course.get('hours', 0)} ساعة\n\n"
+            
             bot.send_message(chat_id, reply, parse_mode="Markdown")
-    
+            
         except Exception as e:
-            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
+            try:
+                bot.delete_message(chat_id, loading_msg.message_id)
+            except:
+                pass
+            bot.send_message(chat_id, f"⚠️ حدث خطأ: {str(e)}")
     
     
     elif text == "🎯 نسبة الإنجاز":
