@@ -449,7 +449,118 @@ def process_search(message):
 # ================================
 # 🎯 قسم الخدمات الأكاديمية
 # ================================
+@bot.callback_query_handler(func=lambda call: call.data == "show_upcoming_lectures")
+def handle_upcoming_lectures(call):
+    chat_id = call.message.chat.id
+    user = get_user(chat_id)
+    
+    if not user:
+        bot.answer_callback_query(call.id, "❌ لم يتم العثور على بياناتك. أرسل /start أولاً.")
+        return
 
+    try:
+        # حذف الرسالة القديمة
+        bot.delete_message(chat_id, call.message.message_id)
+        
+        # عرض رسالة انتظار
+        wait_msg = bot.send_message(chat_id, "⏳ جاري تحضير المحاضرات القادمة...")
+        
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.delete_message(chat_id, wait_msg.message_id)
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+            return
+
+        # جلب المحاضرات القادمة - تحتاج إلى تعديل الدالة في QOUScraper
+        upcoming_lectures = scraper.get_upcoming_lectures()
+        
+        # حذف رسالة الانتظار
+        bot.delete_message(chat_id, wait_msg.message_id)
+        
+        if not upcoming_lectures:
+            bot.send_message(chat_id, "📭 لا توجد محاضرات قادمة في الأيام القليلة المقبلة.")
+            return
+        
+        # إضافة زر للعودة لجدول المحاضرات
+        keyboard = types.InlineKeyboardMarkup()
+        back_btn = types.InlineKeyboardButton(text="↩️ العودة لجدول المحاضرات", callback_data="back_to_schedule")
+        keyboard.add(back_btn)
+        
+        # إرسال المحاضرات القادمة
+        bot.send_message(chat_id, upcoming_lectures, parse_mode="Markdown", reply_markup=keyboard)
+        
+    except Exception as e:
+        logger.error(f"Error in upcoming lectures for {chat_id}: {e}")
+        bot.answer_callback_query(call.id, "❌ حدث خطأ. حاول مرة أخرى.")
+
+@bot.callback_query_handler(func=lambda call: call.data == "back_to_schedule")
+def handle_back_to_schedule(call):
+    chat_id = call.message.chat.id
+    
+    try:
+        # حذف الرسالة الحالية
+        bot.delete_message(chat_id, call.message.message_id)
+        
+        # إعادة عرض جدول المحاضرات
+        user = get_user(chat_id)
+        if not user:
+            bot.answer_callback_query(call.id, "❌ لم يتم العثور على بياناتك.")
+            return
+
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول.")
+            return
+
+        schedule = scraper.fetch_lectures_schedule()
+        if not schedule:
+            bot.send_message(chat_id, "📭 لم يتم العثور على جدول المحاضرات.")
+            return
+
+        # كود عرض الجدول
+        days_order = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"]
+        schedule_by_day = {}
+
+        for meeting in schedule:
+            day = meeting.get('day', '').strip() or "غير محدد"
+            time = meeting.get('time', '--:-- - --:--')
+            course_name = meeting.get('course_name', 'غير محدد')
+            building = meeting.get('building', '')
+            room = meeting.get('room', '')
+            lecturer = meeting.get('lecturer', '')
+
+            entry_text = f"📘 {course_name}\n⏰ {time}\n"
+            if building or room:
+                entry_text += f"📍 {building} - {room}\n"
+            if lecturer:
+                entry_text += f"👨‍🏫 {lecturer}"
+
+            schedule_by_day.setdefault(day, []).append(entry_text)
+
+        text_msg = "🗓️ *جدول المحاضرات:*\n\n"
+        
+        for day in days_order:
+            if day in schedule_by_day:
+                text_msg += f"📅 *{day}:*\n"
+                for entry in schedule_by_day[day]:
+                    text_msg += f"{entry}\n\n"
+
+        for day, entries in schedule_by_day.items():
+            if day not in days_order:
+                text_msg += f"📅 *{day}:*\n"
+                for entry in entries:
+                    text_msg += f"{entry}\n\n"
+
+        # إضافة زر عرض المواعيد
+        keyboard = types.InlineKeyboardMarkup()
+        show_schedule_btn = types.InlineKeyboardButton(text="📢 عرض المحاضرات القادمة", callback_data="show_upcoming_lectures")
+        keyboard.add(show_schedule_btn)
+
+        bot.send_message(chat_id, text_msg, parse_mode="Markdown", reply_markup=keyboard)
+        
+    except Exception as e:
+        logger.error(f"Error in back to schedule for {chat_id}: {e}")
+        bot.answer_callback_query(call.id, "❌ حدث خطأ.")
 def handle_academic_services(chat_id, text):
     """معالجة الخدمات الأكاديمية"""
     user = get_user(chat_id)
@@ -596,7 +707,17 @@ def handle_academic_services(chat_id, text):
 # ================================
 # 📊 قسم الإحصائيات والمقررات
 # ================================
-
+def handle_study_plans(chat_id):
+    """معالجة عرض الخطط الدراسية"""
+    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+    
+    for college in study_plans.keys():
+        markup.add(types.KeyboardButton(college))
+    
+    markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
+    study_plan_states[chat_id] = {"stage": "awaiting_college"}
+    bot.send_message(chat_id, "📚 اختر الكلية:", reply_markup=markup)
 def handle_academic_stats(chat_id, text):
     """معالجة الإحصائيات والمقررات"""
     user = get_user(chat_id)
@@ -807,24 +928,119 @@ def handle_all_messages(message):
     if handle_category_selection(chat_id, text):
         return
         
-    # 5. معالجة أوامر الأدمن
+    # 5. معالجة اختيار المواد من المنصة
+    if handle_course_selection(chat_id, text):
+        return
+        
+    # 6. معالجة الخطط الدراسية
+    if handle_study_plan_selection(chat_id, text):  # ✅ أضف هذا السطر
+        return
+        
+    # 7. معالجة أوامر الأدمن
     if handle_admin_commands(chat_id, text):
         return
         
-    # 6. معالجة القروبات والبحث
+    # 8. معالجة القروبات والبحث
     if handle_groups_search(chat_id, text):
         return
         
-    # 7. معالجة الخدمات الأكاديمية
+    # 9. معالجة الخدمات الأكاديمية
     if handle_academic_services(chat_id, text):
         return
         
-    # 8. معالجة الإحصائيات والمقررات
+    # 10. معالجة الإحصائيات والمقررات
     if handle_academic_stats(chat_id, text):
         return
         
-    # 9. معالجة الأزرار العامة
+    # 11. معالجة الأزرار العامة
     handle_general_buttons(chat_id, text)
+    def handle_study_plan_selection(chat_id, text):
+    """معالجة اختيارات الخطط الدراسية"""
+    if chat_id not in study_plan_states:
+        return False
+    
+    stage = study_plan_states[chat_id].get("stage")
+    
+    # اختيار الكلية
+    if stage == "awaiting_college":
+        if text in study_plans:
+            study_plan_states[chat_id]["college"] = text
+            study_plan_states[chat_id]["stage"] = "awaiting_major"
+    
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            for major in study_plans[text].keys():
+                markup.add(types.KeyboardButton(major))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+    
+            bot.send_message(chat_id, f"🏛️ اختر التخصص ضمن '{text}':", reply_markup=markup)
+            return True
+    
+        elif text == "العودة للرئيسية":
+            study_plan_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return True
+        
+        else:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار الكلية من القائمة.")
+            return True
+    
+    # اختيار التخصص
+    elif stage == "awaiting_major":
+        college = study_plan_states[chat_id]["college"]
+        major_item = study_plans[college].get(text)
+    
+        if major_item:
+            if isinstance(major_item, dict):
+                # يوجد مستويات أو نسخ متعددة
+                markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+                for sublevel in major_item.keys():
+                    markup.add(types.KeyboardButton(sublevel))
+                markup.add(types.KeyboardButton("العودة للتخصص"))
+                study_plan_states[chat_id]["stage"] = "awaiting_sublevel"
+                study_plan_states[chat_id]["major"] = text
+                study_plan_states[chat_id]["sublevels"] = major_item
+                bot.send_message(chat_id, f"🔹 اختر النسخة أو المستوى لـ '{text}':", reply_markup=markup)
+                return True
+            else:
+                # رابط مباشر
+                bot.send_message(chat_id, f"🔗 رابط خطة '{text}' ضمن '{college}':\n{major_item}")
+                study_plan_states.pop(chat_id, None)
+                send_main_menu(chat_id)
+                return True
+        elif text == "العودة للرئيسية":
+            study_plan_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return True
+        else:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار التخصص من القائمة.")
+            return True
+    
+    # اختيار النسخة الفرعية
+    elif stage == "awaiting_sublevel":
+        sublevels = study_plan_states[chat_id]["sublevels"]
+        major = study_plan_states[chat_id]["major"]
+        college = study_plan_states[chat_id]["college"]
+    
+        if text in sublevels:
+            bot.send_message(chat_id, f"🔗 رابط خطة '{major}' ({text}) ضمن '{college}':\n{sublevels[text]}")
+            study_plan_states.pop(chat_id, None)
+            send_main_menu(chat_id)
+            return True
+        elif text == "العودة للتخصص":
+            study_plan_states[chat_id]["stage"] = "awaiting_major"
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            for major_name in study_plans[college].keys():
+                markup.add(types.KeyboardButton(major_name))
+            markup.add(types.KeyboardButton("العودة للرئيسية"))
+            bot.send_message(chat_id, f"🏛️ اختر التخصص ضمن '{college}':", reply_markup=markup)
+            return True
+        else:
+            bot.send_message(chat_id, "⚠️ الرجاء اختيار النسخة من القائمة.")
+            return True
+    
+    return False
+
+
 
 def handle_active_chats(chat_id, text):
     """معالجة المحادثات النشطة"""
@@ -993,6 +1209,22 @@ def handle_general_buttons(chat_id, text):
     elif text == "⬅️ عودة للرئيسية":
         cleanup_states(chat_id)
         send_main_menu(chat_id)
+    
+    # ✅ التصحيح: إضافة الأزرار الجديدة
+    elif text == "🔗 ربط الحساب بمنصة المواد المشتركة":
+        handle_portal_linking(chat_id)
+    elif text == "👥 منصة المواد المشتركة":
+        handle_portal_courses(chat_id)
+    
+    # ✅ إضافة زر الخطط الدراسية
+    elif text == "📚 الخطط الدراسية":
+        handle_study_plans(chat_id)
+    
+    # ✅ إضافة زر العودة من جدول الامتحانات
+    elif text == "العودة للرئيسية":
+        cleanup_states(chat_id)
+        send_main_menu(chat_id)
+    
     elif text == "📅 التقويم الحالي":
         try:
             calendar = QOUScraper.get_active_calendar()
