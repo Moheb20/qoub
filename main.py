@@ -165,7 +165,7 @@ def send_cel_services(chat_id):
         types.KeyboardButton("📅 عرض التقويم القادم للفصل الحالي")
     )
 
-    # زر نوع الأسبوع الحالي
+    # زر نوع الأسبوع الحالي (دائماً موجود بمفرده)
     if chat_id in session_statess:
         scraper = session_statess[chat_id]
         current_week_text = scraper.get_current_week_type()   # ✅ من object مش من الكلاس
@@ -176,13 +176,11 @@ def send_cel_services(chat_id):
         markup.add(types.KeyboardButton("🟢 غير معروف"))
         markup.add(types.KeyboardButton("📅 حالة التأجيل: ❌ غير متوفرة"))
 
-    # زر التحديث
-    markup.add(types.KeyboardButton("🔄 تحديث حالة التأجيل"))
-
     # زر العودة
-    markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+    markup.add(types.KeyboardButton("🔙 العودة للقائمة الرئيسية"))
 
-    bot.send_message(chat_id, "⬇️ اختر خدمة:", reply_markup=markup)
+    # إرسال الرسالة مع الأزرار
+    bot.send_message(chat_id, "اختر الخدمة المطلوبة:", reply_markup=markup)
 
 
 def send_manasa_services(chat_id):
