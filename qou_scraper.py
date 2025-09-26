@@ -545,8 +545,9 @@ class QOUScraper:
             logger.error(f"Error in get_current_week_type: {e}")
             return "📅 الأسبوع الحالي: غير محدد"
     
-    
-        def get_delay_status(self):
+    def get_delay_status(self):
+        """Get delay application status"""
+        try:
             # جلب الصفحة مباشرة (الsession ستعيد التسجيل إذا needed)
             resp = self.session.get("https://portal.qou.edu/student/studDelayAppList.do")
             
@@ -554,6 +555,9 @@ class QOUScraper:
                 return "📅 فترة التأجيل: مفتوحة 🟢"
             else:
                 return "📅 فترة التأجيل: مغلقة 🔴"
+        except Exception as e:
+            logger.error(f"Error in get_delay_status: {e}")
+            return "⚠️ خطأ في التحقق من حالة التأجيل"
         
 
     @staticmethod
