@@ -505,45 +505,45 @@ class QOUScraper:
     
         return events[0]  # أول حدث فعال
         
-    def get_current_week_type(self, target_date=None):
-        try:
-            start_date = datetime.strptime("13/09/2025", "%d/%m/%Y")
-            
-            if target_date and isinstance(target_date, str):
-                today = datetime.strptime(target_date, "%d/%m/%Y")
-            else:
-                today = datetime.today()
-            
-            delta_days = (today - start_date).days
-            if delta_days < 0:
-                return "📅 الأسبوع الحالي: لم يبدأ بعد"
-            
-            # حساب رقم الأسبوع (يبدأ من 1)
-            week_number = (delta_days // 7) + 1
-            
-            # تحديد النوع (فردي/زوجي)
-            week_type = "فردي" if week_number % 2 == 1 else "زوجي"
-            
-            # تحديد الجدول (ش-1، ش-2، ش-3، ش-4)
-            schedule_groups = {
-                "ش-1": [1, 5, 9, 13],
-                "ش-2": [2, 6, 10, 14], 
-                "ش-3": [3, 7, 11, 15],
-                "ش-4": [4, 8, 12, 16]
-            }
-            
-            current_schedule = "لا يوجد جدول"
-            for schedule_name, weeks in schedule_groups.items():
-                if week_number in weeks:
-                    current_schedule = schedule_name
-                    break
-            
-            return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
+@staticmethod
+def get_current_week_type(target_date=None):
+    try:
+        start_date = datetime.strptime("13/09/2025", "%d/%m/%Y")
         
-        except Exception as e:
-            logger.error(f"Error in get_current_week_type: {e}")
-            return "📅 الأسبوع الحالي: غير محدد"
-
+        if target_date and isinstance(target_date, str):
+            today = datetime.strptime(target_date, "%d/%m/%Y")
+        else:
+            today = datetime.today()
+        
+        delta_days = (today - start_date).days
+        if delta_days < 0:
+            return "📅 الأسبوع الحالي: لم يبدأ بعد"
+        
+        # حساب رقم الأسبوع (يبدأ من 1)
+        week_number = (delta_days // 7) + 1
+        
+        # تحديد النوع (فردي/زوجي)
+        week_type = "فردي" if week_number % 2 == 1 else "زوجي"
+        
+        # تحديد الجدول (ش-1، ش-2، ش-3، ش-4)
+        schedule_groups = {
+            "ش-1": [1, 5, 9, 13],
+            "ش-2": [2, 6, 10, 14], 
+            "ش-3": [3, 7, 11, 15],
+            "ش-4": [4, 8, 12, 16]
+        }
+        
+        current_schedule = "لا يوجد جدول"
+        for schedule_name, weeks in schedule_groups.items():
+            if week_number in weeks:
+                current_schedule = schedule_name
+                break
+        
+        return f"📅 الأسبوع {week_number} ({week_type}) - الجدول: {current_schedule}"
+    
+    except Exception as e:
+        logger.error(f"Error in get_current_week_type: {e}")
+        return "📅 الأسبوع الحالي: غير محدد"
 
 
     def get_delay_status(self):
