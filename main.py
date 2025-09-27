@@ -491,7 +491,7 @@ def handle_virtual_meetings(chat_id, text):
         return True
 
 def handle_ecourse_selection(chat_id, text):
-    """معالجة اختيار المقرر من النظام الإلكتروني - عرض جميع اللقاءات"""
+    """معالجة اختيار المقرر - عرض اللقاءات حسب العناوين الموجودة فقط"""
     if (chat_id not in user_sessions or 
         user_sessions[chat_id].get('action') != 'awaiting_ecourse_selection'):
         return False
@@ -580,28 +580,36 @@ def handle_ecourse_selection(chat_id, text):
                 'action': 'awaiting_meeting_selection'
             })
             
-            # ✅ التصحيح: عرض جميع اللقاءات بدون تحديد حد أقصى
-            markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-            
-            # تجميع اللقاءات حسب الفصل الدراسي
+            # ✅ تجميع اللقاءات حسب الفصل الدراسي (فقط الفصول الموجودة)
             meetings_by_semester = {}
             for meeting in meetings:
                 semester = meeting['semester']
-                if semester not in meetings_by_semester:
-                    meetings_by_semester[semester] = []
-                meetings_by_semester[semester].append(meeting)
+                # ✅ تجاهل الفصول غير المحددة أو "غير محدد"
+                if semester != "غير محدد":
+                    if semester not in meetings_by_semester:
+                        meetings_by_semester[semester] = []
+                    meetings_by_semester[semester].append(meeting)
             
-            # إضافة جميع اللقاءات للقائمة
+            # ✅ إذا لم يكن هناك فصول محددة، نضع جميع اللقاءات في مجموعة واحدة
+            if not meetings_by_semester:
+                meetings_by_semester["اللقاءات المتاحة"] = meetings
+            
+            markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+            
+            # ✅ إضافة اللقاءات حسب التجميع الحقيقي
             for semester, semester_meetings in meetings_by_semester.items():
-                # إضافة عنوان الفصل الدراسي
-                markup.add(types.KeyboardButton(f"📅 {semester}"))
-                
-                # إضافة جميع لقاءات هذا الفصل
-                for i, meeting in enumerate(semester_meetings, 1):
-                    title = meeting['title']
-                    if len(title) > 30:
-                        title = title[:30] + "..."
-                    markup.add(types.KeyboardButton(f"🎥 {title}"))
+                # ✅ فقط إذا كان هناك لقاءات في هذا الفصل
+                if semester_meetings:
+                    # ✅ إضافة عنوان الفصل إذا كان له معنى
+                    if semester != "اللقاءات المتاحة":
+                        markup.add(types.KeyboardButton(f"📅 {semester}"))
+                    
+                    # ✅ إضافة جميع اللقاءات بدون حدود
+                    for meeting in semester_meetings:
+                        title = meeting['title']
+                        if len(title) > 30:
+                            title = title[:30] + "..."
+                        markup.add(types.KeyboardButton(f"🎥 {title}"))
             
             markup.add(types.KeyboardButton("⬅️ عودة للمقررات"))
             markup.add(types.KeyboardButton("🏠 الرئيسية"))
@@ -609,6 +617,7 @@ def handle_ecourse_selection(chat_id, text):
             message = f"💻 **لقاءات {selected_course['name']}**\n\n"
             message += f"📊 **إجمالي اللقاءات:** {len(meetings)}\n\n"
             
+            # ✅ عرض إحصاءات الفصول الحقيقية فقط
             for semester, semester_meetings in meetings_by_semester.items():
                 message += f"**{semester}:** {len(semester_meetings)} لقاء\n"
             
@@ -626,7 +635,7 @@ def handle_ecourse_selection(chat_id, text):
     return False
 
 def handle_meeting_selection(chat_id, text):
-    """معالجة اختيار اللقاء الافتراضي - مع إرسال الفيديو"""
+    """معالجة اختيار اللقاء الافتراضي - بدون 'الفصل الحالي'"""
     if (chat_id not in user_sessions or 
         user_sessions[chat_id].get('action') != 'awaiting_meeting_selection'):
         return False
@@ -669,92 +678,70 @@ def handle_meeting_selection(chat_id, text):
             bot.send_message(chat_id, "❌ اللقاء غير موجود.")
             return True
         
-        # ✅ إرسال الفيديو المدمج مع الرابط
+        # إرسال معلومات اللقاء
         meeting_url = selected_meeting['url']
         
-        # 1. أولاً: إرسال رسالة المعلومات
         info_message = f"💻 **اللقاء الافتراضي**\n\n"
         info_message += f"📚 **المقرر:** {course.get('name', 'غير معروف')}\n"
-        info_message += f"📅 **الفصل:** {selected_meeting['semester']}\n"
+        
+        # ✅ فقط إذا كان الفصل محدداً
+        if selected_meeting['semester'] != "غير محدد":
+            info_message += f"📅 **الفصل:** {selected_meeting['semester']}\n"
+        
         info_message += f"🎯 **العنوان:** {selected_meeting['title']}\n\n"
-        info_message += "⏳ جاري تحضير اللقاء..."
+        info_message += f"🔗 **رابط اللقاء:**\n{meeting_url}\n\n"
+        info_message += "💡 انسخ الرابط وافتحه في المتصفح"
         
-        info_msg = bot.send_message(chat_id, info_message, parse_mode="Markdown")
+        # إضافة زر لفتح الرابط مباشرة
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🎥 فتح اللقاء مباشرة", url=meeting_url))
         
-        try:
-            # 2. محاولة إرسال معاينة الفيديو (إن أمكن)
-            # معظم روابط اللقاءات الافتراضية تدعم Open Graph
-            # يمكننا محاولة استخراج معاينة من الرابط
-            
-            # إرسال الرابط كرسالة منفصلة مع معاينة
-            video_message = f"🎬 **رابط اللقاء المباشر:**\n\n"
-            video_message += f"🔗 {meeting_url}\n\n"
-            video_message += "💡 **طرق المشاهدة:**\n"
-            video_message += "• انسخ الرابط وافتحه في المتصفح\n"
-            video_message += "• اضغط على الرابط مباشرة إذا كان متاحاً\n"
-            video_message += "• استخدم تطبيق VLC للبث المباشر\n\n"
-            video_message += "📱 **للجوال:** اضغط مطولاً على الرابط واختر 'فتح الرابط'"
-            
-            # إرسال الرابط مع إعدادات خاصة لعرض المعاينة
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("🎥 فتح اللقاء", url=meeting_url))
-            
-            # حذف رسالة الانتظار
-            bot.delete_message(chat_id, info_msg.message_id)
-            
-            # إرسال الرسالة النهائية
-            bot.send_message(
-                chat_id, 
-                video_message, 
-                parse_mode="Markdown",
-                reply_markup=markup,
-                disable_web_page_preview=False  # ✅ السماح بمعاينة الصفحة
-            )
-            
-            # 3. إرسال رسالة إضافية مع خيارات التنقل
-            navigation_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            navigation_markup.add(types.KeyboardButton("📋 عرض جميع اللقاءات"))
-            navigation_markup.add(types.KeyboardButton("📚 عرض المقررات"))
-            navigation_markup.add(types.KeyboardButton("🏠 الرئيسية"))
-            
-            bot.send_message(
-                chat_id,
-                "🔍 يمكنك اختيار لقاء آخر أو العودة للقائمة:",
-                reply_markup=navigation_markup
-            )
-            
-        except Exception as e:
-            logger.error(f"Error sending meeting for {chat_id}: {e}")
-            # إذا فشل إرسال المعاينة، نرسل الرابط فقط
-            error_message = f"🎬 **رابط اللقاء:**\n\n{meeting_url}\n\n"
-            error_message += "⚠️ *انسخ الرابط وافتحه في المتصفح*"
-            
-            bot.send_message(chat_id, error_message, parse_mode="Markdown")
+        bot.send_message(
+            chat_id, 
+            info_message, 
+            parse_mode="Markdown",
+            reply_markup=markup,
+            disable_web_page_preview=False
+        )
         
+        # أزرار التنقل
+        nav_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        nav_markup.add(types.KeyboardButton("📋 عرض جميع اللقاءات"))
+        nav_markup.add(types.KeyboardButton("📚 عرض المقررات"))
+        nav_markup.add(types.KeyboardButton("🏠 الرئيسية"))
+        
+        bot.send_message(chat_id, "🔍 اختر الإجراء التالي:", reply_markup=nav_markup)
         return True
     
     if text == "📋 عرض جميع اللقاءات":
-        # إعادة عرض جميع اللقاءات
         user_sessions[chat_id]['action'] = 'awaiting_meeting_selection'
         meetings = user_sessions[chat_id].get('meetings', [])
         course = user_sessions[chat_id].get('selected_course', {})
         
+        # ✅ التجميع حسب الفصول الحقيقية فقط
         meetings_by_semester = {}
         for meeting in meetings:
             semester = meeting['semester']
-            if semester not in meetings_by_semester:
-                meetings_by_semester[semester] = []
-            meetings_by_semester[semester].append(meeting)
+            if semester != "غير محدد":
+                if semester not in meetings_by_semester:
+                    meetings_by_semester[semester] = []
+                meetings_by_semester[semester].append(meeting)
+        
+        if not meetings_by_semester:
+            meetings_by_semester["اللقاءات المتاحة"] = meetings
         
         markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         
         for semester, semester_meetings in meetings_by_semester.items():
-            markup.add(types.KeyboardButton(f"📅 {semester}"))
-            for meeting in semester_meetings:
-                title = meeting['title']
-                if len(title) > 30:
-                    title = title[:30] + "..."
-                markup.add(types.KeyboardButton(f"🎥 {title}"))
+            if semester_meetings:
+                if semester != "اللقاءات المتاحة":
+                    markup.add(types.KeyboardButton(f"📅 {semester}"))
+                
+                for meeting in semester_meetings:
+                    title = meeting['title']
+                    if len(title) > 30:
+                        title = title[:30] + "..."
+                    markup.add(types.KeyboardButton(f"🎥 {title}"))
         
         markup.add(types.KeyboardButton("⬅️ عودة للمقررات"))
         markup.add(types.KeyboardButton("🏠 الرئيسية"))
@@ -767,8 +754,17 @@ def handle_meeting_selection(chat_id, text):
         )
         return True
     
+    if text.startswith("📅 "):
+        # إذا ضغط على عنوان الفصل، نعرض رسالة توضيحية
+        semester_name = text.replace("📅 ", "").strip()
+        bot.send_message(
+            chat_id, 
+            f"📅 **{semester_name}**\n\nاختر أحد اللقاءات أعلاه لمشاهدته.",
+            parse_mode="Markdown"
+        )
+        return True
+    
     if text == "📚 عرض المقررات":
-        # العودة لقائمة المقررات
         user_sessions[chat_id]['action'] = 'awaiting_ecourse_selection'
         courses = user_sessions[chat_id].get('ecourses', [])
         
@@ -783,16 +779,6 @@ def handle_meeting_selection(chat_id, text):
         markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
         
         bot.send_message(chat_id, "📋 اختر المقرر:", reply_markup=markup)
-        return True
-    
-    if text.startswith("📅 "):
-        # إذا ضغط على عنوان الفصل الدراسي، نعرض رسالة توضيحية
-        semester_name = text.replace("📅 ", "").strip()
-        bot.send_message(
-            chat_id, 
-            f"📅 **{semester_name}**\n\nاختر أحد اللقاءات أعلاه لمشاهدته.",
-            parse_mode="Markdown"
-        )
         return True
     
     return False
