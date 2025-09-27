@@ -350,12 +350,6 @@ def check_today_lectures():
         now = datetime.now(PALESTINE_TZ)
         today = now.date()
 
-        # ✅ تعريف days_map داخل الدالة
-        days_map = {
-            "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3,
-            "الجمعة": 4, "السبت": 5, "الأحد": 6
-        }
-
         # ✅ الحصول على اليوم الحالي بالعربية
         arabic_days = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
         today_arabic = arabic_days[today.weekday()]
@@ -368,7 +362,7 @@ def check_today_lectures():
         for user in users:
             user_id = user['chat_id']
             
-            # ✅ استخدام البيانات المشفرة مباشرة (بدون فك تشفير)
+            # ✅ استخدام البيانات المشفرة مباشرة
             student_id = user['student_id']
             password = user['password']
             
@@ -389,13 +383,66 @@ def check_today_lectures():
                 logger.error(f"[{user_id}] خطأ في جلب المحاضرات: {e}")
                 continue
 
+            # ✅ الحصول على معلومات الأسبوع الحالي (مثل الدالة الأصلية)
+            week_info = scraper.get_current_week_type()
+            current_week = 1
+            week_type = "فردي"
+            
+            if "الأسبوع" in week_info:
+                try:
+                    import re
+                    week_match = re.search(r'الأسبوع (\d+)', week_info)
+                    if week_match:
+                        current_week = int(week_match.group(1))
+                    
+                    if "فردي" in week_info:
+                        week_type = "فردي"
+                    elif "زوجي" in week_info:
+                        week_type = "زوجي"
+                except Exception as e:
+                    logger.debug(f"[{user_id}] Error parsing week info: {e}")
+
             user_lectures_today = 0
             
             for lecture in lectures:
-                lecture_day = lecture["day"].strip()
+                # ✅ معالجة اليوم ونوع الجدول مثل الدالة الأصلية
+                day_str = lecture.get('day', '')
+                day_name = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
+                schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
                 
-                # ✅ التحقق إذا كان اليوم مطابق
-                if lecture_day != today_arabic:
+                # ✅ التحقق إذا كان اليوم مطابق ليوم اليوم
+                if day_name != today_arabic:
+                    continue
+                
+                # ✅ التحقق من تطابق الجدول مع الأسبوع الحالي
+                def is_lecture_this_week(schedule_type, target_week, week_type):
+                    """التحقق إذا كانت المحاضرة في هذا الأسبوع حسب جدولها"""
+                    if not schedule_type or schedule_type == "أسبوعي":
+                        return True
+                    
+                    # التحقق من مجموعات الجدول (ش-1، ش-2، ش-3، ش-4)
+                    schedule_groups = {
+                        "ش-1": [1, 5, 9, 13],
+                        "ش-2": [2, 6, 10, 14], 
+                        "ش-3": [3, 7, 11, 15],
+                        "ش-4": [4, 8, 12, 16]
+                    }
+                    
+                    for group_name, weeks in schedule_groups.items():
+                        if group_name in schedule_type:
+                            return target_week in weeks
+                    
+                    # التحقق من النوع (زوجي/فردي)
+                    if "ز" in schedule_type and week_type == "زوجي":
+                        return True
+                    if "ف" in schedule_type and week_type == "فردي":
+                        return True
+                    
+                    return False
+                
+                # ✅ إذا كانت المحاضرة ليست لهذا الأسبوع، تخطيها
+                if not is_lecture_this_week(schedule_type, current_week, week_type):
+                    logger.info(f"[{user_id}] تخطي محاضرة {lecture['course_name']} - ليست هذا الأسبوع ({schedule_type})")
                     continue
                 
                 user_lectures_today += 1
@@ -403,7 +450,12 @@ def check_today_lectures():
 
                 # ✅ وقت بداية المحاضرة مع معالجة الأخطاء
                 try:
-                    start_time_str = lecture["time"].split("-")[0].strip()
+                    time_str = lecture.get("time", "")
+                    if not time_str or " - " not in time_str:
+                        logger.warning(f"[{user_id}] وقت غير صحيح للمحاضرة {lecture['course_name']}: {time_str}")
+                        continue
+                    
+                    start_time_str = time_str.split(" - ")[0].strip()
                     hour, minute = map(int, start_time_str.split(":"))
                     
                     # ✅ إنشاء datetime مع المنطقة الزمنية
@@ -411,13 +463,13 @@ def check_today_lectures():
                         datetime(today.year, today.month, today.day, hour, minute, 0)
                     )
                     
-                    logger.info(f"[{user_id}] محاضرة اليوم: {lecture['course_name']} الساعة {hour:02d}:{minute:02d}")
+                    logger.info(f"[{user_id}] محاضرة اليوم: {lecture['course_name']} الساعة {hour:02d}:{minute:02d} ({schedule_type})")
                     
                 except Exception as e:
                     logger.error(f"[{user_id}] خطأ في تحويل وقت المحاضرة {lecture['course_name']}: {e}")
                     continue
 
-                # ✅ رسائل التذكير
+                # ✅ رسائل التذكير (نفس النظام السابق)
                 reminders = [
                     (lecture_start - timedelta(hours=1), "1h_before",
                      f"⏰ بعد ساعة عندك محاضرة {lecture['course_name']} ({lecture['time']})"),
@@ -449,6 +501,8 @@ def check_today_lectures():
 
             if user_lectures_today > 0:
                 logger.info(f"[{user_id}] لديه {user_lectures_today} محاضرة اليوم")
+            else:
+                logger.info(f"[{user_id}] لا يوجد لديه محاضرات اليوم أو المحاضرات ليست في هذا الأسبوع")
 
         logger.info(f"✅ انتهى فحص محاضرات اليوم: {lecture_count} محاضرة, {reminder_count} تذكير مجدول")
 
@@ -654,7 +708,160 @@ def live_exam_reminder_loop():
         time.sleep(5 * 60)  # فحص كل 5 دقائق
 
 
+def get_user_lectures_schedule(chat_id):
+    """جلب المحاضرات المجدولة للمستخدم من نظام الجدولة"""
+    try:
+        # جلب المستخدم أولاً
+        user = get_user(chat_id)
+        if not user or not user.get('student_id'):
+            return []
+        
+        # استخدام الـ scraper لجلب الجدول الحالي
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            return []
+        
+        # جلب المحاضرات وتصفية اليوم الحالي
+        lectures = scraper.fetch_lectures_schedule()
+        today_arabic = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"][datetime.now(PALESTINE_TZ).weekday()]
+        
+        today_lectures = []
+        for lecture in lectures:
+            day_str = lecture.get('day', '')
+            day_name = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
+            
+            if day_name == today_arabic:
+                today_lectures.append(lecture)
+        
+        return today_lectures
+        
+    except Exception as e:
+        logger.error(f"Error getting lectures for {chat_id}: {e}")
+        return []
+def get_user_exams_schedule(chat_id):
+    """جلب الامتحانات المجدولة للمستخدم"""
+    try:
+        # استخدام الذاكرة المؤقتة أولاً
+        if chat_id in today_exams_memory:
+            return today_exams_memory[chat_id]
+        
+        # إذا لم توجد في الذاكرة، جلب من البوابة
+        user = get_user(chat_id)
+        if not user or not user.get('student_id'):
+            return []
+        
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            return []
+        
+        exams = []
+        terms = scraper.get_last_two_terms()
+        
+        for term in terms:
+            for exam_code in EXAM_TYPE_MAP.keys():
+                try:
+                    term_exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                    exams.extend(term_exams)
+                except:
+                    continue
+        
+        return exams
+        
+    except Exception as e:
+        logger.error(f"Error getting exams for {chat_id}: {e}")
+        return []
 
+def get_user_discussions_schedule(chat_id):
+    """جلب حلقات النقاش المجدولة للمستخدم"""
+    try:
+        user = get_user(chat_id)
+        if not user or not user.get('student_id'):
+            return []
+        
+        scraper = QOUScraper(user['student_id'], user['password'])
+        if not scraper.login():
+            return []
+        
+        return scraper.fetch_discussion_sessions()
+        
+    except Exception as e:
+        logger.error(f"Error getting discussions for {chat_id}: {e}")
+        return []
+
+def get_user_scheduled_events(chat_id):
+    """الحصول على جميع الأحداث المجدولة للمستخدم"""
+    try:
+        from database import get_user_deadlines  # استيراد من قاعدة البيانات
+        
+        events_info = {
+            'lectures': get_user_lectures_schedule(chat_id),
+            'exams': get_user_exams_schedule(chat_id),
+            'discussions': get_user_discussions_schedule(chat_id),
+            'deadlines': get_user_deadlines(chat_id),
+            'gpa_updates': "✅ سيتم إعلامك عند تحديث المعدل التراكمي",
+            'marks_updates': "✅ سيتم إعلامك عند إدخال علامات جديدة"
+        }
+        
+        return events_info
+        
+    except Exception as e:
+        logger.error(f"Error getting scheduled events for {chat_id}: {e}")
+        return None
+
+def format_scheduled_events_message(events_info):
+    """تنسيق رسالة عرض المواعيد المجدولة"""
+    if not events_info:
+        return "❌ لا توجد مواعيد مجدولة حالياً"
+    
+    message = "📅 **المواعيد المجدولة لك**\n\n"
+    
+    # المحاضرات
+    if events_info.get('lectures'):
+        message += "📚 **المحاضرات المجدولة:**\n"
+        for i, lecture in enumerate(events_info['lectures'], 1):
+            message += f"{i}. {lecture.get('course_name', 'غير معروف')} - {lecture.get('time', 'غير معروف')}\n"
+        message += "\n"
+    else:
+        message += "📚 **المحاضرات:** لا توجد محاضرات مجدولة\n\n"
+    
+    # الامتحانات
+    if events_info.get('exams'):
+        message += "📝 **الامتحانات المجدولة:**\n"
+        for i, exam in enumerate(events_info['exams'], 1):
+            message += f"{i}. {exam.get('course_name', 'غير معروف')} - {exam.get('date', 'غير معروف')} {exam.get('from_time', 'غير معروف')}\n"
+        message += "\n"
+    else:
+        message += "📝 **الامتحانات:** لا توجد امتحانات مجدولة\n\n"
+    
+    # حلقات النقاش
+    if events_info.get('discussions'):
+        message += "💬 **حلقات النقاش المجدولة:**\n"
+        for i, discussion in enumerate(events_info['discussions'], 1):
+            message += f"{i}. {discussion.get('course_name', 'غير معروف')} - {discussion.get('date', 'غير معروف')} {discussion.get('time', 'غير معروف')}\n"
+        message += "\n"
+    else:
+        message += "💬 **حلقات النقاش:** لا توجد حلقات نقاش مجدولة\n\n"
+    
+    # المواعيد الهامة
+    if events_info.get('deadlines'):
+        message += "⏰ **المواعيد الهامة:**\n"
+        today = datetime.now(PALESTINE_TZ).date()
+        for i, deadline in enumerate(events_info['deadlines'], 1):
+            days_left = (deadline['date'] - today).days
+            days_text = "اليوم" if days_left == 0 else f"باقي {days_left} يوم"
+            message += f"{i}. {deadline['name']} - {deadline['date'].strftime('%d/%m/%Y')} ({days_text})\n"
+        message += "\n"
+    else:
+        message += "⏰ **المواعيد الهامة:** لا توجد مواعيد هامة\n\n"
+    
+    # التحديثات التلقائية
+    message += f"🔄 **التحديثات التلقائية:**\n"
+    message += f"• {events_info.get('gpa_updates', '✅ سيتم إعلامك عند تحديث المعدل التراكمي')}\n"
+    message += f"• {events_info.get('marks_updates', '✅ سيتم إعلامك عند إدخال علامات جديدة')}\n\n"
+    
+    message += "💡 **ملاحظة:** يتم تحديث هذه المعلومات تلقائياً كل يوم"
+    
+    return message
 def start_scheduler():
     """
     تشغيل كل المهام الأخرى + الجدولات
