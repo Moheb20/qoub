@@ -17,7 +17,7 @@ from database import create_anonymous_chat, add_chat_message, get_chat_partner, 
 import random
 import secrets
 from scheduler import get_user_scheduled_events, format_scheduled_events_message
-
+from scheduler import run_existing_functions_for_user
 from database import get_conn
 from database import (
     init_db,
@@ -256,6 +256,27 @@ def handle_info_button(message):
     # أو لا تفعل شيئاً
     pass
 # ---------- معالج الأوامر والرسائل ----------
+
+@bot.message_handler(func=lambda message: message.text == "🔄 تحديث الجدولة")
+def handle_force_schedule_update(message):
+    try:
+        chat_id = message.chat.id
+        logger.info(f"[{chat_id}] طلب تحديث الجدولة الفوري")
+        
+        bot.send_chat_action(chat_id, 'typing')
+        bot.send_message(chat_id, "🔄 جاري تحديث الجدولة... قد يستغرق هذا بضع ثوانٍ")
+        
+        # استخدام الدوال الموجودة مباشرة
+        success_count = run_existing_functions_for_user(chat_id)
+        
+        if success_count > 0:
+            bot.send_message(chat_id, f"✅ تم تحديث الجدولة بنجاح!\nتم فحص {success_count} عنصر من جدولك")
+        else:
+            bot.send_message(chat_id, "⚠️ لم يتم العثور على عناصر جديدة في جدولك")
+            
+    except Exception as e:
+        logger.error(f"خطأ في تحديث الجدولة: {e}")
+        bot.send_message(chat_id, "❌ حدث خطأ أثناء تحديث الجدولة")
 @bot.callback_query_handler(func=lambda call: call.data == "show_upcoming_lectures")
 def handle_upcoming_lectures(call):
     chat_id = call.message.chat.id
@@ -320,13 +341,81 @@ def handle_scheduled_events(message):
             return
         
         events_message = format_scheduled_events_message(events_info)
-        bot.send_message(chat_id, events_message, parse_mode='Markdown')
+        
+        # إنشاء زر لتحديث الجدولة
+        from telebot import types
+        markup = types.InlineKeyboardMarkup()
+        update_button = types.InlineKeyboardButton("🔄 تحديث الجدولة الآن", callback_data="update_schedule")
+        markup.add(update_button)
+        
+        bot.send_message(chat_id, events_message, parse_mode='Markdown', reply_markup=markup)
         
         logger.info(f"[{chat_id}] تم عرض المواعيد المجدولة بنجاح")
         
     except Exception as e:
         logger.error(f"خطأ في معالجة طلب المواعيد المجدولة: {e}")
         bot.send_message(message.chat.id, "❌ حدث خطأ أثناء جلب المواعيد المجدولة")
+
+@bot.callback_query_handler(func=lambda call: call.data == "update_schedule")
+def handle_update_schedule_callback(call):
+    try:
+        chat_id = call.message.chat.id
+        logger.info(f"[{chat_id}] طلب تحديث الجدولة من الزر")
+        
+        # تحرير الرسالة الأصلية لإظهار التحميل
+        bot.edit_message_text(
+            "🔄 جاري تحديث الجدولة...", 
+            chat_id, 
+            call.message.message_id
+        )
+        
+        # تشغيل تحديث الجدولة
+        success_count = run_existing_functions_for_user(chat_id)
+        
+        if success_count > 0:
+            # بعد التحديث، إعادة تحميل وعرض المواعيد الجديدة
+            events_info = get_user_scheduled_events(chat_id)
+            if events_info:
+                events_message = format_scheduled_events_message(events_info)
+                
+                # تحديث الزر ليصبح غير نشط
+                markup = types.InlineKeyboardMarkup()
+                updated_button = types.InlineKeyboardButton("✅ تم التحديث", callback_data="already_updated")
+                markup.add(updated_button)
+                
+                bot.edit_message_text(
+                    events_message,
+                    chat_id,
+                    call.message.message_id,
+                    parse_mode='Markdown',
+                    reply_markup=markup
+                )
+                
+                bot.send_message(chat_id, f"✅ تم تحديث الجدولة بنجاح! تم فحص {success_count} عنصر")
+            else:
+                bot.edit_message_text(
+                    "❌ فشل في تحميل البيانات بعد التحديث",
+                    chat_id,
+                    call.message.message_id
+                )
+        else:
+            bot.edit_message_text(
+                "⚠️ لم يتم العثور على عناصر جديدة في جدولك",
+                chat_id,
+                call.message.message_id
+            )
+            
+    except Exception as e:
+        logger.error(f"خطأ في معالجة تحديث الجدولة: {e}")
+        try:
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء تحديث الجدولة")
+        except:
+            pass
+
+@bot.callback_query_handler(func=lambda call: call.data == "already_updated")
+def handle_already_updated(call):
+    """معالجة النقر على الزر بعد التحديث"""
+    bot.answer_callback_query(call.id, "✅ تم تحديث الجدولة مسبقاً", show_alert=False)
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_schedule")
 def handle_back_to_schedule(call):
