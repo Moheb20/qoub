@@ -45,6 +45,47 @@ EXAM_TYPE_MAP = {
 }
 
 # ====================== دوال مساعدة ======================
+def convert_arabic_numbers(text):
+    """تحويل الأرقام العربية إلى إنجليزية"""
+    arabic_to_english = {
+        '٠': '0', '۰': '0',
+        '١': '1', '۱': '1',
+        '٢': '2', '۲': '2', 
+        '٣': '3', '۳': '3',
+        '٤': '4', '۴': '4',
+        '٥': '5', '۵': '5',
+        '٦': '6', '۶': '6',
+        '٧': '7', '۷': '7',
+        '٨': '8', '۸': '8',
+        '٩': '9', '۹': '9'
+    }
+    
+    if not text:
+        return text
+    
+    converted = ''.join(arabic_to_english.get(char, char) for char in str(text))
+    return converted
+
+def parse_exam_datetime_safe(date_str, time_str):
+    """نسخة آمنة لتحويل التاريخ تعمل مع الأرقام العربية"""
+    try:
+        # تحويل الأرقام العربية أولاً
+        date_str = convert_arabic_numbers(date_str.strip())
+        time_str = convert_arabic_numbers(time_str.strip())
+        
+        # تحليل التاريخ والوقت
+        date_obj = datetime.strptime(date_str, "%d-%m-%Y")
+        time_obj = datetime.strptime(time_str, "%H:%M").time()
+        
+        # الجمع بين التاريخ والوقت
+        dt_naive = datetime.combine(date_obj, time_obj)
+        dt_aware = PALESTINE_TZ.localize(dt_naive)
+        
+        return dt_aware
+        
+    except Exception as e:
+        logger.warning(f"فشل تحويل التاريخ والوقت: {date_str} {time_str} | خطأ: {e}")
+        return None
 def send_message(bot_instance, chat_id, message):
     try:
         bot_instance.send_message(chat_id, message)
@@ -1062,7 +1103,7 @@ def run_existing_functions_for_user(chat_id):
             logger.error(f"Error checking lectures: {e}")
         
         # 6. فحص الامتحانات (باستخدام منطق check_today_exams) 
-
+        
         try:
             exams_found = 0
             terms = scraper.get_last_two_terms()
@@ -1079,7 +1120,7 @@ def run_existing_functions_for_user(chat_id):
                                 future_exams = []
                                 for exam in exams:
                                     try:
-                                        # معالجة آمنة للتاريخ
+                                        # معالجة آمنة للتاريخ باستخدام الدالة الجديدة
                                         exam_dt = parse_exam_datetime(exam["date"], exam["from_time"])
                                         if exam_dt is None:
                                             continue  # تخطي إذا كان التاريخ غير صالح
@@ -1148,6 +1189,11 @@ def run_existing_functions_for_user(chat_id):
                     success_count += 1
                 else:
                     bot.send_message(chat_id, "✅ لا توجد امتحانات قادمة")
+                    
+        except Exception as e:
+            logger.error(f"Error checking exams: {e}")
+            # لا نوقف العملية، نكمل مع المهام الأخرى
+            bot.send_message(chat_id, "⚠️ حدث خطأ أثناء فحص الامتحانات، لكن سيتم متابعة باقي المهام")
                     
         except Exception as e:
             logger.error(f"Error checking exams: {e}")
