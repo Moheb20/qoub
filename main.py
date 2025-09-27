@@ -149,6 +149,7 @@ def send_academic_services(chat_id):
         types.KeyboardButton("🎙️ حلقات النقاش"),
         types.KeyboardButton("📖 الخطة الدراسية"),
         types.KeyboardButton("📚 الخطط الدراسية"),
+        types.KeyboardButton("💻 اللقاءات الافتراضية),
         types.KeyboardButton("💰 رصيد الطالب"),
         types.KeyboardButton("⬅️ عودة للرئيسية")
     )
@@ -425,7 +426,297 @@ def handle_end_chat(message):
     else:
         bot.send_message(chat_id, "❌ لا توجد محادثة نشطة")
 
+def handle_virtual_meetings(chat_id, text):
+    """معالجة اللقاءات الافتراضية"""
+    if text != "💻 اللقاءات الافتراضية":
+        return False
+    
+    user = get_user(chat_id)
+    if not user or not user.get('student_id'):
+        bot.send_message(chat_id, "❌ يرجى تسجيل الدخول أولاً.")
+        return True
 
+    try:
+        loading_msg = bot.send_message(chat_id, "🔄 جاري الاتصال بالنظام الإلكتروني...")
+        
+        # استخدام requests بدلاً من Selenium
+        scraper = QOUScraper(user['student_id'], user['password'])
+        
+        # جلب المقررات من النظام الإلكتروني
+        ecourse_result = scraper.fetch_ecourse_courses(user['student_id'], user['password'])
+        
+        bot.delete_message(chat_id, loading_msg.message_id)
+        
+        if not ecourse_result['success']:
+            bot.send_message(chat_id, f"❌ {ecourse_result['error']}")
+            return True
+        
+        courses = ecourse_result['courses']
+        
+        if not courses:
+            bot.send_message(chat_id, "📭 لا توجد مقررات مسجلة في النظام الإلكتروني.")
+            return True
+        
+        # حفظ المقررات في حالة المستخدم
+        user_sessions[chat_id] = {
+            'ecourses': courses,
+            'action': 'awaiting_ecourse_selection',
+            'username': user['student_id'],
+            'password': user['password']
+        }
+        
+        # إنشاء لوحة المفاتيح مع المقررات
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        
+        for course in courses[:8]:  # عرض أول 8 مقررات
+            course_name = course['name']
+            if len(course_name) > 20:
+                course_name = course_name[:20] + "..."
+            markup.add(types.KeyboardButton(f"📚 {course_name}"))
+        
+        markup.add(types.KeyboardButton("🔄 تحديث القائمة"))
+        markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+        
+        bot.send_message(
+            chat_id, 
+            f"📋 **المقررات المسجلة في النظام الإلكتروني**\n\nتم العثور على {len(courses)} مقرر.\n\nاختر المقرر لعرض اللقاءات الافتراضية:",
+            parse_mode="Markdown", 
+            reply_markup=markup
+        )
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error in virtual meetings for {chat_id}: {e}")
+        bot.send_message(chat_id, "❌ حدث خطأ أثناء الاتصال بالنظام الإلكتروني.")
+        return True
+
+def handle_ecourse_selection(chat_id, text):
+    """معالجة اختيار المقرر من النظام الإلكتروني"""
+    if (chat_id not in user_sessions or 
+        user_sessions[chat_id].get('action') != 'awaiting_ecourse_selection'):
+        return False
+    
+    if text == "⬅️ عودة للرئيسية":
+        if chat_id in user_sessions:
+            del user_sessions[chat_id]
+        send_main_menu(chat_id)
+        return True
+    
+    if text == "🔄 تحديث القائمة":
+        # إعادة تحميل المقررات
+        user = get_user(chat_id)
+        if not user:
+            return True
+            
+        loading_msg = bot.send_message(chat_id, "🔄 جاري تحديث قائمة المقررات...")
+        
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            ecourse_result = scraper.fetch_ecourse_courses(user['student_id'], user['password'])
+            
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
+            if ecourse_result['success']:
+                courses = ecourse_result['courses']
+                user_sessions[chat_id]['ecourses'] = courses
+                
+                markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+                for course in courses[:8]:
+                    course_name = course['name']
+                    if len(course_name) > 20:
+                        course_name = course_name[:20] + "..."
+                    markup.add(types.KeyboardButton(f"📚 {course_name}"))
+                
+                markup.add(types.KeyboardButton("🔄 تحديث القائمة"))
+                markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+                
+                bot.send_message(chat_id, f"✅ تم التحديث! العدد الحالي: {len(courses)} مقرر.", reply_markup=markup)
+            else:
+                bot.send_message(chat_id, f"❌ {ecourse_result['error']}")
+                
+        except Exception as e:
+            bot.delete_message(chat_id, loading_msg.message_id)
+            bot.send_message(chat_id, "❌ فشل التحديث.")
+        
+        return True
+    
+    if text.startswith("📚 "):
+        selected_course_name = text.replace("📚 ", "").strip()
+        courses = user_sessions[chat_id].get('ecourses', [])
+        
+        # البحث عن المقرر المطابق
+        selected_course = None
+        for course in courses:
+            if selected_course_name in course['name'] or course['name'].startswith(selected_course_name.replace("...", "")):
+                selected_course = course
+                break
+        
+        if not selected_course:
+            bot.send_message(chat_id, "❌ لم أتعرف على المقرر المحدد.")
+            return True
+        
+        # جلب اللقاءات الافتراضية
+        loading_msg = bot.send_message(chat_id, f"🔍 جاري البحث عن اللقاءات في {selected_course['name']}...")
+        
+        try:
+            scraper = QOUScraper(user_sessions[chat_id]['username'], user_sessions[chat_id]['password'])
+            meetings_result = scraper.fetch_course_virtual_meetings(
+                selected_course['url'], 
+                user_sessions[chat_id]['username'], 
+                user_sessions[chat_id]['password']
+            )
+            
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
+            if not meetings_result['success']:
+                bot.send_message(chat_id, f"❌ {meetings_result['error']}")
+                return True
+            
+            meetings = meetings_result['meetings']
+            
+            if not meetings:
+                bot.send_message(chat_id, f"📭 لا توجد لقاءات افتراضية مسجلة لـ {selected_course['name']}.")
+                return True
+            
+            # حفظ البيانات
+            user_sessions[chat_id].update({
+                'selected_course': selected_course,
+                'meetings': meetings,
+                'action': 'awaiting_meeting_selection'
+            })
+            
+            # تجميع حسب الفصل
+            meetings_by_semester = {}
+            for meeting in meetings:
+                semester = meeting['semester']
+                if semester not in meetings_by_semester:
+                    meetings_by_semester[semester] = []
+                meetings_by_semester[semester].append(meeting)
+            
+            # إنشاء القائمة
+            markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+            
+            for semester, semester_meetings in meetings_by_semester.items():
+                for meeting in semester_meetings[:4]:  # 4 لقاءات لكل فصل كحد أقصى
+                    title = meeting['title']
+                    if len(title) > 25:
+                        title = title[:25] + "..."
+                    markup.add(types.KeyboardButton(f"🎥 {title}"))
+            
+            markup.add(types.KeyboardButton("⬅️ عودة للمقررات"))
+            markup.add(types.KeyboardButton("🏠 الرئيسية"))
+            
+            # رسالة المعلومات
+            message = f"💻 **اللقاءات الافتراضية**\n\n"
+            message += f"📚 **المقرر:** {selected_course['name']}\n"
+            message += f"📊 **عدد اللقاءات:** {len(meetings)}\n\n"
+            
+            for semester, semester_meetings in meetings_by_semester.items():
+                message += f"**{semester}:** {len(semester_meetings)} لقاء\n"
+            
+            message += "\n👇 اختر اللقاء:"
+            
+            bot.send_message(chat_id, message, parse_mode="Markdown", reply_markup=markup)
+            return True
+            
+        except Exception as e:
+            bot.delete_message(chat_id, loading_msg.message_id)
+            logger.error(f"Error fetching meetings for {chat_id}: {e}")
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب اللقاءات.")
+            return True
+    
+    return False
+
+def handle_meeting_selection(chat_id, text):
+    """معالجة اختيار اللقاء الافتراضي"""
+    if (chat_id not in user_sessions or 
+        user_sessions[chat_id].get('action') != 'awaiting_meeting_selection'):
+        return False
+    
+    if text == "⬅️ عودة للمقررات":
+        # العودة لقائمة المقررات
+        user_sessions[chat_id]['action'] = 'awaiting_ecourse_selection'
+        
+        courses = user_sessions[chat_id].get('ecourses', [])
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        for course in courses[:8]:
+            course_name = course['name']
+            if len(course_name) > 20:
+                course_name = course_name[:20] + "..."
+            markup.add(types.KeyboardButton(f"📚 {course_name}"))
+        
+        markup.add(types.KeyboardButton("🔄 تحديث القائمة"))
+        markup.add(types.KeyboardButton("⬅️ عودة للرئيسية"))
+        
+        bot.send_message(chat_id, "📋 اختر المقرر:", reply_markup=markup)
+        return True
+    
+    if text == "🏠 الرئيسية":
+        if chat_id in user_sessions:
+            del user_sessions[chat_id]
+        send_main_menu(chat_id)
+        return True
+    
+    if text.startswith("🎥 "):
+        meeting_title = text.replace("🎥 ", "").strip()
+        meetings = user_sessions[chat_id].get('meetings', [])
+        course = user_sessions[chat_id].get('selected_course', {})
+        
+        # البحث عن اللقاء
+        selected_meeting = None
+        for meeting in meetings:
+            if meeting_title in meeting['title'] or meeting['title'].startswith(meeting_title.replace("...", "")):
+                selected_meeting = meeting
+                break
+        
+        if not selected_meeting:
+            bot.send_message(chat_id, "❌ اللقاء غير موجود.")
+            return True
+        
+        # إرسال رابط اللقاء
+        message = f"💻 **تم اختيار اللقاء**\n\n"
+        message += f"📚 **المقرر:** {course.get('name', 'غير معروف')}\n"
+        message += f"📅 **الفصل:** {selected_meeting['semester']}\n"
+        message += f"🎯 **اللقاء:** {selected_meeting['title']}\n\n"
+        message += f"🔗 **رابط المشاهدة:**\n`{selected_meeting['url']}`\n\n"
+        message += "💡 *انسخ الرابط وافتحه في المتصفح*"
+        
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(types.KeyboardButton("📋 عرض اللقاءات الأخرى"))
+        markup.add(types.KeyboardButton("🏠 الرئيسية"))
+        
+        bot.send_message(chat_id, message, parse_mode="Markdown", reply_markup=markup)
+        return True
+    
+    if text == "📋 عرض اللقاءات الأخرى":
+        # إعادة عرض اللقاءات
+        user_sessions[chat_id]['action'] = 'awaiting_meeting_selection'
+        
+        course = user_sessions[chat_id].get('selected_course', {})
+        meetings = user_sessions[chat_id].get('meetings', [])
+        
+        meetings_by_semester = {}
+        for meeting in meetings:
+            semester = meeting['semester']
+            if semester not in meetings_by_semester:
+                meetings_by_semester[semester] = []
+            meetings_by_semester[semester].append(meeting)
+        
+        markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+        for semester, semester_meetings in meetings_by_semester.items():
+            for meeting in semester_meetings[:4]:
+                title = meeting['title']
+                if len(title) > 25:
+                    title = title[:25] + "..."
+                markup.add(types.KeyboardButton(f"🎥 {title}"))
+        
+        markup.add(types.KeyboardButton("⬅️ عودة للمقررات"))
+        markup.add(types.KeyboardButton("🏠 الرئيسية"))
+        
+        bot.send_message(chat_id, "💻 اختر لقاءً آخر:", reply_markup=markup)
+        return True
+    
+    return False
 @bot.message_handler(func=lambda message: message.text.startswith("📅 فترة التأجيل:"))
 def handle_delay_display(message):
     # فقط نعرض رسالة توضيحية أن هذا الزر للعرض فقط
@@ -618,7 +909,12 @@ def handle_all_messages(message):
                 registration_states.pop(chat_id, None)
                 send_main_menu(chat_id)
             return
-
+    if handle_virtual_meetings(chat_id, text):
+        return
+    if handle_ecourse_selection(chat_id, text):
+        return
+    if handle_meeting_selection(chat_id, text):
+        return
     # --- التعامل مع أزرار القائمة الرئيسية ---
     # تسجيل الدخول
     if text == "👤 تسجيل الدخول":
