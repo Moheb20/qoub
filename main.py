@@ -149,7 +149,7 @@ def send_academic_services(chat_id):
         types.KeyboardButton("🎙️ حلقات النقاش"),
         types.KeyboardButton("📖 الخطة الدراسية"),
         types.KeyboardButton("📚 الخطط الدراسية"),
-        types.KeyboardButton("💻 اللقاءات الافتراضية),
+        types.KeyboardButton("💻 اللقاءات الافتراضية"),
         types.KeyboardButton("💰 رصيد الطالب"),
         types.KeyboardButton("⬅️ عودة للرئيسية")
     )
