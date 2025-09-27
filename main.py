@@ -202,6 +202,7 @@ def send_other_services(chat_id):
     """القائمة الفرعية للخدمات الأخرى"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(
+        types.KeyboardButton("📅 المواعيد المجدولة"),
         types.KeyboardButton("📚 عرض القروبات"),
         types.KeyboardButton("✉️ إرسال اقتراح"),
         types.KeyboardButton("⬅️ عودة للرئيسية")
@@ -300,6 +301,30 @@ def handle_upcoming_lectures(call):
     except Exception as e:
         logger.exception(f"Error in upcoming lectures callback for {chat_id}: {e}")
         bot.answer_callback_query(call.id, "❌ حدث خطأ. حاول مرة أخرى.")
+
+@bot.message_handler(func=lambda message: message.text == "📅 المواعيد المجدولة")
+def handle_scheduled_events(message):
+    try:
+        chat_id = message.chat.id
+        logger.info(f"[{chat_id}] طلب عرض المواعيد المجدولة")
+        
+        bot.send_chat_action(chat_id, 'typing')
+        
+        # استخدام الدالة المحسنة
+        events_info = get_user_scheduled_events(chat_id)
+        
+        if events_info is None:
+            bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب المواعيد المجدولة")
+            return
+        
+        events_message = format_scheduled_events_message(events_info)
+        bot.send_message(chat_id, events_message, parse_mode='Markdown')
+        
+        logger.info(f"[{chat_id}] تم عرض المواعيد المجدولة بنجاح")
+        
+    except Exception as e:
+        logger.error(f"خطأ في معالجة طلب المواعيد المجدولة: {e}")
+        bot.send_message(message.chat.id, "❌ حدث خطأ أثناء جلب المواعيد المجدولة")
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_schedule")
 def handle_back_to_schedule(call):
