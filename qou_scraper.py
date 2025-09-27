@@ -1125,33 +1125,77 @@ class QOUScraper:
             
             week_info = self.get_current_week_type()
             
-            # استخراج معلومات الأسبوع الحالي
+            # 🔥 التعديل المهم: استخراج معلومات الجدول من week_info
             current_week = 1
             week_type = "فردي"
+            schedule_group = "ش-1"
+            
+            # تحليل نص الأسبوع لاستخراج المعلومات
             if "الأسبوع" in week_info:
                 try:
+                    # مثال: "📅 الأسبوع 3 (فردي) - الجدول: ش-3"
                     week_parts = week_info.split("الأسبوع ")[1].split(" ")
                     current_week = int(week_parts[0])
-                    week_type = "فردي" if "فردي" in week_info else "زوجي"
-                except:
-                    pass
+                    
+                    if "فردي" in week_info:
+                        week_type = "فردي"
+                    elif "زوجي" in week_info:
+                        week_type = "زوجي"
+                    
+                    if "ش-1" in week_info:
+                        schedule_group = "ش-1"
+                    elif "ش-2" in week_info:
+                        schedule_group = "ش-2"
+                    elif "ش-3" in week_info:
+                        schedule_group = "ش-3"
+                    elif "ش-4" in week_info:
+                        schedule_group = "ش-4"
+                        
+                except Exception as e:
+                    logger.debug(f"Error parsing week info: {e}")
     
-            # 🔥 التعديل الأول: استخدام توقيت فلسطين
+            # استخدام توقيت فلسطين
             from pytz import timezone
-            palestine_tz = timezone('Asia/Gaza')  # أو Asia/Hebron
+            palestine_tz = timezone('Asia/Gaza')
             
-            # الحصول على الوقت الحالي بتوقيت فلسطين
             now = datetime.now(palestine_tz)
             current_date = now.date()
             current_time = now.time()
             
-            # تاريخ بداية الفصل الدراسي (بتوقيت فلسطين)
-            semester_start = palestine_tz.localize(datetime(2025, 9, 13)).date()
-            
             # ترتيب أيام الأسبوع
-            weekdays_order = {"الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6}
+            weekdays_order = {"السبت": 0, "الأحد": 1, "الاثنين": 2, "الثلاثاء": 3, "الأربعاء": 4, "الخميس": 5, "الجمعة": 6}
             
-            # دالة لحساب الوقت المتبقي بشكل صحيح
+            # 🔥 دالة جديدة: التحقق من تطابق الجدول مع الأسبوع الحالي
+            def is_schedule_match(lecture_schedule_type):
+                """
+                التحقق إذا كانت المحاضرة تنطبق على الأسبوع الحالي
+                حسب نظام (زوجي/فردي) و (ش-1، ش-2، ش-3، ش-4)
+                """
+                if not lecture_schedule_type or lecture_schedule_type == "أسبوعي":
+                    return True
+                
+                # إذا كان النوع يحتوي على معلومات الجدول
+                if "ز" in lecture_schedule_type and week_type == "زوجي":
+                    return True
+                if "ف" in lecture_schedule_type and week_type == "فردي":
+                    return True
+                
+                # التحقق من مجموعات الجدول (ش-1، ش-2، ش-3، ش-4)
+                schedule_groups = {
+                    "ش-1": [1, 5, 9, 13],
+                    "ش-2": [2, 6, 10, 14], 
+                    "ش-3": [3, 7, 11, 15],
+                    "ش-4": [4, 8, 12, 16]
+                }
+                
+                # البحث إذا كان النوع يحتوي على أي من مجموعات الجدول
+                for group_name, weeks in schedule_groups.items():
+                    if group_name in lecture_schedule_type and current_week in weeks:
+                        return True
+                
+                return False
+            
+            # دالة حساب الوقت المتبقي (محسنة)
             def get_time_remaining(day_str, time_str):
                 if not day_str or day_str == "غير محدد" or not time_str or time_str == "--:-- - --:--":
                     return "⏳ غير محدد"
@@ -1161,31 +1205,29 @@ class QOUScraper:
                 
                 # تحويل اليوم العربي إلى رقم
                 day_to_num = {
-                    "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, 
-                    "الخميس": 3, "الجمعة": 4, "السبت": 5, "الأحد": 6
+                    "السبت": 0, "الأحد": 1, "الاثنين": 2, 
+                    "الثلاثاء": 3, "الأربعاء": 4, "الخميس": 5, "الجمعة": 6
                 }
                 
                 day_num = day_to_num.get(day_name, -1)
                 if day_num == -1:
                     return "⏳ غير محدد"
                 
-                # 🔥 التعديل الثاني: استخدام توقيت فلسطين هنا أيضاً
                 now_palestine = datetime.now(palestine_tz)
-                current_weekday = now_palestine.weekday()  # 0=الإثنين, 6=الأحد
+                current_weekday = now_palestine.weekday()  # 0=السبت, 6=الجمعة
                 
                 # حساب الأيام المتبقية
                 days_until_day = (day_num - current_weekday) % 7
                 if days_until_day < 0:
                     days_until_day += 7
                 
-                # التاريخ المتوقع للمحاضرة (بتوقيت فلسطين)
+                # التاريخ المتوقع للمحاضرة
                 target_date = now_palestine.date() + timedelta(days=days_until_day)
                 
                 try:
-                    start_time_str = time_str.split(' - ')[0]
+                    start_time_str = time_str.split(' - ')[0].strip()
                     start_time = datetime.strptime(start_time_str, "%H:%M").time()
                     
-                    # 🔥 التعديل الثالث: الجمع مع مراعاة المنطقة الزمنية
                     target_datetime_naive = datetime.combine(target_date, start_time)
                     target_datetime = palestine_tz.localize(target_datetime_naive)
                     
@@ -1193,7 +1235,7 @@ class QOUScraper:
                     time_diff = target_datetime - now_palestine
                     total_seconds = int(time_diff.total_seconds())
                     
-                    # إذا كانت المحاضرة في الماضي، نبحث عن الموعد القادم
+                    # إذا كانت المحاضرة في الماضي، نبحث عن الموعد القادم (بعد أسبوع)
                     if total_seconds < 0:
                         target_date += timedelta(days=7)
                         target_datetime_naive = datetime.combine(target_date, start_time)
@@ -1204,7 +1246,7 @@ class QOUScraper:
                     if total_seconds <= 0:
                         return "✅ الآن"
                     
-                    # حساب الأسابيع والأيام والساعات والدقائق
+                    # حساب الوقت المتبقي
                     total_days = total_seconds // (24 * 3600)
                     weeks = total_days // 7
                     days = total_days % 7
@@ -1242,25 +1284,45 @@ class QOUScraper:
                     logger.debug(f"Error calculating time: {e}")
                     return "⏳ غير محدد"
             
-            # باقي الكود يبقى كما هو...
-            active_lectures = schedule
-            
-            for lecture in active_lectures:
+            # 🔥 التعديل: فلترة المحاضرات حسب الجدول الحالي
+            filtered_lectures = []
+            for lecture in schedule:
                 day_str = lecture.get('day', '')
-                clean_day = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
                 schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
                 
-                lecture['clean_day'] = clean_day
-                lecture['schedule_type'] = schedule_type
+                # التحقق إذا كانت المحاضرة تنطبق على الأسبوع الحالي
+                if is_schedule_match(schedule_type):
+                    clean_day = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
+                    lecture['clean_day'] = clean_day
+                    lecture['schedule_type'] = schedule_type
+                    filtered_lectures.append(lecture)
             
-            active_lectures.sort(key=lambda x: (
+            # إذا لم توجد محاضرات هذا الأسبوع، نعرض جميع المحاضرات مع إشعار
+            if not filtered_lectures:
+                filtered_lectures = schedule
+                for lecture in filtered_lectures:
+                    day_str = lecture.get('day', '')
+                    clean_day = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
+                    schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
+                    lecture['clean_day'] = clean_day
+                    lecture['schedule_type'] = schedule_type
+            
+            # ترتيب المحاضرات
+            filtered_lectures.sort(key=lambda x: (
                 weekdays_order.get(x.get('clean_day', ''), 99),
                 x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
             ))
             
+            # بناء الرسالة
             message = f"📢 **المحاضرات القادمة**\n"
-            message += f"_{week_info}_\n"
-            message += f"📍 **التوقيت: فلسطين**\n\n"
+            message += f"📅 الأسبوع {current_week} ({week_type}) - الجدول: {schedule_group}\n"
+            message += f"📍 التوقيت: فلسطين\n\n"
+            
+            # إضافة إشعار إذا لم توجد محاضرات هذا الأسبوع
+            if len(filtered_lectures) != len(schedule):
+                message += f"🔍 *عرض محاضرات الأسبوع الحالي فقط*\n\n"
+            else:
+                message += f"🔍 *عرض جميع المحاضرات (لا توجد محاضرات هذا الأسبوع)*\n\n"
             
             day_emojis = {
                 "السبت": "🟣", "الأحد": "🔵", "الاثنين": "🟢", 
@@ -1269,7 +1331,7 @@ class QOUScraper:
             }
             
             current_day = ""
-            for i, lecture in enumerate(active_lectures):
+            for i, lecture in enumerate(filtered_lectures):
                 day_str = lecture.get('day', '')
                 clean_day = lecture.get('clean_day', 'غير محدد')
                 time_str = lecture.get('time', '--:-- - --:--')
@@ -1280,12 +1342,23 @@ class QOUScraper:
                 schedule_type = lecture.get('schedule_type', 'أسبوعي')
                 
                 time_remaining = get_time_remaining(day_str, time_str)
-                schedule_badge = f" ({schedule_type})" if schedule_type != "أسبوعي" else ""
+                
+                # إضافة بادئة الجدول إذا لم يكن أسبوعي
+                schedule_badge = ""
+                if schedule_type != "أسبوعي":
+                    # استخراج الحرف الأول من النوع (ز أو ف)
+                    schedule_char = ""
+                    if "ز" in schedule_type:
+                        schedule_char = "ز"
+                    elif "ف" in schedule_type:
+                        schedule_char = "ف"
+                    
+                    schedule_badge = f" ({schedule_char})"
                 
                 if clean_day != current_day:
                     current_day = clean_day
                     emoji = day_emojis.get(clean_day, "📅")
-                    message += f"{emoji} **{clean_day}**:\n"
+                    message += f"{emoji} **{clean_day}:**\n"
                 
                 message += f"   📘 {course}{schedule_badge}\n"
                 message += f"   ⏰ {time_str} {time_remaining}\n"
@@ -1299,8 +1372,8 @@ class QOUScraper:
                 if lecturer and lecturer != "غير محدد":
                     message += f"   👨‍🏫 {lecturer}\n"
                 
-                if i < len(active_lectures) - 1:
-                    next_lecture = active_lectures[i + 1]
+                if i < len(filtered_lectures) - 1:
+                    next_lecture = filtered_lectures[i + 1]
                     next_day = next_lecture.get('clean_day', '')
                     
                     if next_day != clean_day:
