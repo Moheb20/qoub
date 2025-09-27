@@ -1062,39 +1062,97 @@ def run_existing_functions_for_user(chat_id):
             logger.error(f"Error checking lectures: {e}")
         
         # 6. فحص الامتحانات (باستخدام منطق check_today_exams) 
+
         try:
             exams_found = 0
             terms = scraper.get_last_two_terms()
             today = datetime.now(PALESTINE_TZ).date()
             
-            for term in terms:
-                for exam_code in EXAM_TYPE_MAP.keys():
-                    try:
-                        exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
-                        if exams:
-                            # تصفية الامتحانات التي بعد تاريخ اليوم فقط
-                            future_exams = [
-                                exam for exam in exams 
-                                if parse_exam_datetime(exam["date"], exam["from_time"]) and 
-                                   parse_exam_datetime(exam["date"], exam["from_time"]).date() >= today
-                            ]
-                            
-                            if future_exams:
-                                # تخزين في الذاكرة
-                                if chat_id not in today_exams_memory:
-                                    today_exams_memory[chat_id] = []
-                                today_exams_memory[chat_id].extend(future_exams)
-                                exams_found += len(future_exams)
-                    except:
-                        continue
-            
-            if exams_found > 0:
-                bot.send_message(chat_id, f"✅ تم فحص {exams_found} امتحان قادم")
-                success_count += 1
+            if not terms:
+                bot.send_message(chat_id, "⚠️ لم يتم العثور على فصول دراسية")
             else:
-                bot.send_message(chat_id, "✅ لا توجد امتحانات قادمة")
+                for term in terms:
+                    for exam_code in EXAM_TYPE_MAP.keys():
+                        try:
+                            exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                            if exams:
+                                future_exams = []
+                                for exam in exams:
+                                    try:
+                                        # معالجة آمنة للتاريخ
+                                        exam_dt = parse_exam_datetime(exam["date"], exam["from_time"])
+                                        if exam_dt is None:
+                                            continue  # تخطي إذا كان التاريخ غير صالح
+                                        
+                                        # التحقق من أن exam_dt له خاصية date
+                                        if not hasattr(exam_dt, 'date'):
+                                            continue
+                                        
+                                        exam_date = exam_dt.date()
+                                        
+                                        # التحقق من أن exam_date هو تاريخ صالح
+                                        if not isinstance(exam_date, datetime.date):
+                                            continue
+                                        
+                                        # المقارنة الآمنة
+                                        if exam_date >= today:
+                                            future_exams.append(exam)
+                                            
+                                    except Exception as e:
+                                        logger.debug(f"خطأ في معالجة امتحان {exam.get('course_name', 'غير معروف')}: {e}")
+                                        continue
+                                
+                                if future_exams:
+                                    if chat_id not in today_exams_memory:
+                                        today_exams_memory[chat_id] = []
+                                    today_exams_memory[chat_id].extend(future_exams)
+                                    exams_found += len(future_exams)
+                                    
+                        except Exception as e:
+                            logger.debug(f"خطأ في جلب امتحانات النوع {exam_code} للفصل {term['value']}: {e}")
+                            continue
+                
+                if exams_found > 0:
+                    # إرسال ملخص الامتحانات القادمة
+                    try:
+                        msg = "📝 **الامتحانات القادمة:**\n\n"
+                        future_exams = today_exams_memory.get(chat_id, [])
+                        
+                        # ترتيب الامتحانات حسب التاريخ
+                        sorted_exams = sorted(future_exams, key=lambda x: (
+                            parse_exam_datetime(x["date"], x["from_time"]).date() 
+                            if parse_exam_datetime(x["date"], x["from_time"]) 
+                            else datetime.max.date()
+                        ))
+                        
+                        for i, exam in enumerate(sorted_exams[:5], 1):
+                            exam_dt = parse_exam_datetime(exam["date"], exam["from_time"])
+                            if exam_dt:
+                                days_left = (exam_dt.date() - today).days
+                                if days_left == 0:
+                                    days_text = "اليوم"
+                                elif days_left == 1:
+                                    days_text = "غداً"
+                                else:
+                                    days_text = f"بعد {days_left} أيام"
+                                msg += f"{i}. {exam['course_name']} - {exam['date']} ({days_text})\n"
+                        
+                        if len(sorted_exams) > 5:
+                            msg += f"\n... و{len(sorted_exams) - 5} امتحانات أخرى"
+                        
+                        bot.send_message(chat_id, msg)
+                    except Exception as e:
+                        logger.error(f"خطأ في إرسال ملخص الامتحانات: {e}")
+                    
+                    bot.send_message(chat_id, f"✅ تم فحص {exams_found} امتحان قادم")
+                    success_count += 1
+                else:
+                    bot.send_message(chat_id, "✅ لا توجد امتحانات قادمة")
+                    
         except Exception as e:
             logger.error(f"Error checking exams: {e}")
+            # لا نوقف العملية، نكمل مع المهام الأخرى
+            bot.send_message(chat_id, "⚠️ حدث خطأ أثناء فحص الامتحانات، لكن سيتم متابعة باقي المهام")
         
     except Exception as e:
         logger.error(f"Error running schedule checks for {chat_id}: {e}")
