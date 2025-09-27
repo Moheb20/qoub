@@ -708,10 +708,31 @@ def live_exam_reminder_loop():
         time.sleep(5 * 60)  # فحص كل 5 دقائق
 
 
+def get_user_scheduled_events(chat_id):
+    """الحصول على جميع الأحداث المجدولة للمستخدم"""
+    try:
+        from database import get_user_deadlines
+        
+        events_info = {
+            'lectures': get_user_lectures_schedule(chat_id),
+            'exams': get_user_exams_schedule(chat_id),
+            'discussions': get_user_discussions_schedule(chat_id),
+            'deadlines': get_user_deadlines(chat_id),
+            'gpa_updates': "✅ سيتم إعلامك عند تحديث المعدل التراكمي",
+            'marks_updates': "✅ سيتم إعلامك عند إدخال علامات جديدة"
+        }
+        
+        return events_info
+        
+    except Exception as e:
+        logger.error(f"Error getting scheduled events for {chat_id}: {e}")
+        return None
+
 def get_user_lectures_schedule(chat_id):
-    """جلب المحاضرات المجدولة للمستخدم من نظام الجدولة"""
+    """جلب المحاضرات المجدولة للمستخدم"""
     try:
         # جلب المستخدم أولاً
+        from database import get_user
         user = get_user(chat_id)
         if not user or not user.get('student_id'):
             return []
@@ -738,6 +759,7 @@ def get_user_lectures_schedule(chat_id):
     except Exception as e:
         logger.error(f"Error getting lectures for {chat_id}: {e}")
         return []
+
 def get_user_exams_schedule(chat_id):
     """جلب الامتحانات المجدولة للمستخدم"""
     try:
@@ -745,27 +767,7 @@ def get_user_exams_schedule(chat_id):
         if chat_id in today_exams_memory:
             return today_exams_memory[chat_id]
         
-        # إذا لم توجد في الذاكرة، جلب من البوابة
-        user = get_user(chat_id)
-        if not user or not user.get('student_id'):
-            return []
-        
-        scraper = QOUScraper(user['student_id'], user['password'])
-        if not scraper.login():
-            return []
-        
-        exams = []
-        terms = scraper.get_last_two_terms()
-        
-        for term in terms:
-            for exam_code in EXAM_TYPE_MAP.keys():
-                try:
-                    term_exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
-                    exams.extend(term_exams)
-                except:
-                    continue
-        
-        return exams
+        return []  # إذا لم توجد في الذاكرة، نرجع قائمة فارغة مؤقتاً
         
     except Exception as e:
         logger.error(f"Error getting exams for {chat_id}: {e}")
@@ -774,10 +776,13 @@ def get_user_exams_schedule(chat_id):
 def get_user_discussions_schedule(chat_id):
     """جلب حلقات النقاش المجدولة للمستخدم"""
     try:
+        # جلب المستخدم أولاً
+        from database import get_user
         user = get_user(chat_id)
         if not user or not user.get('student_id'):
             return []
         
+        # استخدام الـ scraper
         scraper = QOUScraper(user['student_id'], user['password'])
         if not scraper.login():
             return []
