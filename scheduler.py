@@ -66,10 +66,12 @@ def convert_arabic_numbers(text):
     converted = ''.join(arabic_to_english.get(char, char) for char in str(text))
     return converted
 
-def parse_exam_datetime_safe(date_str, time_str):
-    """نسخة آمنة لتحويل التاريخ تعمل مع الأرقام العربية"""
+def parse_exam_datetime(date_str, time_str):
+    """
+    تحويل التاريخ والوقت من البوابة إلى كائن aware datetime مع المنطقة الزمنية PALESTINE_TZ.
+    """
     try:
-        # تحويل الأرقام العربية أولاً
+        # تحويل الأرقام العربية إلى إنجليزية أولاً
         date_str = convert_arabic_numbers(date_str.strip())
         time_str = convert_arabic_numbers(time_str.strip())
         
@@ -1122,6 +1124,8 @@ def run_existing_functions_for_user(chat_id):
                                     try:
                                         # معالجة آمنة للتاريخ باستخدام الدالة الجديدة
                                         exam_dt = parse_exam_datetime(exam["date"], exam["from_time"])
+                                        
+                                        # التحقق من أن exam_dt ليس None قبل أي عمليات
                                         if exam_dt is None:
                                             continue  # تخطي إذا كان التاريخ غير صالح
                                         
@@ -1131,11 +1135,11 @@ def run_existing_functions_for_user(chat_id):
                                         
                                         exam_date = exam_dt.date()
                                         
-                                        # التحقق من أن exam_date هو تاريخ صالح
-                                        if not isinstance(exam_date, datetime.date):
+                                        # التحقق من أن exam_date هو تاريخ صالح وليس None
+                                        if exam_date is None or not isinstance(exam_date, datetime.date):
                                             continue
                                         
-                                        # المقارنة الآمنة
+                                        # المقارنة الآمنة - التأكد من أن كلا الجانبين ليسا None
                                         if exam_date >= today:
                                             future_exams.append(exam)
                                             
@@ -1159,15 +1163,21 @@ def run_existing_functions_for_user(chat_id):
                         msg = "📝 **الامتحانات القادمة:**\n\n"
                         future_exams = today_exams_memory.get(chat_id, [])
                         
-                        # ترتيب الامتحانات حسب التاريخ
-                        sorted_exams = sorted(future_exams, key=lambda x: (
-                            parse_exam_datetime(x["date"], x["from_time"]).date() 
-                            if parse_exam_datetime(x["date"], x["from_time"]) 
-                            else datetime.max.date()
-                        ))
+                        # ترتيب الامتحانات حسب التاريخ مع معالجة آمنة
+                        sorted_exams = []
+                        for exam in future_exams:
+                            try:
+                                exam_dt = parse_exam_datetime(exam["date"], exam["from_time"])
+                                if exam_dt and hasattr(exam_dt, 'date'):
+                                    sorted_exams.append((exam_dt, exam))
+                            except:
+                                continue
                         
-                        for i, exam in enumerate(sorted_exams[:5], 1):
-                            exam_dt = parse_exam_datetime(exam["date"], exam["from_time"])
+                        # ترتيب حسب التاريخ
+                        sorted_exams.sort(key=lambda x: x[0].date() if x[0] else datetime.max.date())
+                        
+                        # عرض أول 5 امتحانات
+                        for i, (exam_dt, exam) in enumerate(sorted_exams[:5], 1):
                             if exam_dt:
                                 days_left = (exam_dt.date() - today).days
                                 if days_left == 0:
@@ -1189,11 +1199,6 @@ def run_existing_functions_for_user(chat_id):
                     success_count += 1
                 else:
                     bot.send_message(chat_id, "✅ لا توجد امتحانات قادمة")
-                    
-        except Exception as e:
-            logger.error(f"Error checking exams: {e}")
-            # لا نوقف العملية، نكمل مع المهام الأخرى
-            bot.send_message(chat_id, "⚠️ حدث خطأ أثناء فحص الامتحانات، لكن سيتم متابعة باقي المهام")
                     
         except Exception as e:
             logger.error(f"Error checking exams: {e}")
