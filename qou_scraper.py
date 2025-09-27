@@ -1315,3 +1315,178 @@ class QOUScraper:
         except Exception as e:
             logger.exception(f"Error getting upcoming lectures for {chat_id}: {e}")
             return "❌ حدث خطأ أثناء جلب المحاضرات القادمة"
+
+
+
+    def fetch_ecourse_courses(self, username: str, password: str) -> Dict[str, Any]:
+        """جلب المقررات المسجلة في النظام الإلكتروني باستخدام requests"""
+        try:
+            # إنشاء جلسة requests
+            session = requests.Session()
+            
+            # إضافة headers لمحاكاة المتصفح
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'ar,en-US;q=0.7,en;q=0.3',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            session.headers.update(headers)
+            
+            # 1. الدخول إلى صفحة التسجيل
+            login_url = "https://ecourse.qou.edu/login/index.php"
+            login_data = {
+                'username': username,
+                'password': password,
+                'anchor': ''
+            }
+            
+            response = session.post(login_url, data=login_data)
+            
+            # التحقق من نجاح التسجيل
+            if "حسابك معطل" in response.text:
+                return {"success": False, "error": "الحساب معطل أو البيانات غير صحيحة"}
+            
+            if "اسم المستخدم أو كلمة السر غير صحيحة" in response.text:
+                return {"success": False, "error": "اسم المستخدم أو كلمة السر غير صحيحة"}
+            
+            # 2. جلب صفحة المقررات
+            courses_url = "https://ecourse.qou.edu/"
+            response = session.get(courses_url)
+            
+            if response.status_code != 200:
+                return {"success": False, "error": f"خطأ في الاتصال: {response.status_code}"}
+            
+            # 3. تحليل HTML لاستخراج المقررات
+            soup = BeautifulSoup(response.content, 'html.parser')
+            courses_section = soup.find('div', {'id': 'frontpage-course-list'})
+            
+            if not courses_section:
+                return {"success": False, "error": "لم يتم العثور على المقررات المسجلة"}
+            
+            courses = []
+            course_cards = courses_section.find_all('div', {'class': 'card'})
+            
+            for card in course_cards:
+                try:
+                    # استخراج اسم المقرر
+                    title_link = card.find('h4', class_='card-title').find('a')
+                    course_name = title_link.text.strip() if title_link else "غير معروف"
+                    course_url = title_link.get('href', '') if title_link else ""
+                    
+                    # استخراج ID المقرر من data-courseid
+                    course_id = card.get('data-courseid', '')
+                    
+                    # استخراج صورة المقرر
+                    img = card.find('img')
+                    course_image = img.get('src', '') if img else ""
+                    
+                    # استخراج الفصل الدراسي
+                    category = card.find('div', {'class': 'coursecat'})
+                    category_name = category.text.strip() if category else "غير محدد"
+                    
+                    courses.append({
+                        'id': course_id,
+                        'name': course_name,
+                        'url': course_url,
+                        'image': course_image,
+                        'category': category_name
+                    })
+                except Exception as e:
+                    continue
+            
+            return {"success": True, "courses": courses}
+            
+        except requests.RequestException as e:
+            return {"success": False, "error": f"خطأ في الاتصال: {str(e)}"}
+        except Exception as e:
+            return {"success": False, "error": f"خطأ غير متوقع: {str(e)}"}
+    
+    def fetch_course_virtual_meetings(self, course_url: str, username: str, password: str) -> Dict[str, Any]:
+        """جلب اللقاءات الافتراضية لمقرر معين"""
+        try:
+            # إنشاء جلسة جديدة
+            session = requests.Session()
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            }
+            session.headers.update(headers)
+            
+            # تسجيل الدخول أولاً
+            login_url = "https://ecourse.qou.edu/login/index.php"
+            login_data = {'username': username, 'password': password, 'anchor': ''}
+            session.post(login_url, data=login_data)
+            
+            # جلب صفحة المقرر
+            response = session.get(course_url)
+            
+            if response.status_code != 200:
+                return {"success": False, "error": f"خطأ في جلب صفحة المقرر: {response.status_code}"}
+            
+            # تحليل المحتوى
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # البحث عن قسم اللقاءات الافتراضية
+            meetings_section = None
+            sections = soup.find_all('li', {'class': 'section'})
+            
+            for section in sections:
+                section_title = section.find('h3', {'class': 'sectionname'})
+                if section_title and 'اللقاءات الافتراضية' in section_title.text:
+                    meetings_section = section
+                    break
+            
+            if not meetings_section:
+                return {"success": False, "error": "لم يتم العثور على لقاءات افتراضية في هذا المقرر"}
+            
+            meetings = []
+            
+            # استخراج اللقاءات من التصنيفات المختلفة
+            labels = meetings_section.find_all('li', {'class': 'activity label'})
+            
+            for label in labels:
+                try:
+                    # البحث عن نص الفصل الدراسي
+                    strong_tag = label.find('b')
+                    if strong_tag and 'الفصل الدراسي' in strong_tag.text:
+                        semester = strong_tag.text.strip()
+                        
+                        # استخراج جميع روابط اللقاءات داخل هذا القسم
+                        meeting_links = label.find_all('a', href=True)
+                        
+                        for link in meeting_links:
+                            href = link.get('href', '')
+                            if 'playback' in href or 'vc' in href:
+                                meetings.append({
+                                    'semester': semester,
+                                    'title': link.text.strip(),
+                                    'url': href,
+                                    'type': 'virtual_meeting'
+                                })
+                except Exception as e:
+                    continue
+            
+            # استخراج اللقاءات الفردية (أنشطة URL)
+            url_activities = meetings_section.find_all('li', {'class': 'activity url'})
+            for activity in url_activities:
+                try:
+                    link = activity.find('a', href=True)
+                    if link:
+                        link_text = link.text.strip()
+                        if any(keyword in link_text for keyword in ['لقاء', 'اللقاء', 'meeting', 'Meeting']):
+                            meetings.append({
+                                'semester': 'لقاءات متنوعة',
+                                'title': link_text,
+                                'url': link.get('href', ''),
+                                'type': 'single_meeting'
+                            })
+                except Exception as e:
+                    continue
+            
+            return {"success": True, "meetings": meetings}
+            
+        except Exception as e:
+            return {"success": False, "error": f"خطأ في جلب اللقاءات: {str(e)}"}
