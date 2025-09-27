@@ -204,14 +204,38 @@ class QOUScraper:
             'term': parse_row(rows[0]),
             'cumulative': parse_row(rows[1])
         }
-
+    def convert_arabic_numbers(text):
+        """تحويل الأرقام العربية إلى إنجليزية"""
+        arabic_to_english = {
+            '٠': '0', '۰': '0',
+            '١': '1', '۱': '1',
+            '٢': '2', '۲': '2', 
+            '٣': '3', '۳': '3',
+            '٤': '4', '۴': '4',
+            '٥': '5', '۵': '5',
+            '٦': '6', '۶': '6',
+            '٧': '7', '۷': '7',
+            '٨': '8', '۸': '8',
+            '٩': '9', '۹': '9'
+        }
+        
+        if not text:
+            return text
+        
+        converted = ''.join(arabic_to_english.get(char, char) for char in str(text))
+        return converted
     def parse_exam_datetime(self, date_str, time_str):
         """يحوّل التاريخ + الوقت من النص إلى datetime جاهز"""
         try:
+            # تحويل الأرقام العربية أولاً
+            date_str = convert_arabic_numbers(date_str.strip())
+            time_str = convert_arabic_numbers(time_str.strip())
+            
             # دعم 23-08-2025 بدل 23/08/2025
             dt = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M")
             return dt.replace(tzinfo=PALESTINE_TZ)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"فشل تحويل التاريخ: {date_str} {time_str} | خطأ: {e}")
             return None
     # ------------------- جلب آخر فصلين -------------------
     def get_last_two_terms(self):
