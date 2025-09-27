@@ -1405,7 +1405,7 @@ class QOUScraper:
             return {"success": False, "error": f"خطأ غير متوقع: {str(e)}"}
     
     def fetch_course_virtual_meetings(self, course_url: str, username: str, password: str) -> Dict[str, Any]:
-        """جلب اللقاءات الافتراضية لمقرر معين"""
+        """جلب اللقاءات الافتراضية لمقرر معين - النسخة المصححة"""
         try:
             # إنشاء جلسة جديدة
             session = requests.Session()
@@ -1418,7 +1418,11 @@ class QOUScraper:
             # تسجيل الدخول أولاً
             login_url = "https://ecourse.qou.edu/login/index.php"
             login_data = {'username': username, 'password': password, 'anchor': ''}
-            session.post(login_url, data=login_data)
+            login_response = session.post(login_url, data=login_data)
+            
+            # التحقق من نجاح التسجيل
+            if "حسابك معطل" in login_response.text:
+                return {"success": False, "error": "الحساب معطل أو البيانات غير صحيحة"}
             
             # جلب صفحة المقرر
             response = session.get(course_url)
@@ -1429,62 +1433,94 @@ class QOUScraper:
             # تحليل المحتوى
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # البحث عن قسم اللقاءات الافتراضية
+            # البحث عن قسم اللقاءات الافتراضية - البحث بطرق مختلفة
             meetings_section = None
-            sections = soup.find_all('li', {'class': 'section'})
             
+            # الطريقة 1: البحث بالعنوان المباشر
+            sections = soup.find_all('li', {'class': 'section'})
             for section in sections:
                 section_title = section.find('h3', {'class': 'sectionname'})
-                if section_title and 'اللقاءات الافتراضية' in section_title.text:
+                if section_title and any(keyword in section_title.text for keyword in ['اللقاءات', 'افتراضي', 'virtual', 'meeting']):
                     meetings_section = section
                     break
+            
+            # الطريقة 2: إذا لم يتم العثور، ابحث في المحتوى الكامل
+            if not meetings_section:
+                for section in sections:
+                    section_content = section.get_text()
+                    if any(keyword in section_content for keyword in ['اللقاء', 'vc2.qou.edu', 'vc3.qou.edu', 'playback']):
+                        meetings_section = section
+                        break
             
             if not meetings_section:
                 return {"success": False, "error": "لم يتم العثور على لقاءات افتراضية في هذا المقرر"}
             
             meetings = []
             
-            # استخراج اللقاءات من التصنيفات المختلفة
-            labels = meetings_section.find_all('li', {'class': 'activity label'})
+            # ✅ التصحيح المهم: البحث عن جميع الروابط التي تحتوي على playback
+            all_links = meetings_section.find_all('a', href=True)
             
-            for label in labels:
-                try:
+            for link in all_links:
+                href = link.get('href', '')
+                link_text = link.get_text(strip=True)
+                
+                # إذا كان الرابط يحتوي على playback أو vc فهو لقاء افتراضي
+                if any(keyword in href for keyword in ['playback', 'vc1.qou.edu', 'vc2.qou.edu', 'vc3.qou.edu']):
+                    
+                    # البحث عن الفصل الدراسي من المحتوى المحيط
+                    semester = "الفصل الحالي"
+                    parent_content = link.find_parent().get_text() if link.find_parent() else ""
+                    
                     # البحث عن نص الفصل الدراسي
-                    strong_tag = label.find('b')
-                    if strong_tag and 'الفصل الدراسي' in strong_tag.text:
-                        semester = strong_tag.text.strip()
-                        
-                        # استخراج جميع روابط اللقاءات داخل هذا القسم
-                        meeting_links = label.find_all('a', href=True)
-                        
-                        for link in meeting_links:
-                            href = link.get('href', '')
-                            if 'playback' in href or 'vc' in href:
-                                meetings.append({
-                                    'semester': semester,
-                                    'title': link.text.strip(),
-                                    'url': href,
-                                    'type': 'virtual_meeting'
-                                })
-                except Exception as e:
-                    continue
+                    if 'الفصل الدراسي الأول' in parent_content:
+                        semester = 'الفصل الدراسي الأول'
+                    elif 'الفصل الدراسي الثاني' in parent_content:
+                        semester = 'الفصل الدراسي الثاني'
+                    elif 'الفصل الدراسي الصيفي' in parent_content:
+                        semester = 'الفصل الدراسي الصيفي'
+                    elif '1201' in parent_content:
+                        semester = 'الفصل الدراسي الأول (1201)'
+                    elif '1202' in parent_content:
+                        semester = 'الفصل الدراسي الثاني (1202)'
+                    elif '1203' in parent_content:
+                        semester = 'الفصل الدراسي الصيفي (1203)'
+                    
+                    meetings.append({
+                        'semester': semester,
+                        'title': link_text,
+                        'url': href,
+                        'type': 'virtual_meeting'
+                    })
             
-            # استخراج اللقاءات الفردية (أنشطة URL)
-            url_activities = meetings_section.find_all('li', {'class': 'activity url'})
-            for activity in url_activities:
-                try:
-                    link = activity.find('a', href=True)
-                    if link:
-                        link_text = link.text.strip()
-                        if any(keyword in link_text for keyword in ['لقاء', 'اللقاء', 'meeting', 'Meeting']):
-                            meetings.append({
-                                'semester': 'لقاءات متنوعة',
-                                'title': link_text,
-                                'url': link.get('href', ''),
-                                'type': 'single_meeting'
-                            })
-                except Exception as e:
-                    continue
+            # ✅ البحث الإضافي في محتوى النص للعثور على اللقاءات المخفية
+            text_content = meetings_section.get_text()
+            if 'اللقاء' in text_content and not meetings:
+                # محاولة استخراج اللقاءات من النص مباشرة
+                lines = text_content.split('\n')
+                current_semester = "الفصل الحالي"
+                
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                        
+                    # تحديث الفصل الدراسي
+                    if 'الفصل الدراسي' in line:
+                        current_semester = line.split('\n')[0] if '\n' in line else line
+                    
+                    # إذا كان السطر يحتوي على لقاء ولكن لا يحتوي على رابط
+                    if any(keyword in line for keyword in ['اللقاء الأول', 'اللقاء الثاني', 'اللقاء الثالث', 'اللقاء الرابع', 
+                                                          'اللقاء الخامس', 'اللقاء السادس', 'اللقاء السابع', 'اللقاء الثامن']):
+                        # البحث عن الرابط في السطور التالية أو السابقة
+                        meetings.append({
+                            'semester': current_semester,
+                            'title': line,
+                            'url': '⚠️ الرابط غير متوفر - يرجى زيارة المقرر مباشرة',
+                            'type': 'text_meeting'
+                        })
+            
+            if not meetings:
+                return {"success": False, "error": "لم يتم العثور على روابط لقاءات افتراضية"}
             
             return {"success": True, "meetings": meetings}
             
