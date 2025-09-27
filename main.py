@@ -16,6 +16,8 @@ from bot_instance import bot
 from database import create_anonymous_chat, add_chat_message, get_chat_partner, end_chat
 import random
 import secrets
+from scheduler import get_user_scheduled_events, format_scheduled_events_message
+
 from database import get_conn
 from database import (
     init_db,
