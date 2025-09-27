@@ -1061,31 +1061,40 @@ def run_existing_functions_for_user(chat_id):
         except Exception as e:
             logger.error(f"Error checking lectures: {e}")
         
-        # 6. فحص الامتحانات (باستخدام منطق check_today_exams)
+        # 6. فحص الامتحانات (باستخدام منطق check_today_exams) 
         try:
             exams_found = 0
             terms = scraper.get_last_two_terms()
+            today = datetime.now(PALESTINE_TZ).date()
             
             for term in terms:
                 for exam_code in EXAM_TYPE_MAP.keys():
                     try:
                         exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
                         if exams:
-                            # تخزين في الذاكرة
-                            if chat_id not in today_exams_memory:
-                                today_exams_memory[chat_id] = []
-                            today_exams_memory[chat_id].extend(exams)
-                            exams_found += len(exams)
+                            # تصفية الامتحانات التي بعد تاريخ اليوم فقط
+                            future_exams = [
+                                exam for exam in exams 
+                                if parse_exam_datetime(exam["date"], exam["from_time"]) and 
+                                   parse_exam_datetime(exam["date"], exam["from_time"]).date() >= today
+                            ]
+                            
+                            if future_exams:
+                                # تخزين في الذاكرة
+                                if chat_id not in today_exams_memory:
+                                    today_exams_memory[chat_id] = []
+                                today_exams_memory[chat_id].extend(future_exams)
+                                exams_found += len(future_exams)
                     except:
                         continue
             
             if exams_found > 0:
-                bot.send_message(chat_id, f"✅ تم فحص {exams_found} امتحان")
+                bot.send_message(chat_id, f"✅ تم فحص {exams_found} امتحان قادم")
                 success_count += 1
+            else:
+                bot.send_message(chat_id, "✅ لا توجد امتحانات قادمة")
         except Exception as e:
             logger.error(f"Error checking exams: {e}")
-        
-        return success_count
         
     except Exception as e:
         logger.error(f"Error running schedule checks for {chat_id}: {e}")
