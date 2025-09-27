@@ -867,6 +867,230 @@ def format_scheduled_events_message(events_info):
     message += "💡 **ملاحظة:** يتم تحديث هذه المعلومات تلقائياً كل يوم"
     
     return message
+
+
+def run_existing_functions_for_user(chat_id):
+    """
+    تشغيل الدوال الموجودة للمستخدم المحدد
+    """
+    success_count = 0
+    
+    try:
+        # جلب بيانات المستخدم
+        from database import get_user
+        user = get_user(chat_id)
+        
+        if not user or not user.get('student_id') or not user.get('password'):
+            bot.send_message(chat_id, "❌ يرجى تسجيل الدخول أولاً باستخدام /login")
+            return 0
+        
+        student_id = user['student_id']
+        password = user['password']
+        
+        # إنشاء scraper جديد
+        scraper = QOUScraper(student_id, password)
+        
+        if not scraper.login():
+            bot.send_message(chat_id, "❌ فشل تسجيل الدخول. يرجى التحقق من البيانات")
+            return 0
+        
+        bot.send_message(chat_id, "🔐 تم التسجيل الدخول بنجاح...")
+        
+        # 1. فحص الرسائل الجديدة (باستخدام منطق check_for_new_messages)
+        try:
+            latest = scraper.fetch_latest_message()
+            if latest and latest['msg_id'] != user.get('last_msg_id'):
+                msg = (
+                    f"📥 رســـالــــة جـديــدة!\n"
+                    f"📧 {latest['subject']}\n"
+                    f"📝 {latest['sender']}\n"
+                    f"🕒 {latest['date']}\n\n"
+                    f"{latest['body']}"
+                )
+                bot.send_message(chat_id, msg)
+                from database import update_last_msg
+                update_last_msg(chat_id, latest['msg_id'])
+                success_count += 1
+                bot.send_message(chat_id, "✅ تم فحص الرسائل الجديدة")
+        except Exception as e:
+            logger.error(f"Error checking messages: {e}")
+        
+        # 2. فحص العلامات (باستخدام منطق check_for_course_updates)
+        try:
+            courses = scraper.fetch_term_summary_courses()
+            old_courses = json.loads(user.get('courses_data')) if user.get('courses_data') else []
+            changes = []
+            
+            for c in courses:
+                old_c = next((o for o in old_courses if o['course_code'] == c['course_code']), None)
+                if old_c and (c['midterm_mark'] != old_c['midterm_mark'] or c['final_mark'] != old_c['final_mark']):
+                    changes.append(c)
+            
+            if changes:
+                msg = "📢 تحــديـــث جـديـد فـي الـعـلامــات:\n\n"
+                for c in changes:
+                    msg += f"📚 {c['course_name']}\nعلامـــة النـــــصــفي : {c['midterm_mark']} | العــــلامـــة النــــهائيـــة: {c['final_mark']}\n\n"
+                bot.send_message(chat_id, msg)
+                success_count += 1
+            
+            from database import update_user_courses
+            update_user_courses(chat_id, json.dumps(courses))
+            bot.send_message(chat_id, "✅ تم فحص العلامات")
+        except Exception as e:
+            logger.error(f"Error checking courses: {e}")
+        
+        # 3. فحص المعدل التراكمي (باستخدام منطق check_for_gpa_changes)
+        try:
+            new_gpa = scraper.fetch_gpa()
+            if new_gpa:
+                old_gpa = None
+                if user.get('last_gpa'):
+                    try:
+                        old_gpa = json.loads(user['last_gpa'])
+                    except:
+                        old_gpa = user['last_gpa']
+                
+                if old_gpa is None:
+                    from database import update_user_gpa
+                    update_user_gpa(chat_id, json.dumps(new_gpa))
+                elif (new_gpa.get('term_gpa') != old_gpa.get('term_gpa') or 
+                      new_gpa.get('cumulative_gpa') != old_gpa.get('cumulative_gpa')):
+                    msg = (
+                        f"🎓 تـــم تــــحديث البــــوابة الاكــــاديـــمية!\n\n"
+                        f"📘 المــعدل الـــفـصـلي : {new_gpa.get('term_gpa', '-')}\n"
+                        f"📚 المــعدل الـتـراكـمـي: {new_gpa.get('cumulative_gpa', '-')}"
+                    )
+                    bot.send_message(chat_id, msg)
+                    from database import update_user_gpa
+                    update_user_gpa(chat_id, json.dumps(new_gpa))
+                    success_count += 1
+                bot.send_message(chat_id, "✅ تم فحص المعدل التراكمي")
+        except Exception as e:
+            logger.error(f"Error checking GPA: {e}")
+        
+        # 4. فحص حلقات النقاش (باستخدام منطق check_discussion_sessions)
+        try:
+            sessions = scraper.fetch_discussion_sessions()
+            if sessions:
+                # جدولة التذكيرات لحلقات النقاش
+                now = datetime.now(PALESTINE_TZ)
+                for session in sessions:
+                    try:
+                        start_raw = session['time'].split('-')[0].strip()
+                        start_time = datetime.strptime(
+                            f"{session['date']} {start_raw}", "%d/%m/%Y %H:%M"
+                        ).replace(tzinfo=PALESTINE_TZ)
+                        
+                        session_key = f"{chat_id}_{session['course_code']}_{session['date']}_{session['time']}"
+                        
+                        reminders = [
+                            (start_time - timedelta(hours=2), "2h_before", 
+                             f"⏰ باقي ساعتين على حلقة النقاش: {session['course_name']}"),
+                            (start_time - timedelta(hours=1), "1h_before", 
+                             f"⚡ باقي ساعة على حلقة النقاش: {session['course_name']}"),
+                        ]
+                        
+                        for reminder_time, reminder_type, reminder_msg in reminders:
+                            if reminder_time > now:
+                                job_id = f"disc_{session_key}_{reminder_type}"
+                                exam_scheduler.add_job(
+                                    send_message,
+                                    'date',
+                                    run_date=reminder_time,
+                                    args=[bot, chat_id, reminder_msg],
+                                    id=job_id,
+                                    replace_existing=True
+                                )
+                        
+                    except Exception as e:
+                        logger.error(f"Error scheduling discussion: {e}")
+                        continue
+                
+                bot.send_message(chat_id, f"✅ تم فحص {len(sessions)} حلقة نقاش")
+                success_count += 1
+        except Exception as e:
+            logger.error(f"Error checking discussions: {e}")
+        
+        # 5. فحص المحاضرات (باستخدام منطق check_today_lectures)
+        try:
+            lectures = scraper.fetch_lectures_schedule()
+            if lectures:
+                now = datetime.now(PALESTINE_TZ)
+                today = now.date()
+                today_arabic = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"][today.weekday()]
+                
+                for lecture in lectures:
+                    day_str = lecture.get('day', '')
+                    day_name = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
+                    
+                    if day_name == today_arabic:
+                        try:
+                            time_str = lecture.get("time", "")
+                            if time_str and " - " in time_str:
+                                start_time_str = time_str.split(" - ")[0].strip()
+                                hour, minute = map(int, start_time_str.split(":"))
+                                lecture_start = PALESTINE_TZ.localize(
+                                    datetime(today.year, today.month, today.day, hour, minute, 0)
+                                )
+                                
+                                reminders = [
+                                    (lecture_start - timedelta(hours=1), "1h_before",
+                                     f"⏰ بعد ساعة عندك محاضرة {lecture['course_name']} ({lecture['time']})"),
+                                    (lecture_start - timedelta(minutes=15), "15m_before",
+                                     f"⚡ بعد ربع ساعة محاضرة {lecture['course_name']}"),
+                                ]
+                                
+                                for remind_time, reminder_type, msg in reminders:
+                                    if remind_time > now:
+                                        job_id = f"lec_{chat_id}_{lecture['course_code']}_{reminder_type}_{int(remind_time.timestamp())}"
+                                        exam_scheduler.add_job(
+                                            send_message,
+                                            'date',
+                                            run_date=remind_time,
+                                            args=[bot, chat_id, msg],
+                                            id=job_id,
+                                            replace_existing=True
+                                        )
+                        
+                        except Exception as e:
+                            logger.error(f"Error scheduling lecture: {e}")
+                            continue
+                
+                bot.send_message(chat_id, f"✅ تم فحص {len(lectures)} محاضرة")
+                success_count += 1
+        except Exception as e:
+            logger.error(f"Error checking lectures: {e}")
+        
+        # 6. فحص الامتحانات (باستخدام منطق check_today_exams)
+        try:
+            exams_found = 0
+            terms = scraper.get_last_two_terms()
+            
+            for term in terms:
+                for exam_code in EXAM_TYPE_MAP.keys():
+                    try:
+                        exams = scraper.fetch_exam_schedule(term["value"], exam_type=exam_code)
+                        if exams:
+                            # تخزين في الذاكرة
+                            if chat_id not in today_exams_memory:
+                                today_exams_memory[chat_id] = []
+                            today_exams_memory[chat_id].extend(exams)
+                            exams_found += len(exams)
+                    except:
+                        continue
+            
+            if exams_found > 0:
+                bot.send_message(chat_id, f"✅ تم فحص {exams_found} امتحان")
+                success_count += 1
+        except Exception as e:
+            logger.error(f"Error checking exams: {e}")
+        
+        return success_count
+        
+    except Exception as e:
+        logger.error(f"Error running schedule checks for {chat_id}: {e}")
+        bot.send_message(chat_id, f"❌ حدث خطأ: {str(e)}")
+        return 0
 def start_scheduler():
     """
     تشغيل كل المهام الأخرى + الجدولات
