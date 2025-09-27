@@ -1174,20 +1174,10 @@ class QOUScraper:
             weekdays_order = {"السبت": 0, "الأحد": 1, "الاثنين": 2, "الثلاثاء": 3, "الأربعاء": 4, "الخميس": 5, "الجمعة": 6}
             
             # 🔥 دالة محسنة: التحقق من تطابق الجدول مع الأسبوع الحالي
-            def is_schedule_match(lecture_schedule_type, current_week, week_type):
-                """
-                التحقق إذا كانت المحاضرة تنطبق على أي أسبوع (لا نفلتر)
-                ولكن نحدد إذا كانت للمحاضرة توقيت خاص
-                """
+            def is_schedule_match(lecture_schedule_type, target_week, target_week_type):
+                """التحقق إذا كانت المحاضرة تنطبق على أسبوع معين"""
                 if not lecture_schedule_type or lecture_schedule_type == "أسبوعي":
                     return True, "أسبوعي"
-                
-                # تحديد نوع الجدول للمحاضرة
-                schedule_type = "أسبوعي"
-                if "ز" in lecture_schedule_type:
-                    schedule_type = "زوجي"
-                elif "ف" in lecture_schedule_type:
-                    schedule_type = "فردي"
                 
                 # التحقق من مجموعات الجدول (ش-1، ش-2، ش-3، ش-4)
                 schedule_groups = {
@@ -1199,21 +1189,30 @@ class QOUScraper:
                 
                 for group_name, weeks in schedule_groups.items():
                     if group_name in lecture_schedule_type:
-                        if current_week in weeks:
-                            return True, f"{schedule_type} - {group_name}"
+                        if target_week in weeks:
+                            return True, f"📊 {group_name}"
                         else:
-                            return True, f"{schedule_type} - {group_name} (ليس هذا الأسبوع)"
+                            return False, f"🔄 {group_name}"
                 
-                # إذا كان هناك تطابق في النوع (زوجي/فردي)
-                if (schedule_type == "زوجي" and week_type == "زوجي") or (schedule_type == "فردي" and week_type == "فردي"):
-                    return True, schedule_type
-                else:
-                    return True, f"{schedule_type} (ليس هذا الأسبوع)"
+                # التحقق من النوع (زوجي/فردي)
+                schedule_char = ""
+                if "ز" in lecture_schedule_type:
+                    schedule_char = "ز"
+                    if target_week_type == "زوجي":
+                        return True, "📊 زوجي"
+                    else:
+                        return False, "🔄 زوجي"
+                elif "ف" in lecture_schedule_type:
+                    schedule_char = "ف"
+                    if target_week_type == "فردي":
+                        return True, "📊 فردي"
+                    else:
+                        return False, "🔄 فردي"
                 
-                return True, schedule_type
+                return True, "أسبوعي"
             
             # 🔥 دالة محسنة: حساب الوقت المتبقي بدقة
-            def get_time_remaining(day_name, time_str):
+            def get_time_remaining(day_name, time_str, schedule_type, current_week, week_type):
                 if not day_name or day_name == "غير محدد" or not time_str or time_str == "--:-- - --:--":
                     return "⏳ غير محدد"
                 
@@ -1231,8 +1230,59 @@ class QOUScraper:
                     if days_difference < 0:
                         days_difference += 7
                     
-                    # التاريخ المستهدف
-                    target_date = now_palestine.date() + timedelta(days=days_difference)
+                    # التاريخ المستهدف الأساسي
+                    base_target_date = now_palestine.date() + timedelta(days=days_difference)
+                    
+                    # 🔥 التعديل المهم: التحقق من تطابق الجدول
+                    def is_lecture_this_week(schedule_type, target_week, week_type):
+                        """التحقق إذا كانت المحاضرة في هذا الأسبوع حسب جدولها"""
+                        if not schedule_type or schedule_type == "أسبوعي":
+                            return True
+                        
+                        # التحقق من مجموعات الجدول (ش-1، ش-2، ش-3، ش-4)
+                        schedule_groups = {
+                            "ش-1": [1, 5, 9, 13],
+                            "ش-2": [2, 6, 10, 14], 
+                            "ش-3": [3, 7, 11, 15],
+                            "ش-4": [4, 8, 12, 16]
+                        }
+                        
+                        for group_name, weeks in schedule_groups.items():
+                            if group_name in schedule_type:
+                                return target_week in weeks
+                        
+                        # التحقق من النوع (زوجي/فردي)
+                        if "ز" in schedule_type and week_type == "زوجي":
+                            return True
+                        if "ف" in schedule_type and week_type == "فردي":
+                            return True
+                        
+                        return False
+                    
+                    # حساب الأسبوع المستهدف
+                    semester_start = palestine_tz.localize(datetime(2025, 9, 13)).date()
+                    days_since_start = (base_target_date - semester_start).days
+                    target_week = (days_since_start // 7) + 1
+                    
+                    # 🔥 إذا كانت المحاضرة ليست لهذا الأسبوع، نبحث عن أقرب موعد مناسب
+                    target_date = base_target_date
+                    weeks_to_add = 0
+                    
+                    if not is_lecture_this_week(schedule_type, target_week, week_type):
+                        # البحث عن أقرب أسبوع تنطبق فيه المحاضرة
+                        for i in range(1, 5):  # بحث حتى 4 أسابيع قادمة
+                            future_date = base_target_date + timedelta(weeks=i)
+                            future_days_since_start = (future_date - semester_start).days
+                            future_week = (future_days_since_start // 7) + 1
+                            
+                            # حساب نوع الأسبوع المستقبلي (زوجي/فردي)
+                            future_week_type = "فردي" if future_week % 2 == 1 else "زوجي"
+                            
+                            if is_lecture_this_week(schedule_type, future_week, future_week_type):
+                                weeks_to_add = i
+                                target_date = future_date
+                                target_week = future_week
+                                break
                     
                     # استخراج وقت البداية
                     start_time_str = time_str.split(' - ')[0].strip()
@@ -1246,45 +1296,50 @@ class QOUScraper:
                     time_diff = target_datetime - now_palestine
                     total_seconds = int(time_diff.total_seconds())
                     
-                    # إذا كانت المحاضرة قد مضت، نضيف أسبوعاً
-                    if total_seconds < -3600:  # ساعة واحدة tolerance
-                        target_date += timedelta(days=7)
-                        target_datetime_naive = datetime.combine(target_date, start_time)
-                        target_datetime = palestine_tz.localize(target_datetime_naive)
-                        time_diff = target_datetime - now_palestine
-                        total_seconds = int(time_diff.total_seconds())
-                    
                     if total_seconds <= 0:
                         return "🟢 الآن"
                     
                     # تحويل الثواني إلى وحدات زمنية
-                    days = total_seconds // (24 * 3600)
+                    total_days = total_seconds // (24 * 3600)
+                    weeks = total_days // 7
+                    days = total_days % 7
                     hours = (total_seconds % (24 * 3600)) // 3600
                     minutes = (total_seconds % 3600) // 60
                     
-                    # بناء رسالة الوقت المتبقي
-                    if days > 0:
-                        if days == 1:
-                            if hours > 0:
-                                return f"⏳ غداً بعد {hours} ساعة"
-                            else:
-                                return "⏳ غداً"
-                        elif days == 2:
-                            return "⏳ بعد غد"
+                    # 🔥 بناء رسالة الوقت المتبقي مع معلومات إضافية
+                    time_message = ""
+                    
+                    if weeks_to_add > 0:
+                        time_message = "⏰ "
+                    else:
+                        time_message = "⏳ "
+                    
+                    if weeks > 0:
+                        time_message += f"بعد {weeks} أسبوع"
+                        if days > 0:
+                            time_message += f" و {days} أيام"
+                    elif total_days > 0:
+                        if total_days == 1:
+                            time_message += "غداً"
+                        elif total_days == 2:
+                            time_message += "بعد غد"
                         else:
-                            return f"⏳ بعد {days} أيام"
+                            time_message += f"بعد {total_days} أيام"
                     else:
                         if hours > 0:
+                            time_message += f"بعد {hours} ساعة"
                             if minutes > 0:
-                                return f"⏳ بعد {hours} ساعة و {minutes} دقيقة"
-                            else:
-                                return f"⏳ بعد {hours} ساعة"
+                                time_message += f" و {minutes} دقيقة"
                         else:
-                            if minutes > 0:
-                                return f"⏳ بعد {minutes} دقيقة"
-                            else:
-                                return "🟢 الآن"
-                                
+                            time_message += f"بعد {minutes} دقيقة"
+                    
+                    # 🔥 إضافة ملاحظة إذا كانت المحاضرة ليست هذا الأسبوع
+                    if weeks_to_add > 0:
+                        future_week_type = "فردي" if target_week % 2 == 1 else "زوجي"
+                        time_message += f" (الأسبوع {target_week} {future_week_type})"
+                    
+                    return time_message
+                    
                 except Exception as e:
                     logger.debug(f"Error calculating time for {day_name} {time_str}: {e}")
                     return "⏳ غير محدد"
@@ -1335,7 +1390,8 @@ class QOUScraper:
                 lecturer = lecture.get('lecturer', '')
                 schedule_info = lecture.get('schedule_info', 'أسبوعي')
                 
-                time_remaining = get_time_remaining(day_name, time_str)
+                time_remaining = get_time_remaining(day_name, time_str, schedule_type, current_week, week_type)
+
                 
                 # 🔥 إضافة معلومات الجدول بشكل واضح
                 schedule_badge = ""
