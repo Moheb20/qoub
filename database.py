@@ -1029,3 +1029,36 @@ def end_chat(chat_token):
     except Exception as e:
         logger.error(f"Error ending chat: {e}")
         return False
+
+
+
+def get_user_deadlines(chat_id=None):
+    """الحصول على المواعيد الهامة (للمستخدم أو للجميع)"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                if chat_id:
+                    # إذا أردت مستقبلاً ربط المواعيد بمستخدمين محددين
+                    cur.execute('''
+                        SELECT name, date FROM deadlines 
+                        ORDER BY date ASC
+                    ''')
+                else:
+                    # حالياً جميع المواعيد عامة
+                    cur.execute('''
+                        SELECT name, date FROM deadlines 
+                        ORDER BY date ASC
+                    ''')
+                
+                deadlines = cur.fetchall()
+                result = []
+                for name, date in deadlines:
+                    result.append({
+                        'name': name,
+                        'date': date if isinstance(date, datetime.date) else datetime.strptime(str(date), '%Y-%m-%d').date()
+                    })
+                return result
+    except Exception as e:
+        logger.error(f"Error getting deadlines: {e}")
+        return []
+
