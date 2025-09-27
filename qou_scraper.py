@@ -1405,7 +1405,7 @@ class QOUScraper:
             return {"success": False, "error": f"خطأ غير متوقع: {str(e)}"}
     
     def fetch_course_virtual_meetings(self, course_url: str, username: str, password: str) -> Dict[str, Any]:
-        """جلب اللقاءات الافتراضية لمقرر معين - النسخة المصححة"""
+        """جلب اللقاءات الافتراضية - بدون 'الفصل الحالي'"""
         try:
             # إنشاء جلسة جديدة
             session = requests.Session()
@@ -1433,32 +1433,10 @@ class QOUScraper:
             # تحليل المحتوى
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # البحث عن قسم اللقاءات الافتراضية - البحث بطرق مختلفة
-            meetings_section = None
-            
-            # الطريقة 1: البحث بالعنوان المباشر
-            sections = soup.find_all('li', {'class': 'section'})
-            for section in sections:
-                section_title = section.find('h3', {'class': 'sectionname'})
-                if section_title and any(keyword in section_title.text for keyword in ['اللقاءات', 'افتراضي', 'virtual', 'meeting']):
-                    meetings_section = section
-                    break
-            
-            # الطريقة 2: إذا لم يتم العثور، ابحث في المحتوى الكامل
-            if not meetings_section:
-                for section in sections:
-                    section_content = section.get_text()
-                    if any(keyword in section_content for keyword in ['اللقاء', 'vc2.qou.edu', 'vc3.qou.edu', 'playback']):
-                        meetings_section = section
-                        break
-            
-            if not meetings_section:
-                return {"success": False, "error": "لم يتم العثور على لقاءات افتراضية في هذا المقرر"}
-            
             meetings = []
             
-            # ✅ التصحيح المهم: البحث عن جميع الروابط التي تحتوي على playback
-            all_links = meetings_section.find_all('a', href=True)
+            # البحث عن جميع الروابط التي تحتوي على playback أو vc
+            all_links = soup.find_all('a', href=True)
             
             for link in all_links:
                 href = link.get('href', '')
@@ -1467,23 +1445,27 @@ class QOUScraper:
                 # إذا كان الرابط يحتوي على playback أو vc فهو لقاء افتراضي
                 if any(keyword in href for keyword in ['playback', 'vc1.qou.edu', 'vc2.qou.edu', 'vc3.qou.edu']):
                     
-                    # البحث عن الفصل الدراسي من المحتوى المحيط
-                    semester = "الفصل الحالي"
-                    parent_content = link.find_parent().get_text() if link.find_parent() else ""
+                    # ✅ البحث عن الفصل الدراسي من المحتوى المحيط فقط إذا كان موجوداً
+                    semester = "غير محدد"  # قيمة افتراضية
                     
-                    # البحث عن نص الفصل الدراسي
-                    if 'الفصل الدراسي الأول' in parent_content:
-                        semester = 'الفصل الدراسي الأول'
-                    elif 'الفصل الدراسي الثاني' in parent_content:
-                        semester = 'الفصل الدراسي الثاني'
-                    elif 'الفصل الدراسي الصيفي' in parent_content:
-                        semester = 'الفصل الدراسي الصيفي'
-                    elif '1201' in parent_content:
-                        semester = 'الفصل الدراسي الأول (1201)'
-                    elif '1202' in parent_content:
-                        semester = 'الفصل الدراسي الثاني (1202)'
-                    elif '1203' in parent_content:
-                        semester = 'الفصل الدراسي الصيفي (1203)'
+                    # البحث في العنصر الأب والعناصر المجاورة
+                    parent = link.find_parent()
+                    if parent:
+                        parent_text = parent.get_text()
+                        
+                        # البحث عن معلومات الفصل في النص المحيط
+                        if 'الفصل الدراسي الأول' in parent_text or '1201' in parent_text:
+                            semester = 'الفصل الدراسي الأول'
+                        elif 'الفصل الدراسي الثاني' in parent_text or '1202' in parent_text:
+                            semester = 'الفصل الدراسي الثاني'
+                        elif 'الفصل الدراسي الصيفي' in parent_text or '1203' in parent_text:
+                            semester = 'الفصل الدراسي الصيفي'
+                        elif '1193' in parent_text:
+                            semester = 'الفصل الصيفي (1193)'
+                        elif '1192' in parent_text:
+                            semester = 'الفصل الثاني (1192)'
+                        elif '1191' in parent_text:
+                            semester = 'الفصل الأول (1191)'
                     
                     meetings.append({
                         'semester': semester,
@@ -1491,33 +1473,6 @@ class QOUScraper:
                         'url': href,
                         'type': 'virtual_meeting'
                     })
-            
-            # ✅ البحث الإضافي في محتوى النص للعثور على اللقاءات المخفية
-            text_content = meetings_section.get_text()
-            if 'اللقاء' in text_content and not meetings:
-                # محاولة استخراج اللقاءات من النص مباشرة
-                lines = text_content.split('\n')
-                current_semester = "الفصل الحالي"
-                
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-                        
-                    # تحديث الفصل الدراسي
-                    if 'الفصل الدراسي' in line:
-                        current_semester = line.split('\n')[0] if '\n' in line else line
-                    
-                    # إذا كان السطر يحتوي على لقاء ولكن لا يحتوي على رابط
-                    if any(keyword in line for keyword in ['اللقاء الأول', 'اللقاء الثاني', 'اللقاء الثالث', 'اللقاء الرابع', 
-                                                          'اللقاء الخامس', 'اللقاء السادس', 'اللقاء السابع', 'اللقاء الثامن']):
-                        # البحث عن الرابط في السطور التالية أو السابقة
-                        meetings.append({
-                            'semester': current_semester,
-                            'title': line,
-                            'url': '⚠️ الرابط غير متوفر - يرجى زيارة المقرر مباشرة',
-                            'type': 'text_meeting'
-                        })
             
             if not meetings:
                 return {"success": False, "error": "لم يتم العثور على روابط لقاءات افتراضية"}
