@@ -398,14 +398,15 @@ def check_today_lectures():
         today_arabic = arabic_days[today.weekday()]
         
         logger.info(f"📅 اليوم هو: {today_arabic} ({today.strftime('%Y-%m-%d')})")
+        logger.info(f"⏰ الوقت الحالي: {now.strftime('%H:%M:%S')}")
 
         lecture_count = 0
         reminder_count = 0
 
         for user in users:
             user_id = user['chat_id']
+            logger.info(f"👤 فحص المستخدم: {user_id}")
             
-            # ✅ استخدام البيانات المشفرة مباشرة
             student_id = user['student_id']
             password = user['password']
             
@@ -413,7 +414,6 @@ def check_today_lectures():
                 logger.warning(f"[{user_id}] بيانات تسجيل الدخول غير كافية")
                 continue
 
-            # ✅ إنشاء كائن scraper جديد لكل مستخدم
             scraper = QOUScraper(student_id, password)
             if not scraper.login():
                 logger.warning(f"[{user_id}] فشل تسجيل الدخول")
@@ -422,11 +422,12 @@ def check_today_lectures():
             try:
                 lectures = scraper.fetch_lectures_schedule()
                 logger.info(f"[{user_id}] تم جلب {len(lectures)} محاضرة")
+                
             except Exception as e:
                 logger.error(f"[{user_id}] خطأ في جلب المحاضرات: {e}")
                 continue
 
-            # ✅ الحصول على معلومات الأسبوع الحالي (مثل الدالة الأصلية)
+            # ✅ الحصول على معلومات الأسبوع الحالي
             week_info = scraper.get_current_week_type()
             current_week = 1
             week_type = "فردي"
@@ -445,53 +446,69 @@ def check_today_lectures():
                 except Exception as e:
                     logger.debug(f"[{user_id}] Error parsing week info: {e}")
 
+            logger.info(f"[{user_id}] الأسبوع الحالي: {current_week} - النوع: {week_type}")
+
             user_lectures_today = 0
             
             for lecture in lectures:
-                # ✅ معالجة اليوم ونوع الجدول مثل الدالة الأصلية
                 day_str = lecture.get('day', '')
+                if not day_str:
+                    continue
+                    
                 day_name = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
                 schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
+                
+                logger.debug(f"[{user_id}] فحص المحاضرة: {lecture['course_name']} - اليوم: {day_name} - الجدول: {schedule_type}")
                 
                 # ✅ التحقق إذا كان اليوم مطابق ليوم اليوم
                 if day_name != today_arabic:
                     continue
                 
-                # ✅ التحقق من تطابق الجدول مع الأسبوع الحالي
+                logger.info(f"[{user_id}] وجد محاضرة اليوم: {lecture['course_name']}")
+                
                 def is_lecture_this_week(schedule_type, target_week, week_type):
                     """التحقق إذا كانت المحاضرة في هذا الأسبوع حسب جدولها"""
-                    if not schedule_type or schedule_type == "أسبوعي":
+                    
+                    # ✅ إذا لا شيء أو أسبوعي = كل أسبوع
+                    if not schedule_type or schedule_type == "أسبوعي" or schedule_type == "":
+                        logger.debug(f"[{user_id}] محاضرة أسبوعية: {schedule_type}")
                         return True
                     
-                    # التحقق من مجموعات الجدول (ش-1، ش-2، ش-3، ش-4)
-                    schedule_groups = {
-                        "ش-1": [1, 5, 9, 13],
-                        "ش-2": [2, 6, 10, 14], 
-                        "ش-3": [3, 7, 11, 15],
-                        "ش-4": [4, 8, 12, 16]
-                    }
+                    # ✅ ز = زوجي فقط
+                    if "ز" in schedule_type:
+                        logger.debug(f"[{user_id}] محاضرة زوجية: {schedule_type}")
+                        return week_type == "زوجي"
                     
-                    for group_name, weeks in schedule_groups.items():
-                        if group_name in schedule_type:
-                            return target_week in weeks
+                    # ✅ ف = فردي فقط  
+                    if "ف" in schedule_type:
+                        logger.debug(f"[{user_id}] محاضرة فردية: {schedule_type}")
+                        return week_type == "فردي"
                     
-                    # التحقق من النوع (زوجي/فردي)
-                    if "ز" in schedule_type and week_type == "زوجي":
-                        return True
-                    if "ف" in schedule_type and week_type == "فردي":
-                        return True
+                    # ✅ 3-ش = الأسبوع الثالث من كل شهر (الأسابيع 3, 7, 11, 15)
+                    if "3-ش" in schedule_type:
+                        logger.debug(f"[{user_id}] محاضرة 3-ش: {schedule_type}")
+                        return target_week in [3, 7, 11, 15]
                     
-                    return False
+                    # ✅ 4-ش = الأسبوع الرابع من كل شهر (الأسابيع 4, 8, 12, 16)
+                    if "4-ش" in schedule_type:
+                        logger.debug(f"[{user_id}] محاضرة 4-ش: {schedule_type}")
+                        return target_week in [4, 8, 12, 16]
+                    
+                    # ✅ إذا كان نوع غير معروف، نعتبرها أسبوعية
+                    logger.warning(f"[{user_id}] نوع جدول غير معروف: {schedule_type} - اعتبارها أسبوعية")
+                    return True
                 
-                # ✅ إذا كانت المحاضرة ليست لهذا الأسبوع، تخطيها
+                # ✅ التحقق إذا كانت المحاضرة لهذا الأسبوع
                 if not is_lecture_this_week(schedule_type, current_week, week_type):
-                    logger.info(f"[{user_id}] تخطي محاضرة {lecture['course_name']} - ليست هذا الأسبوع ({schedule_type})")
+                    logger.info(f"[{user_id}] تخطي محاضرة {lecture['course_name']} - ليست هذا الأسبوع (النوع: {schedule_type}, الأسبوع: {current_week}, النوع: {week_type})")
                     continue
+                else:
+                    logger.info(f"[{user_id}] محاضرة {lecture['course_name']} مجدولة لهذا الأسبوع (النوع: {schedule_type}, الأسبوع: {current_week}, النوع: {week_type})")
                 
                 user_lectures_today += 1
                 lecture_count += 1
 
-                # ✅ وقت بداية المحاضرة مع معالجة الأخطاء
+                # ✅ وقت بداية المحاضرة
                 try:
                     time_str = lecture.get("time", "")
                     if not time_str or " - " not in time_str:
@@ -501,46 +518,47 @@ def check_today_lectures():
                     start_time_str = time_str.split(" - ")[0].strip()
                     hour, minute = map(int, start_time_str.split(":"))
                     
-                    # ✅ إنشاء datetime مع المنطقة الزمنية
                     lecture_start = PALESTINE_TZ.localize(
                         datetime(today.year, today.month, today.day, hour, minute, 0)
                     )
                     
-                    logger.info(f"[{user_id}] محاضرة اليوم: {lecture['course_name']} الساعة {hour:02d}:{minute:02d} ({schedule_type})")
+                    logger.info(f"[{user_id}] محاضرة مجدولة: {lecture['course_name']} الساعة {hour:02d}:{minute:02d} (النوع: {schedule_type})")
+                    
+                    # ✅ رسائل التذكير
+                    reminders = [
+                        (lecture_start - timedelta(hours=1), "1h_before",
+                         f"⏰ بعد ساعة عندك محاضرة {lecture['course_name']} ({lecture['time']})"),
+                        (lecture_start - timedelta(minutes=15), "15m_before",
+                         f"⚡ بعد ربع ساعة محاضرة {lecture['course_name']}"),
+                        (lecture_start, "start_time",
+                         f"🚀 بدأت الآن محاضرة {lecture['course_name']} بالتوفيق ❤️"),
+                    ]
+
+                    # ✅ جدولة التذكيرات
+                    for remind_time, reminder_type, msg in reminders:
+                        if remind_time > now:
+                            try:
+                                job_id = f"lec_{user_id}_{lecture['course_code']}_{reminder_type}_{int(remind_time.timestamp())}"
+                                
+                                exam_scheduler.add_job(
+                                    send_message,
+                                    'date',
+                                    run_date=remind_time,
+                                    args=[bot, user_id, msg],
+                                    id=job_id,
+                                    replace_existing=True
+                                )
+                                reminder_count += 1
+                                logger.info(f"[{user_id}] تم جدولة تذكير: {msg} في {remind_time.strftime('%H:%M')}")
+                                
+                            except Exception as e:
+                                logger.error(f"[{user_id}] فشل جدولة التذكير: {e}")
+                        else:
+                            logger.debug(f"[{user_id}] تذكير {reminder_type} للمحاضرة {lecture['course_name']} تجاوز وقته")
                     
                 except Exception as e:
                     logger.error(f"[{user_id}] خطأ في تحويل وقت المحاضرة {lecture['course_name']}: {e}")
                     continue
-
-                # ✅ رسائل التذكير (نفس النظام السابق)
-                reminders = [
-                    (lecture_start - timedelta(hours=1), "1h_before",
-                     f"⏰ بعد ساعة عندك محاضرة {lecture['course_name']} ({lecture['time']})"),
-                    (lecture_start - timedelta(minutes=15), "15m_before",
-                     f"⚡ بعد ربع ساعة محاضرة {lecture['course_name']}"),
-                    (lecture_start, "start_time",
-                     f"🚀 بدأت الآن محاضرة {lecture['course_name']} بالتوفيق ❤️"),
-                ]
-
-                # ✅ جدولة التذكيرات
-                for remind_time, reminder_type, msg in reminders:
-                    if remind_time > now:
-                        try:
-                            job_id = f"lec_{user_id}_{lecture['course_code']}_{reminder_type}_{int(remind_time.timestamp())}"
-                            
-                            exam_scheduler.add_job(
-                                send_message,
-                                'date',
-                                run_date=remind_time,
-                                args=[bot, user_id, msg],
-                                id=job_id,
-                                replace_existing=True
-                            )
-                            reminder_count += 1
-                            logger.info(f"[{user_id}] تم جدولة تذكير: {msg} في {remind_time.strftime('%H:%M')}")
-                            
-                        except Exception as e:
-                            logger.error(f"[{user_id}] فشل جدولة التذكير: {e}")
 
             if user_lectures_today > 0:
                 logger.info(f"[{user_id}] لديه {user_lectures_today} محاضرة اليوم")
@@ -551,7 +569,6 @@ def check_today_lectures():
 
     except Exception as e:
         logger.exception(f"❌ خطأ أثناء فحص المحاضرات: {e}")
-
 
 def daily_lecture_checker_loop():
     """
