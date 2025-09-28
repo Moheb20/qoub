@@ -1173,65 +1173,26 @@ class QOUScraper:
             palestine_tz = timezone('Asia/Gaza')
             
             now = datetime.now(palestine_tz)
-            current_date = now.date()
     
-            # 🔥 التصحيح: تعريف موحد لأيام الأسبوع
+            # تعريف أيام الأسبوع
             arabic_to_weekday = {
-                "الاثنين": 0,
-                "الثلاثاء": 1, 
-                "الأربعاء": 2,
-                "الخميس": 3,
-                "الجمعة": 4,
-                "السبت": 5,
-                "الأحد": 6
+                "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, 
+                "الجمعة": 4, "السبت": 5, "الأحد": 6
             }
             
-            # 🔥 التصحيح: ترتيب الأيام للعرض
             weekdays_order = {
-                "الاثنين": 0, 
-                "الثلاثاء": 1, 
-                "الأربعاء": 2, 
-                "الخميس": 3, 
-                "الجمعة": 4,
-                "السبت": 5,
-                "الأحد": 6
+                "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, 
+                "الجمعة": 4, "السبت": 5, "الأحد": 6
             }
     
-            # 🔥 دالة محسنة: التحقق من تطابق الجدول مع النظام الجديد
-            def is_lecture_this_week(schedule_type, target_week, target_week_type):
-                """التحقق إذا كانت المحاضرة في هذا الأسبوع حسب جدولها"""
-                if not schedule_type or schedule_type == "أسبوعي":
-                    return True
-                
-                # ز = زوجي فقط
-                if "ز" in schedule_type:
-                    return target_week_type == "زوجي"
-                
-                # ف = فردي فقط  
-                if "ف" in schedule_type:
-                    return target_week_type == "فردي"
-                
-                # 3-ش = الأسبوع الثالث من كل شهر (الأسابيع 3, 7, 11, 15)
-                if "3-ش" in schedule_type:
-                    return target_week in [3, 7, 11, 15]
-                
-                # 4-ش = الأسبوع الرابع من كل شهر (الأسابيع 4, 8, 12, 16)
-                if "4-ش" in schedule_type:
-                    return target_week in [4, 8, 12, 16]
-                
-                # إذا كان نوع غير معروف، نعتبرها أسبوعية
-                return True
-    
-            # 🔥 دالة محسنة: حساب الوقت المتبقي بدقة
-            def get_time_remaining(day_name, time_str, schedule_type, current_week, week_type):
-                if not day_name or day_name == "غير محدد" or not time_str or time_str == "--:-- - --:--":
-                    return "⏳ غير محدد"
-                
+            # 🔥 دالة محسنة: إيجاد أقرب موعد للمحاضرة حسب جدولها
+            def find_next_lecture_date(day_name, schedule_type, current_week, current_week_type):
+                """إيجاد أقرب تاريخ للمحاضرة حسب جدولها"""
                 try:
                     # تحويل اليوم العربي إلى رقم
                     target_weekday = arabic_to_weekday.get(day_name, -1)
                     if target_weekday == -1:
-                        return "⏳ غير محدد"
+                        return None, None, None
                     
                     now_palestine = datetime.now(palestine_tz)
                     current_weekday = now_palestine.weekday()
@@ -1241,47 +1202,65 @@ class QOUScraper:
                     if days_difference < 0:
                         days_difference += 7
                     
-                    # التاريخ المستهدف الأساسي
-                    base_target_date = now_palestine.date() + timedelta(days=days_difference)
+                    # التاريخ الأساسي (هذا الأسبوع)
+                    base_date = now_palestine.date() + timedelta(days=days_difference)
                     
-                    # 🔥 حساب الأسبوع الصحيح
-                    # افتراض أن الفصل بدأ في 1 سبتمبر 2025
-                    semester_start = palestine_tz.localize(datetime(2025, 9, 1)).date()
-                    days_since_start = (base_target_date - semester_start).days
-                    target_week = (days_since_start // 7) + 1
+                    # 🔥 البحث عن أقرب موعد ينطبق مع جدول المحاضرة
+                    for weeks_ahead in range(0, 52):  # بحث لمدة سنة
+                        test_date = base_date + timedelta(weeks=weeks_ahead)
+                        
+                        # حساب رقم الأسبوع ونوعه
+                        # نفترض أن الأسبوع 1 بدأ في 1 سبتمبر 2025
+                        semester_start = datetime(2025, 9, 1).date()
+                        days_since_start = (test_date - semester_start).days
+                        test_week = (days_since_start // 7) + 1
+                        test_week_type = "فردي" if test_week % 2 == 1 else "زوجي"
+                        
+                        # 🔥 التحقق من تطابق الجدول
+                        is_match = False
+                        
+                        if not schedule_type or schedule_type == "أسبوعي":
+                            is_match = True
+                        elif "ز" in schedule_type and test_week_type == "زوجي":
+                            is_match = True
+                        elif "ف" in schedule_type and test_week_type == "فردي":
+                            is_match = True
+                        elif "3-ش" in schedule_type and test_week in [3, 7, 11, 15]:
+                            is_match = True
+                        elif "4-ش" in schedule_type and test_week in [4, 8, 12, 16]:
+                            is_match = True
+                        
+                        if is_match:
+                            return test_date, test_week, test_week_type
                     
-                    # 🔥 حساب نوع الأسبوع
-                    target_week_type = "فردي" if target_week % 2 == 1 else "زوجي"
+                    return None, None, None
                     
-                    # 🔥 التحقق إذا كانت المحاضرة في هذا الأسبوع
-                    weeks_to_add = 0
-                    target_date = base_target_date
+                except Exception as e:
+                    logger.debug(f"Error finding next lecture date: {e}")
+                    return None, None, None
+    
+            # 🔥 دالة محسنة: حساب الوقت المتبقي
+            def get_time_remaining(day_name, time_str, schedule_type, current_week, current_week_type):
+                if not day_name or day_name == "غير محدد" or not time_str or time_str == "--:-- - --:--":
+                    return "⏳ غير محدد"
+                
+                try:
+                    # إيجاد أقرب موعد للمحاضرة
+                    next_date, next_week, next_week_type = find_next_lecture_date(day_name, schedule_type, current_week, current_week_type)
                     
-                    if not is_lecture_this_week(schedule_type, target_week, target_week_type):
-                        # البحث عن أقرب أسبوع تنطبق فيه المحاضرة
-                        for i in range(1, 17):  # بحث في جميع أسابيع الفصل
-                            future_date = base_target_date + timedelta(weeks=i)
-                            future_days_since_start = (future_date - semester_start).days
-                            future_week = (future_days_since_start // 7) + 1
-                            future_week_type = "فردي" if future_week % 2 == 1 else "زوجي"
-                            
-                            if is_lecture_this_week(schedule_type, future_week, future_week_type):
-                                weeks_to_add = i
-                                target_date = future_date
-                                target_week = future_week
-                                target_week_type = future_week_type
-                                break
+                    if not next_date:
+                        return "⏳ غير مجدولة"
                     
                     # استخراج وقت البداية
                     start_time_str = time_str.split(' - ')[0].strip()
                     start_time = datetime.strptime(start_time_str, "%H:%M").time()
                     
                     # الجمع بين التاريخ والوقت
-                    target_datetime_naive = datetime.combine(target_date, start_time)
+                    target_datetime_naive = datetime.combine(next_date, start_time)
                     target_datetime = palestine_tz.localize(target_datetime_naive)
                     
                     # حساب الفرق
-                    time_diff = target_datetime - now_palestine
+                    time_diff = target_datetime - now
                     total_seconds = int(time_diff.total_seconds())
                     
                     if total_seconds <= 0:
@@ -1295,12 +1274,7 @@ class QOUScraper:
                     minutes = (total_seconds % 3600) // 60
                     
                     # بناء رسالة الوقت المتبقي
-                    time_message = ""
-                    
-                    if weeks_to_add > 0:
-                        time_message = "⏰ "
-                    else:
-                        time_message = "⏳ "
+                    time_message = "⏳ "
                     
                     if weeks > 0:
                         time_message += f"بعد {weeks} أسبوع"
@@ -1321,9 +1295,8 @@ class QOUScraper:
                         else:
                             time_message += f"بعد {minutes} دقيقة"
                     
-                    # إضافة معلومات الأسبوع إذا كانت المحاضرة ليست هذا الأسبوع
-                    if weeks_to_add > 0:
-                        time_message += f" (الأسبوع {target_week} {target_week_type})"
+                    # إضافة معلومات الأسبوع
+                    time_message += f" (الأسبوع {next_week} {next_week_type})"
                     
                     return time_message
                     
@@ -1331,34 +1304,34 @@ class QOUScraper:
                     logger.debug(f"Error calculating time for {day_name} {time_str}: {e}")
                     return "⏳ غير محدد"
             
-            # معالجة المحاضرات
+            # 🔥 دالة لتحديد نوع الجدول
+            def get_schedule_info(schedule_type):
+                if not schedule_type or schedule_type == "أسبوعي":
+                    return "📊 أسبوعي"
+                elif "ز" in schedule_type:
+                    return "📊 زوجي"
+                elif "ف" in schedule_type:
+                    return "📊 فردي"
+                elif "3-ش" in schedule_type:
+                    return "📊 3-ش"
+                elif "4-ش" in schedule_type:
+                    return "📊 4-ش"
+                else:
+                    return "📊 أسبوعي"
+            
+            # معالجة جميع المحاضرات
             processed_lectures = []
             for lecture in schedule:
                 day_str = lecture.get('day', '')
                 day_name = day_str.split('/')[0].strip() if day_str and day_str.strip() else "غير محدد"
                 schedule_type = day_str.split('/')[1].strip() if '/' in day_str else "أسبوعي"
                 
-                # التحقق من الجدول
-                is_match = is_lecture_this_week(schedule_type, current_week, week_type)
-                schedule_info = "📊 أسبوعي"
-                
-                if schedule_type:
-                    if "ز" in schedule_type:
-                        schedule_info = "📊 زوجي" if is_match else "🔄 زوجي"
-                    elif "ف" in schedule_type:
-                        schedule_info = "📊 فردي" if is_match else "🔄 فردي"
-                    elif "3-ش" in schedule_type:
-                        schedule_info = "📊 3-ش" if is_match else "🔄 3-ش"
-                    elif "4-ش" in schedule_type:
-                        schedule_info = "📊 4-ش" if is_match else "🔄 4-ش"
-                
                 lecture['clean_day'] = day_name
                 lecture['schedule_type'] = schedule_type
-                lecture['schedule_info'] = schedule_info
-                lecture['is_match'] = is_match
+                lecture['schedule_info'] = get_schedule_info(schedule_type)
                 processed_lectures.append(lecture)
             
-            # 🔥 التصحيح: ترتيب المحاضرات حسب الأيام الصحيح
+            # ترتيب المحاضرات حسب الأيام والأوقات
             processed_lectures.sort(key=lambda x: (
                 weekdays_order.get(x.get('clean_day', ''), 99),
                 x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
@@ -1366,14 +1339,13 @@ class QOUScraper:
             
             # بناء الرسالة
             message = f"📢 **المحاضرات القادمة**\n"
-            message += f"📅 الأسبوع {current_week} ({week_type})\n"
+            message += f"📅 الأسبوع الحالي: {current_week} ({week_type})\n"
             message += f"📍 التوقيت: فلسطين\n"
             message += f"🕒 الآن: {now.strftime('%Y-%m-%d %H:%M')}\n\n"
             
             day_emojis = {
                 "الاثنين": "🟢", "الثلاثاء": "🟡", "الأربعاء": "🟠", 
-                "الخميس": "🔴", "الجمعة": "⚫", "السبت": "🟣", 
-                "الأحد": "🔵", "غير محدد": "⚪"
+                "الخميس": "🔴", "الجمعة": "⚫", "السبت": "🟣", "الأحد": "🔵"
             }
             
             current_day = ""
@@ -1407,7 +1379,6 @@ class QOUScraper:
                         lecturer = lecturer[:30] + "..."
                     message += f"   👨‍🏫 {lecturer}\n"
                 
-                # فصل بين المحاضرات
                 if i < len(processed_lectures) - 1:
                     next_lecture = processed_lectures[i + 1]
                     next_day = next_lecture.get('clean_day', '')
@@ -1421,17 +1392,17 @@ class QOUScraper:
             
             # إضافة ملاحظة عن نظام الجدول
             message += "💡 **ملاحظة:**\n"
-            message += "• 📊 ز/ف: المحاضرة في الأسابيع الزوجية/الفردية فقط\n"
-            message += "• 📊 3-ش/4-ش: المحاضرة في الأسابيع 3,7,11,15 أو 4,8,12,16\n"
-            message += "• 🔄: المحاضرة ليست في هذا الأسبوع\n"
-            message += "• بدون إشارة: المحاضرة أسبوعية\n"
+            message += "• 📊 أسبوعي: كل أسبوع\n"
+            message += "• 📊 فردي: الأسابيع الفردية فقط (1,3,5,...)\n"
+            message += "• 📊 زوجي: الأسابيع الزوجية فقط (2,4,6,...)\n"
+            message += "• 📊 3-ش: الأسابيع 3,7,11,15 فقط\n"
+            message += "• 📊 4-ش: الأسابيع 4,8,12,16 فقط\n"
             
             return message
             
         except Exception as e:
             logger.exception(f"Error getting upcoming lectures for {chat_id}: {e}")
             return f"❌ حدث خطأ أثناء جلب المحاضرات القادمة: {str(e)}"
-
 
     def fetch_ecourse_courses(self, username: str, password: str) -> Dict[str, Any]:
         """جلب المقررات المسجلة في النظام الإلكتروني باستخدام requests"""
