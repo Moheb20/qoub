@@ -1176,17 +1176,17 @@ class QOUScraper:
     
             # تعريف أيام الأسبوع
             arabic_to_weekday = {
-                "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, 
-                "الجمعة": 4, "السبت": 5, "الأحد": 6
+                "السبت": 5, "الأحد": 6, "الاثنين": 0, "الثلاثاء": 1, 
+                "الأربعاء": 2, "الخميس": 3, "الجمعة": 4
             }
             
             weekdays_order = {
-                "الاثنين": 0, "الثلاثاء": 1, "الأربعاء": 2, "الخميس": 3, 
-                "الجمعة": 4, "السبت": 5, "الأحد": 6
+                "السبت": 0, "الأحد": 1, "الاثنين": 2, "الثلاثاء": 3, 
+                "الأربعاء": 4, "الخميس": 5, "الجمعة": 6
             }
     
             # 🔥 دالة محسنة: إيجاد أقرب موعد للمحاضرة حسب جدولها
-            def find_next_lecture_date(day_name, schedule_type, current_week, current_week_type):
+            def find_next_lecture_date(day_name, schedule_type):
                 """إيجاد أقرب تاريخ للمحاضرة حسب جدولها"""
                 try:
                     # تحويل اليوم العربي إلى رقم
@@ -1209,9 +1209,9 @@ class QOUScraper:
                     for weeks_ahead in range(0, 52):  # بحث لمدة سنة
                         test_date = base_date + timedelta(weeks=weeks_ahead)
                         
-                        # حساب رقم الأسبوع ونوعه
-                        # نفترض أن الأسبوع 1 بدأ في 1 سبتمبر 2025
-                        semester_start = datetime(2025, 9, 1).date()
+                        # 🔥 حساب رقم الأسبوع بناءً على أن الأسبوع يبدأ يوم السبت
+                        # نفترض أن الأسبوع 1 بدأ في 30 أغسطس 2025 (السبت الأول)
+                        semester_start = datetime(2025, 8, 30).date()  # السبت الأول
                         days_since_start = (test_date - semester_start).days
                         test_week = (days_since_start // 7) + 1
                         test_week_type = "فردي" if test_week % 2 == 1 else "زوجي"
@@ -1240,13 +1240,13 @@ class QOUScraper:
                     return None, None, None
     
             # 🔥 دالة محسنة: حساب الوقت المتبقي
-            def get_time_remaining(day_name, time_str, schedule_type, current_week, current_week_type):
+            def get_time_remaining(day_name, time_str, schedule_type):
                 if not day_name or day_name == "غير محدد" or not time_str or time_str == "--:-- - --:--":
                     return "⏳ غير محدد"
                 
                 try:
                     # إيجاد أقرب موعد للمحاضرة
-                    next_date, next_week, next_week_type = find_next_lecture_date(day_name, schedule_type, current_week, current_week_type)
+                    next_date, next_week, next_week_type = find_next_lecture_date(day_name, schedule_type)
                     
                     if not next_date:
                         return "⏳ غير مجدولة"
@@ -1331,7 +1331,7 @@ class QOUScraper:
                 lecture['schedule_info'] = get_schedule_info(schedule_type)
                 processed_lectures.append(lecture)
             
-            # ترتيب المحاضرات حسب الأيام والأوقات
+            # ترتيب المحاضرات حسب الأيام والأوقات (السبت أولاً)
             processed_lectures.sort(key=lambda x: (
                 weekdays_order.get(x.get('clean_day', ''), 99),
                 x.get('time', '00:00').split(' - ')[0] if ' - ' in x.get('time', '') else '00:00'
@@ -1344,8 +1344,8 @@ class QOUScraper:
             message += f"🕒 الآن: {now.strftime('%Y-%m-%d %H:%M')}\n\n"
             
             day_emojis = {
-                "الاثنين": "🟢", "الثلاثاء": "🟡", "الأربعاء": "🟠", 
-                "الخميس": "🔴", "الجمعة": "⚫", "السبت": "🟣", "الأحد": "🔵"
+                "السبت": "🟣", "الأحد": "🔵", "الاثنين": "🟢", 
+                "الثلاثاء": "🟡", "الأربعاء": "🟠", "الخميس": "🔴", "الجمعة": "⚫"
             }
             
             current_day = ""
@@ -1358,7 +1358,7 @@ class QOUScraper:
                 lecturer = lecture.get('lecturer', '')
                 schedule_info = lecture.get('schedule_info', '📊 أسبوعي')
                 
-                time_remaining = get_time_remaining(day_name, time_str, lecture['schedule_type'], current_week, week_type)
+                time_remaining = get_time_remaining(day_name, time_str, lecture['schedule_type'])
     
                 if day_name != current_day:
                     current_day = day_name
@@ -1397,6 +1397,7 @@ class QOUScraper:
             message += "• 📊 زوجي: الأسابيع الزوجية فقط (2,4,6,...)\n"
             message += "• 📊 3-ش: الأسابيع 3,7,11,15 فقط\n"
             message += "• 📊 4-ش: الأسابيع 4,8,12,16 فقط\n"
+            message += "• 📅 الأسبوع يبدأ يوم السبت\n"
             
             return message
             
