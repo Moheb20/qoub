@@ -150,7 +150,6 @@ class QOUScraper:
             return courses
         
         except Exception as e:
-            # ✅ إرجاع قائمة فارغة بدون إيقاف البرنامج
             logger.info(f"تم تخطي خطأ في جلب المقررات: {e}")
             return []
 
