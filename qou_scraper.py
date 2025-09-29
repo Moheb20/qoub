@@ -127,28 +127,54 @@ class QOUScraper:
             soup = BeautifulSoup(resp.text, 'html.parser')
     
             courses = []
-            table = soup.find('table', id='dataTable')
-            if not table:
-                return courses
+            
+            # ✅ البحث عن المقررات من الـ HTML الحالي (صفحة الجدول الزمني)
+            course_boxes = soup.find_all('div', class_='box box-warning')
+            
+            for box in course_boxes:
+                try:
+                    # استخراج عنوان المقرر
+                    header = box.find('div', class_='box-header')
+                    if not header:
+                        continue
+                        
+                    title_div = header.find('div', class_='pull-right text-warning')
+                    if not title_div:
+                        continue
+                        
+                    course_title = title_div.get_text(strip=True)
+                    # مثال: "1/0111 اللغة العربية (1)" → نستخرج "1/0111" و"اللغة العربية (1)"
+                    parts = course_title.split(' ', 1)
+                    course_code = parts[0] if len(parts) > 0 else ""
+                    course_name = parts[1] if len(parts) > 1 else ""
     
-            rows = table.find('tbody').find_all('tr')
-            for row in rows:
-                cols = row.find_all('td')
-                if len(cols) < 7:
+                    # استخراج الساعات المعتمدة من قسم اللقاءات
+                    credit_hours = "3"  # قيمة افتراضية
+                    schedule_section = box.find('div', class_='box-body box-body-dark')
+                    if schedule_section:
+                        credit_label = schedule_section.find('label', string='س.م:')
+                        if credit_label:
+                            credit_div = credit_label.find_next('div')
+                            if credit_div:
+                                credit_hours = credit_div.get_text(strip=True)
+    
+                    course = {
+                        'course_code': course_code,
+                        'course_name': course_name,
+                        'credit_hours': credit_hours,
+                        'status': "مسجل",  # جميع المقررات في الجدول تكون مسجلة
+                        'midterm_mark': "-",  # لا توجد علامات في صفحة الجدول
+                        'final_mark': "-",   # لا توجد علامات في صفحة الجدول
+                        'final_mark_date': "-"
+                    }
+                    courses.append(course)
+                    
+                except Exception as e:
+                    logger.info(f"خطأ في معالجة مقرر: {e}")
                     continue
     
-                course = {
-                    'course_code': cols[0].get_text(strip=True),
-                    'course_name': cols[1].get_text(strip=True),
-                    'credit_hours': cols[2].get_text(strip=True),
-                    'status': cols[3].get_text(strip=True),
-                    'midterm_mark': cols[4].get_text(strip=True) or "-",
-                    'final_mark': cols[5].get_text(strip=True) or "-",
-                    'final_mark_date': cols[6].get_text(strip=True) or "-"
-                }
-                courses.append(course)
             return courses
-        
+    
         except Exception as e:
             logger.info(f"تم تخطي خطأ في جلب المقررات: {e}")
             return []
