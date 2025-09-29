@@ -121,32 +121,40 @@ class QOUScraper:
         }
 
     def fetch_term_summary_courses(self) -> List[dict]:
-        resp = self.session.get(TERM_SUMMARY_URL)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-
-        courses = []
-        table = soup.find('table', id='dataTable')
-        if not table:
+        try:
+            resp = self.session.get(TERM_SUMMARY_URL)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, 'html.parser')
+    
+            courses = []
+            table = soup.find('table', id='dataTable')
+            if not table:
+                return courses
+    
+            rows = table.find('tbody').find_all('tr')
+            for row in rows:
+                cols = row.find_all('td')
+                
+                # ✅ قبول أي عدد من الأعمدة حتى لو كانت فارغة
+                course = {
+                    'course_code': cols[0].get_text(strip=True) if len(cols) > 0 else "",
+                    'course_name': cols[1].get_text(strip=True) if len(cols) > 1 else "",
+                    'credit_hours': cols[2].get_text(strip=True) if len(cols) > 2 else "",
+                    'status': cols[3].get_text(strip=True) if len(cols) > 3 else "",
+                    'midterm_mark': cols[4].get_text(strip=True) if len(cols) > 4 else "-",
+                    'final_mark': cols[5].get_text(strip=True) if len(cols) > 5 else "-",
+                    'final_mark_date': cols[6].get_text(strip=True) if len(cols) > 6 else "-"
+                }
+                
+                # ✅ إضافة المقرر حتى لو كانت معظم البيانات فارغة
+                courses.append(course)
+                
             return courses
-
-        rows = table.find('tbody').find_all('tr')
-        for row in rows:
-            cols = row.find_all('td')
-            if len(cols) < 7:
-                continue
-
-            course = {
-                'course_code': cols[0].get_text(strip=True),
-                'course_name': cols[1].get_text(strip=True),
-                'credit_hours': cols[2].get_text(strip=True),
-                'status': cols[3].get_text(strip=True),
-                'midterm_mark': cols[4].get_text(strip=True) or "-",
-                'final_mark': cols[5].get_text(strip=True) or "-",
-                'final_mark_date': cols[6].get_text(strip=True) or "-"
-            }
-            courses.append(course)
-        return courses
+    
+    except Exception as e:
+        # ✅ إرجاع قائمة فارغة بدون إيقاف البرنامج
+        logger.info(f"تم تخطي خطأ في جلب المقررات: {e}")
+        return []
 
     def fetch_discussion_sessions(self) -> List[dict]:
             resp = self.session.get(WEEKLY_MEETINGS_URL)
