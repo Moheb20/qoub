@@ -150,11 +150,11 @@ class QOUScraper:
                 courses.append(course)
                 
             return courses
-    
-    except Exception as e:
-        # ✅ إرجاع قائمة فارغة بدون إيقاف البرنامج
-        logger.info(f"تم تخطي خطأ في جلب المقررات: {e}")
-        return []
+        
+        except Exception as e:  # ✅ هذا السطر 154
+            # ✅ إرجاع قائمة فارغة بدون إيقاف البرنامج
+            logger.info(f"تم تخطي خطأ في جلب المقررات: {e}")
+            return []
 
     def fetch_discussion_sessions(self) -> List[dict]:
             resp = self.session.get(WEEKLY_MEETINGS_URL)
