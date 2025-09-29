@@ -1984,7 +1984,7 @@ def handle_all_messages(message):
             
             bot.send_message(chat_id, main_card, parse_mode="Markdown", reply_markup=markup)
             
-            # ✅ التصحيح: استخدام متغير ثابت (user_categories_data) في كلا الجزئين
+            # ✅ حفظ حالة المستخدم للفئات
             if chat_id not in user_categories_data:
                 user_categories_data[chat_id] = {}
             
@@ -2001,7 +2001,154 @@ def handle_all_messages(message):
                 pass
             bot.send_message(chat_id, f"🚨 حدث خطأ: {str(e)}")
     
-    # ✅ التصحيح: استخدام نفس المتغير (user_categories_data) في كلا الجزئين
+    # ✅ التصحيح: إعادة ترتيب المعالجة - الأزرار الرئيسية أولاً
+    elif text == "🏠 الرئيسية":
+        # تنظيف أي حالة سابقة
+        if chat_id in user_categories_data:
+            del user_categories_data[chat_id]
+        show_main_menu(chat_id)
+    
+    elif text == "⬅️ عودة للرئيسية":
+        # تنظيف أي حالة سابقة  
+        if chat_id in user_categories_data:
+            del user_categories_data[chat_id]
+        show_main_menu(chat_id)
+    
+    # ✅ ثم فحص الأزرار الأخرى الرئيسية
+    elif text == "🎯 نسبة الإنجاز":
+        user = get_user(chat_id)
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
+            return
+    
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            stats = scraper.fetch_study_plan().get('stats', {})
+    
+            if not stats:
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتك.")
+                return
+    
+            percentage = stats['completion_percentage']
+            progress_bar = "🟩" * int(percentage / 10) + "⬜" * (10 - int(percentage / 10))
+            remaining_hours = stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']
+    
+            reply = f"""
+    🎯 *نسبة إنجازك الدراسي:*
+    
+    {progress_bar}
+    {percentage}% مكتمل
+    
+    📊 التفاصيل:
+    • المطلوب: {stats['total_hours_required']} ساعة
+    • المكتمل: {stats['total_hours_completed']} ساعة
+    • المحتسب: {stats['total_hours_transferred']} ساعة
+    • المتبقي: {remaining_hours if remaining_hours > 0 else 0} ساعة
+    """
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
+        except Exception as e:
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
+    
+    elif text == "📋 الخطة الدراسية":
+        user = get_user(chat_id)
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
+            return
+    
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            study_plan = scraper.fetch_study_plan()
+            stats = study_plan['stats']
+            courses = study_plan['courses']
+    
+            if not stats or not courses:
+                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتي.")
+                return
+    
+            categories = {}
+            for course in courses:
+                cat = course['category']
+                categories.setdefault(cat, []).append(course)
+    
+            reply = "📋 *الخطة الدراسية الشاملة*\n\n"
+            for category, courses_list in categories.items():
+                completed = sum(1 for c in courses_list if c['status'] == 'completed')
+                total = len(courses_list)
+                percentage_cat = (completed / total) * 100 if total else 0
+                reply += f"📁 *{category}:*\n   {completed}/{total} مكتمل ({percentage_cat:.1f}%)\n\n"
+    
+            reply += f"📊 *الإجمالي: {stats['completion_percentage']}% مكتمل*"
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
+    
+        except Exception as e:
+            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
+    
+    elif text == "📌 مقررات حالية":
+        user = get_user(chat_id)
+        if not user or not user['student_id'] or not user['password']:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
+            return
+    
+        try:
+            loading_msg = bot.send_message(chat_id, "🔄 جاري جلب المقررات...")
+            
+            scraper = QOUScraper(user['student_id'], user['password'])
+            study_plan = scraper.fetch_study_plan()
+            
+            # ✅ فلترة المقررات الحالية
+            current_courses = [
+                c for c in study_plan.get('courses', []) 
+                if c.get('status') in ['in_progress', 'registered', 'current']
+            ]
+            
+            bot.delete_message(chat_id, loading_msg.message_id)
+            
+            if not current_courses:
+                bot.send_message(chat_id, "⏳ لا توجد مقررات قيد الدراسة هذا الفصل.")
+                return
+            
+            # ✅ إنشاء رسالة منظمة
+            total_hours = sum(c.get('hours', 0) for c in current_courses)
+            
+            reply = f"📌 **المقررات الحالية** ({len(current_courses)} مقرر)\n"
+            reply += f"🕒 **مجموع الساعات:** {total_hours}\n\n"
+            
+            for i, course in enumerate(current_courses, 1):
+                status_emoji = "📚" if course.get('is_elective', False) else "📖"
+                reply += f"{i}. {status_emoji} **{course['course_code']}** - {course['course_name']}\n"
+                reply += f"   ⏰ {course.get('hours', 0)} ساعة\n\n"
+            
+            bot.send_message(chat_id, reply, parse_mode="Markdown")
+            
+        except Exception as e:
+            try:
+                bot.delete_message(chat_id, loading_msg.message_id)
+            except:
+                pass
+            bot.send_message(chat_id, f"⚠️ حدث خطأ: {str(e)}")
+    
+    elif text == "🔄 تحديث بياناتي":
+        user = get_user(chat_id)
+        if not user:
+            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
+            return
+        
+        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
+        
+        try:
+            scraper = QOUScraper(user['student_id'], user['password'])
+            success = scraper.update_student_data(chat_id)
+            
+            if success:
+                bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
+            else:
+                bot.send_message(chat_id, "⚠️ فشل التحديث، تحقق من بياناتك وحاول لاحقاً.")
+        except Exception as e:
+            logger.error(f"Error updating data: {e}")
+            bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {str(e)}")
+    
+    # ✅ ثم فحص إذا كان المستخدم يختار فئة (يجب أن يكون في النهاية)
     elif chat_id in user_categories_data and user_categories_data[chat_id].get('action') == 'awaiting_category':
         selected_text = message.text.strip()
         
@@ -2100,147 +2247,6 @@ def handle_all_messages(message):
             
         else:
             bot.send_message(chat_id, "⚠️ لم أتعرف على الفئة المحددة. اختر من القائمة:")
-    elif text == "📌 مقررات حالية":
-        user = get_user(chat_id)
-        if not user or not user['student_id'] or not user['password']:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
-            return
-    
-        try:
-            loading_msg = bot.send_message(chat_id, "🔄 جاري جلب المقررات...")
-            
-            scraper = QOUScraper(user['student_id'], user['password'])
-            study_plan = scraper.fetch_study_plan()
-            
-            # ✅ فلترة المقررات الحالية
-            current_courses = [
-                c for c in study_plan.get('courses', []) 
-                if c.get('status') in ['in_progress', 'registered', 'current']
-            ]
-            
-            bot.delete_message(chat_id, loading_msg.message_id)
-            
-            if not current_courses:
-                bot.send_message(chat_id, "⏳ لا توجد مقررات قيد الدراسة هذا الفصل.")
-                return
-            
-            # ✅ إنشاء رسالة منظمة
-            total_hours = sum(c.get('hours', 0) for c in current_courses)
-            
-            reply = f"📌 **المقررات الحالية** ({len(current_courses)} مقرر)\n"
-            reply += f"🕒 **مجموع الساعات:** {total_hours}\n\n"
-            
-            for i, course in enumerate(current_courses, 1):
-                status_emoji = "📚" if course.get('is_elective', False) else "📖"
-                reply += f"{i}. {status_emoji} **{course['course_code']}** - {course['course_name']}\n"
-                reply += f"   ⏰ {course.get('hours', 0)} ساعة\n\n"
-            
-            bot.send_message(chat_id, reply, parse_mode="Markdown")
-            
-        except Exception as e:
-            try:
-                bot.delete_message(chat_id, loading_msg.message_id)
-            except:
-                pass
-            bot.send_message(chat_id, f"⚠️ حدث خطأ: {str(e)}")
-    
-    
-    elif text == "🎯 نسبة الإنجاز":
-        user = get_user(chat_id)
-        if not user or not user['student_id'] or not user['password']:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
-            return
-    
-        try:
-            scraper = QOUScraper(user['student_id'], user['password'])
-            stats = scraper.fetch_study_plan().get('stats', {})
-    
-            if not stats:
-                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتك.")
-                return
-    
-            percentage = stats['completion_percentage']
-            progress_bar = "🟩" * int(percentage / 10) + "⬜" * (10 - int(percentage / 10))
-            remaining_hours = stats['total_hours_required'] - stats['total_hours_completed'] - stats['total_hours_transferred']
-    
-            reply = f"""
-    🎯 *نسبة إنجازك الدراسي:*
-    
-    {progress_bar}
-    {percentage}% مكتمل
-    
-    📊 التفاصيل:
-    • المطلوب: {stats['total_hours_required']} ساعة
-    • المكتمل: {stats['total_hours_completed']} ساعة
-    • المحتسب: {stats['total_hours_transferred']} ساعة
-    • المتبقي: {remaining_hours if remaining_hours > 0 else 0} ساعة
-            """
-            bot.send_message(chat_id, reply, parse_mode="Markdown")
-    
-        except Exception as e:
-            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
-    
-    
-    elif text == "📋 الخطة الدراسية":
-        user = get_user(chat_id)
-        if not user or not user['student_id'] or not user['password']:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، أرسل 🔄 تحديث بياناتي أولاً.")
-            return
-    
-        try:
-            scraper = QOUScraper(user['student_id'], user['password'])
-            study_plan = scraper.fetch_study_plan()
-            stats = study_plan['stats']
-            courses = study_plan['courses']
-    
-            if not stats or not courses:
-                bot.send_message(chat_id, "⚠️ لم أجد بيانات، جرب 🔄 تحديث بياناتي.")
-                return
-    
-            categories = {}
-            for course in courses:
-                cat = course['category']
-                categories.setdefault(cat, []).append(course)
-    
-            reply = "📋 *الخطة الدراسية الشاملة*\n\n"
-            for category, courses_list in categories.items():
-                completed = sum(1 for c in courses_list if c['status'] == 'completed')
-                total = len(courses_list)
-                percentage_cat = (completed / total) * 100 if total else 0
-                reply += f"📁 *{category}:*\n   {completed}/{total} مكتمل ({percentage_cat:.1f}%)\n\n"
-    
-            reply += f"📊 *الإجمالي: {stats['completion_percentage']}% مكتمل*"
-            bot.send_message(chat_id, reply, parse_mode="Markdown")
-    
-        except Exception as e:
-            bot.send_message(chat_id, f"🚨 حدث خطأ: {e}")
-    
-    
-    elif text == "🔄 تحديث بياناتي":
-        user = get_user(chat_id)
-        if not user:
-            bot.send_message(chat_id, "⚠️ لم أجد بياناتك، يرجى تسجيل الدخول أولاً.")
-            return
-        
-        bot.send_message(chat_id, "⏳ جاري تحديث بياناتك، الرجاء الانتظار...")
-        
-        try:
-            scraper = QOUScraper(user['student_id'], user['password'])
-
-            success = scraper.update_student_data(chat_id)
-
-            
-            if success:
-                bot.send_message(chat_id, "✅ تم تحديث بياناتك بنجاح!")
-            else:
-                bot.send_message(chat_id, "⚠️ فشل التحديث، تحقق من بياناتك وحاول لاحقاً.")
-        except Exception as e:
-            logger.error(f"Error updating data: {e}")
-            bot.send_message(chat_id, f"🚨 خطأ أثناء التحديث: {str(e)}")
-
-            
-        except Exception as e:
-            bot.send_message(chat_id, f"🚨 خطأ: {str(e)}")
 
     elif text == "🔗 ربط الحساب بمنصة المواد المشتركة":
         user = get_user(chat_id)
