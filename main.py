@@ -1190,33 +1190,35 @@ def handle_all_messages(message):
         if not user:
             bot.send_message(chat_id, "❌ لم يتم العثور على بياناتك. أرسل /start لتسجيل الدخول أولاً.")
             return
-
+    
         try:
             scraper = QOUScraper(user['student_id'], user['password'])
             if not scraper.login():
                 bot.send_message(chat_id, "❌ فشل تسجيل الدخول. تأكد من صحة اسم المستخدم وكلمة المرور.")
                 return
-
+    
             courses = scraper.fetch_term_summary_courses()
             if not courses:
                 bot.send_message(chat_id, "📭 لم يتم العثور على مقررات أو علامات.")
                 return
-
+    
             text_msg = "📚 *ملخص علامات المقررات الفصلية:*\n\n"
             for c in courses:
                 code = c.get('course_code', '-')
                 name = c.get('course_name', '-')
                 midterm = c.get('midterm_mark', '-')
                 final = c.get('final_mark', '-')
-                final_date = c.get('final_date', '-')
-
+                final_date = c.get('final_mark_date', '-')  # ✅ التصحيح هنا
+    
                 text_msg += (
                     f"📘 {code} - {name}\n"
-                    f"   📝 علامــــة النـــصفي : {midterm}\n"
-                    f"   🏁 العـــلامـــــة النهـــائية : {final}\n"
-                    f"   📅 تـــــاريـــخ وضع العلامة النــــهائية : {final_date}\n\n"
+                    f"   📝 علامة النصفي: {midterm}\n"
+                    f"   🏁 العلامة النهائية: {final}\n"
+                    f"   📅 تاريخ وضع العلامة النهائية: {final_date}\n\n"
                 )
+            
             bot.send_message(chat_id, text_msg, parse_mode="Markdown")
+            
         except Exception as e:
             logger.exception(f"Error fetching courses for {chat_id}: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء جلب البيانات. حاول مرة أخرى لاحقاً.")
