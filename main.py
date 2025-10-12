@@ -1687,7 +1687,7 @@ def handle_all_messages(message):
     elif chat_id in admin_group_states and admin_group_states[chat_id].get("stage") == "awaiting_type":
         # تحديد النوع بناءً على الرقم المدخل
         choice = text.strip()
-        type_dict = {"1": "المواد", "2": "التخصصات", "3": "الجامعة"}
+        type_dict = {"1": "مواد", "2": "تخصصات", "3": "جامعة"}
         if choice not in type_dict:
             bot.send_message(chat_id, "⚠️ الرقم غير صحيح. اختر 1 أو 2 أو 3.")
             return
