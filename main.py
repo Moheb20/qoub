@@ -2553,9 +2553,14 @@ def handle_all_messages(message):
     else:
         bot.send_message(chat_id, "⚠️ لم أفهم الأمر، الرجاء اختيار زر من القائمة.")
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()    
+    # تأكد من حذف Webhook
     try:
-        bot.remove_webhook()
-    except Exception:
+        import requests
+        token = os.getenv("BOT_TOKEN")
+        requests.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
+    except:
         pass
+    
+    # ابدأ Polling فقط
+    print("Starting bot...")
     bot.infinity_polling()
