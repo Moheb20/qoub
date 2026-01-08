@@ -2,7 +2,7 @@ import json
 import psycopg2
 import os
 import datetime
-from cryptography.fernet import Fernet  # ✅ هذا موجود في الأعلى
+from cryptography.fernet import Fernet
 from typing import Dict, Any, List
 import logging
 
@@ -12,50 +12,36 @@ logger = logging.getLogger("database")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
+    if not DATABASE_URL:
+        logger.warning("⚠️ DATABASE_URL not set, returning None")
+        return None
     return psycopg2.connect(DATABASE_URL)
 
-# مفتاح التشفير
-KEY_FILE = 'secret.key'
+# مفتاح التشفير - جعله مؤخراً
+fernet = None
 
-def load_or_create_key():
-    key = os.getenv("FERNET_KEY")
-    if not key:
-        logger.error("FERNET_KEY not found in environment variables")
-        # إنشاء مفتاح جديد للطوارئ
-        new_key = Fernet.generate_key()
-        logger.warning(f"تم إنشاء مفتاح جديد: {new_key.decode()}")
-        return Fernet(new_key)
-    
-    # تحقق من صحة المفتاح
-    try:
-        # محاولة تشفير وفك تشفير نص اختبار
-        test_fernet = Fernet(key.encode())
-        test_text = "test"
-        encrypted = test_fernet.encrypt(test_text.encode()).decode()
-        decrypted = test_fernet.decrypt(encrypted.encode()).decode()
-        if decrypted == test_text:
-            logger.info("✅ مفتاح التشفير صالح")
-            return test_fernet
+def get_fernet():
+    """الحصول على كائن fernet عند الطلب فقط"""
+    global fernet
+    if fernet is None:
+        key = os.getenv("FERNET_KEY")
+        if not key:
+            logger.warning("FERNET_KEY not found, generating temporary key")
+            fernet = Fernet.generate_key()
         else:
-            logger.error("❌ مفتاح التشفير غير صالح")
-    except Exception as e:
-        logger.error(f"❌ خطأ في مفتاح التشفير: {e}")
-    
-    # إنشاء مفتاح جديد في حالة فشل التحقق
-    new_key = Fernet.generate_key()
-    logger.warning(f"تم إنشاء مفتاح جديد: {new_key.decode()}")
-    return Fernet(new_key)
+            try:
+                fernet = Fernet(key.encode())
+            except Exception as e:
+                logger.error(f"Invalid FERNET_KEY: {e}")
+                fernet = Fernet.generate_key()
+    return fernet
 
-fernet = load_or_create_key()
-
-# ✅✅✅ الدالة المصححة ✅✅✅
+# ✅✅✅ الدالة المصححة - تتحقق من التشغيل في وضع الإعداد ✅✅✅
 def generate_and_print_key():
     """إنشاء وطباعة مفتاح جديد"""
-    # ❌ احذف هذا: from cryptography.fernet import Fernet  (لأنه مستورد في الأعلى)
-    
     import datetime
     
-    # ✅ استخدم Fernet مباشرة (مستورد في الأعلى)
+    # إنشاء المفتاح
     key = Fernet.generate_key()
     key_str = key.decode()
     
@@ -73,11 +59,12 @@ def generate_and_print_key():
     
     return key_str
 
+# دوال التشفير المعدلة
 def encrypt_text(text):
     if text is None:
         return None
     try:
-        return fernet.encrypt(text.encode()).decode()
+        return get_fernet().encrypt(text.encode()).decode()
     except Exception as e:
         logger.error(f"فشل التشفير: {e}")
         return None
@@ -94,16 +81,14 @@ def decrypt_text(token):
             token += '=' * (4 - padding)
             logger.debug(f"تم إضافة padding: {token}")
         
-        decrypted = fernet.decrypt(token.encode()).decode()
+        decrypted = get_fernet().decrypt(token.encode()).decode()
         logger.debug(f"فك التشفير بنجاح: {decrypted[:10]}...")
         return decrypted
         
     except Exception as e:
-        logger.error(f"فشل فك التشفير: {str(e)}")
+        logger.error(f"فشل فك تشفير: {str(e)}")
         logger.error(f"النص المشفر: {token}")
         return None
-
-
 
 
 # ---------- إنشاء الجداول ----------
