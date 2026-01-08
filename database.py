@@ -2,15 +2,11 @@ import json
 import psycopg2
 import os
 import datetime
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet  # ✅ هذا موجود في الأعلى
 from typing import Dict, Any, List
 import logging
 
 logger = logging.getLogger("database")
-
-
-# أضف هذه الدالة في database.py
-
 
 # الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -50,14 +46,16 @@ def load_or_create_key():
     logger.warning(f"تم إنشاء مفتاح جديد: {new_key.decode()}")
     return Fernet(new_key)
 
-
 fernet = load_or_create_key()
 
+# ✅✅✅ الدالة المصححة ✅✅✅
 def generate_and_print_key():
     """إنشاء وطباعة مفتاح جديد"""
-    from cryptography.fernet import Fernet
+    # ❌ احذف هذا: from cryptography.fernet import Fernet  (لأنه مستورد في الأعلى)
+    
     import datetime
     
+    # ✅ استخدم Fernet مباشرة (مستورد في الأعلى)
     key = Fernet.generate_key()
     key_str = key.decode()
     
@@ -73,8 +71,8 @@ def generate_and_print_key():
     print("3. عدل FERNET_KEY → Save → Restart")
     print("="*60)
     
-    # أيضًا نعيد المفتاح للاستخدام
     return key_str
+
 def encrypt_text(text):
     if text is None:
         return None
@@ -85,20 +83,17 @@ def encrypt_text(text):
         return None
 
 def decrypt_text(token):
-    if not token:  # يشمل None و "" وكل النصوص الفارغة
+    if not token:
         return None
     
     try:
-        # ✅ سجل ما نحاول فك تشفيره
         logger.debug(f"محاولة فك تشفير: {token[:20]}...")
         
-        # ✅ إضافة padding إذا لزم الأمر لتصحيح base64
         padding = len(token) % 4
         if padding != 0:
             token += '=' * (4 - padding)
             logger.debug(f"تم إضافة padding: {token}")
         
-        # ✅ فك التشفير
         decrypted = fernet.decrypt(token.encode()).decode()
         logger.debug(f"فك التشفير بنجاح: {decrypted[:10]}...")
         return decrypted
