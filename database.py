@@ -33,9 +33,6 @@ def generate_and_print_key():
     # أيضًا نعيد المفتاح للاستخدام
     return key_str
 
-# يمكنك استدعاؤها مباشرة
-if __name__ == "__main__":
-    generate_and_print_key()
 # الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL")
 
