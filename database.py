@@ -9,7 +9,33 @@ import logging
 logger = logging.getLogger("database")
 
 
+# أضف هذه الدالة في database.py
+def generate_and_print_key():
+    """إنشاء وطباعة مفتاح جديد"""
+    from cryptography.fernet import Fernet
+    import datetime
+    
+    key = Fernet.generate_key()
+    key_str = key.decode()
+    
+    print("\n" + "="*60)
+    print("🔑 FERNET_KEY الجديد:")
+    print("="*60)
+    print(key_str)
+    print("="*60)
+    
+    print("\n📋 التعليمات السريعة:")
+    print("1. انسخ المفتاح أعلاه")
+    print("2. Render → Service → Environment")
+    print("3. عدل FERNET_KEY → Save → Restart")
+    print("="*60)
+    
+    # أيضًا نعيد المفتاح للاستخدام
+    return key_str
 
+# يمكنك استدعاؤها مباشرة
+if __name__ == "__main__":
+    generate_and_print_key()
 # الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL")
 
