@@ -11,6 +11,84 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# إضافة دالة لطباعة المفتاح الحالي
+def print_current_fernet_key():
+    """طباعة المفتاح الحالي المستخدم للتشفير"""
+    print("\n" + "="*60)
+    print("🔑 المفتاح الحالي المستخدم للتشفير:")
+    print("="*60)
+    
+    # 1. فحص FERNET_KEY من البيئة
+    fernet_key = os.getenv("FERNET_KEY")
+    if fernet_key:
+        print(f"1. FERNET_KEY من البيئة: {fernet_key}")
+        print(f"   الطول: {len(fernet_key)} حرف")
+        if len(fernet_key) == 44:
+            print("   ✅ الطول صحيح (44 حرفاً)")
+        else:
+            print(f"   ⚠️ الطول غير قياسي (المفترض 44، حصلنا {len(fernet_key)})")
+    else:
+        print("1. FERNET_KEY: غير موجود في البيئة")
+    
+    # 2. فحص ENCRYPTION_KEY من البيئة
+    encryption_key = os.getenv("ENCRYPTION_KEY")
+    if encryption_key:
+        print(f"2. ENCRYPTION_KEY من البيئة: {encryption_key}")
+        print(f"   الطول: {len(encryption_key)} حرف")
+    else:
+        print("2. ENCRYPTION_KEY: غير موجود في البيئة")
+    
+    # 3. المفتاح الافتراضي
+    default_key = "tO3Xb54Q-CVVRTgZgAbL_E7y7yWnEr7GX9NcT-KSdDY="
+    print(f"3. المفتاح الافتراضي: {default_key}")
+    print(f"   الطول: {len(default_key)} حرف")
+    
+    print("="*60)
+    print("📋 ما سيستخدمه البوت فعلياً:")
+    print("="*60)
+    
+    # تحديد المفتاح الذي سيستخدمه البوت
+    actual_key = fernet_key
+    key_source = "FERNET_KEY من البيئة"
+    
+    if not fernet_key:
+        if encryption_key:
+            # إنشاء مفتاح من ENCRYPTION_KEY
+            if len(encryption_key) < 32:
+                encryption_key = encryption_key.ljust(32, '0')
+            elif len(encryption_key) > 32:
+                encryption_key = encryption_key[:32]
+            
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b"QOU_BOT_SALT_2024",
+                iterations=100000,
+            )
+            key_bytes = kdf.derive(encryption_key.encode())
+            actual_key = base64.urlsafe_b64encode(key_bytes).decode('utf-8')
+            key_source = "مشتق من ENCRYPTION_KEY"
+        else:
+            actual_key = default_key
+            key_source = "المفتاح الافتراضي"
+    
+    print(f"📌 المصدر: {key_source}")
+    print(f"🔐 المفتاح الفعلي: {actual_key}")
+    print(f"📏 الطول: {len(actual_key)} حرف")
+    
+    # اختبار المفتاح
+    try:
+        Fernet(actual_key.encode())
+        print("✅ المفتاح صالح ويمكن استخدامه")
+    except Exception as e:
+        print(f"❌ المفتاح غير صالح: {e}")
+    
+    print("="*60)
+    print("💡 للحصول على مفتاح جديد، استخدم generate_new_key()")
+    print("="*60)
+    
+    return actual_key
+
 # مفتاح التشفير الثابت
 FERNET_KEY = os.getenv("FERNET_KEY", "tO3Xb54Q-CVVRTgZgAbL_E7y7yWnEr7GX9NcT-KSdDY=")
 
@@ -51,6 +129,7 @@ def encrypt_text_simple(text):
         return cipher.encrypt(text.encode()).decode()
     except:
         return text
+
 logger = logging.getLogger("database")
 
 # الاتصال بقاعدة البيانات
@@ -64,10 +143,14 @@ def get_conn():
 
 # ---------- إصلاح نظام التشفير ----------
 fernet_instance = None
+current_fernet_key = None  # متغير لحفظ المفتاح الحالي
 
 def init_fernet():
     """تهيئة نظام التشفير"""
-    global fernet_instance
+    global fernet_instance, current_fernet_key
+    
+    # طباعة معلومات المفتاح
+    print_current_fernet_key()
     
     # المحاولة 1: FERNET_KEY مباشر
     fernet_key = os.getenv("FERNET_KEY")
@@ -78,7 +161,8 @@ def init_fernet():
                 logger.warning(f"⚠️ FERNET_KEY طول غير قياسي: {len(fernet_key)}")
             
             fernet_instance = Fernet(fernet_key.encode())
-            logger.info("✅ تم تهيئة التشفير باستخدام FERNET_KEY")
+            current_fernet_key = fernet_key
+            logger.info(f"✅ تم تهيئة التشفير باستخدام FERNET_KEY (الطول: {len(fernet_key)})")
             return True
         except Exception as e:
             logger.error(f"❌ FERNET_KEY غير صالح: {e}")
@@ -108,7 +192,8 @@ def init_fernet():
         
         # 4. إنشاء Fernet
         fernet_instance = Fernet(key_base64)
-        logger.info("✅ تم تهيئة التشفير باستخدام ENCRYPTION_KEY")
+        current_fernet_key = key_base64.decode('utf-8')
+        logger.info(f"✅ تم تهيئة التشفير باستخدام ENCRYPTION_KEY (المشتق)")
         return True
     except Exception as e:
         logger.error(f"❌ فشل إنشاء مفتاح من ENCRYPTION_KEY: {e}")
@@ -117,6 +202,7 @@ def init_fernet():
     try:
         default_key = "tO3Xb54Q-CVVRTgZgAbL_E7y7yWnEr7GX9NcT-KSdDY="
         fernet_instance = Fernet(default_key.encode())
+        current_fernet_key = default_key
         logger.warning("⚠️ استخدام مفتاح افتراضي للتشفير")
         return True
     except Exception as e:
@@ -184,12 +270,8 @@ def decrypt_text(encrypted_text):
     # المحاولة 4: إذا بدأ بـ gAAAAAB فهو مشفر بمفتاح مختلف
     if encrypted_text.startswith('gAAAAAB'):
         logger.error(f"❌ النص مشفر بمفتاح مختلف: {encrypted_text[:50]}...")
-        # أنشئ مفتاحاً مؤقتاً لفك التشفير
-        try:
-            # هذا للمستخدمين القدامى فقط
-            return "[PASSWORD_NEEDS_RESET]"
-        except:
-            return ""
+        logger.error(f"   المفتاح الحالي: {current_fernet_key[:30]}..." if current_fernet_key else "   المفتاح الحالي: غير معروف")
+        return "[PASSWORD_NEEDS_RESET]"
     
     # إذا فشل كل شيء، ارجع النص كما هو
     return encrypted_text
@@ -205,6 +287,7 @@ def generate_new_key():
     print("="*60)
     print(key_str)
     print("="*60)
+    print(f"📏 الطول: {len(key_str)} حرف")
     print("\n📋 التعليمات:")
     print("1. انسخ المفتاح أعلاه")
     print("2. Render → Environment → Add FERNET_KEY")
@@ -212,6 +295,11 @@ def generate_new_key():
     print("="*60)
     
     return key_str
+
+# دالة إضافية: الحصول على المفتاح الحالي
+def get_current_fernet_key():
+    """الحصول على المفتاح الحالي المستخدم"""
+    return current_fernet_key
 
 
 # ---------- إنشاء الجداول ----------
