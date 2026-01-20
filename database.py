@@ -321,38 +321,41 @@ def log_chat_id(chat_id):
             conn.commit()
 
 def get_user(chat_id):
+    """جلب بيانات مستخدم مع فك التشفير الذكي"""
     try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute('''
-                    SELECT chat_id, student_id, password, last_msg_id, courses_data,
-                           last_login, last_interaction, registered_at, status, last_gpa
-                    FROM users WHERE chat_id = %s
-                ''', (chat_id,))
-                row = cur.fetchone()
-                if row:
-                    columns = ['chat_id', 'student_id', 'password', 'last_msg_id', 'courses_data',
-                               'last_login', 'last_interaction', 'registered_at', 'status', 'last_gpa']
-                    user = dict(zip(columns, row))
-                    
-                    # فك تشفير البيانات مع معالجة الأخطاء
-                    try:
-                        user['student_id'] = decrypt_text(user['student_id'])
-                    except Exception as e:
-                        logger.error(f"Error decrypting student_id for {chat_id}: {e}")
-                        user['student_id'] = None
-                    
-                    try:
-                        user['password'] = decrypt_text(user['password'])
-                    except Exception as e:
-                        logger.error(f"Error decrypting password for {chat_id}: {e}")
-                        user['password'] = None
-                    
-                    return user
-                return None
+        conn = get_conn()
+        if not conn:
+            return None
+            
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT chat_id, student_id, password, last_msg_id, registered_at FROM users WHERE chat_id = %s",
+                (chat_id,)
+            )
+            row = cur.fetchone()
+            
+            if row:
+                password = decrypt_text(row[2])
+                
+                # إذا كان هناك مشكلة في كلمة المرور، عدّل الرسالة
+                if password == "[PASSWORD_NEEDS_RESET]":
+                    logger.warning(f"⚠️ المستخدم {chat_id} يحتاج إعادة تسجيل الدخول")
+                    password = ""
+                
+                return {
+                    "chat_id": row[0],
+                    "student_id": row[1] or "",
+                    "password": password or "",
+                    "last_msg_id": row[3],
+                    "registered_at": row[4]
+                }
+            return None
     except Exception as e:
-        logger.error(f"Error getting user {chat_id}: {e}")
+        logger.error(f"❌ خطأ في جلب المستخدم {chat_id}: {e}")
         return None
+    finally:
+        if conn:
+            conn.close()
 
 def logout_user(chat_id):
     with get_conn() as conn:
