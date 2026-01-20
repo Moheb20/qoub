@@ -40,6 +40,58 @@ def test_token():
         logger.error(f"❌ خطأ في اختبار التوكن: {e}")
         return False
 
+def fix_all_passwords():
+    """إصلاح جميع كلمات المرور المشفرة القديمة"""
+    try:
+        from database import get_conn, decrypt_text
+        
+        conn = get_conn()
+        if not conn:
+            logger.warning("⚠️ لا يمكن الاتصال بقاعدة البيانات")
+            return False
+        
+        with conn.cursor() as cursor:
+            # 1. جلب جميع المستخدمين
+            cursor.execute("SELECT chat_id, password FROM users WHERE password IS NOT NULL AND password != ''")
+            users = cursor.fetchall()
+            
+            fixed_count = 0
+            problem_count = 0
+            
+            for chat_id, password in users:
+                try:
+                    # 2. محاولة فك التشفير
+                    decrypted = decrypt_text(password)
+                    
+                    # 3. إذا كان النص مشفراً بمفتاح قديم (يبدأ بـ gAAAAAB)
+                    if isinstance(password, str) and password.startswith('gAAAAAB'):
+                        logger.warning(f"⚠️ كلمة مرور قديمة للمستخدم {chat_id}")
+                        problem_count += 1
+                        
+                        # 4. تعيين كلمة مرور فارغة (سيتعين على المستخدم إعادة التسجيل)
+                        cursor.execute(
+                            "UPDATE users SET password = '' WHERE chat_id = %s",
+                            (chat_id,)
+                        )
+                        fixed_count += 1
+                        
+                except Exception as e:
+                    logger.error(f"❌ خطأ في معالجة المستخدم {chat_id}: {e}")
+            
+            conn.commit()
+            
+            if fixed_count > 0 or problem_count > 0:
+                logger.info(f"✅ تمت معالجة {len(users)} مستخدم")
+                logger.info(f"📊 إحصائيات: {fixed_count} تم إصلاحه، {problem_count} به مشكلة")
+            else:
+                logger.info("✅ جميع كلمات المرور سليمة")
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ فشل إصلاح كلمات المرور: {e}")
+        return False
+
 def initialize_components():
     """تهيئة المكونات"""
     try:
@@ -48,6 +100,11 @@ def initialize_components():
         init_db()
         get_all_users()
         logger.info("✅ قاعدة البيانات")
+        
+        # إصلاح كلمات المرور القديمة
+        logger.info("🔄 جاري فحص كلمات المرور...")
+        fix_all_passwords()
+        
     except Exception as e:
         logger.warning(f"⚠️ قاعدة البيانات: {e}")
     
@@ -111,7 +168,7 @@ def main():
         logger.error("❌ فشل اختبار التوكن. توقف.")
         sys.exit(1)
     
-    # 2. تهيئة المكونات
+    # 2. تهيئة المكونات (بما فيها إصلاح كلمات المرور)
     initialize_components()
     
     # 3. تسجيل المعالجات
