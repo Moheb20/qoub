@@ -1,6 +1,7 @@
 import os
 import logging
 import sys
+import time
 from bot_instance import bot
 
 # تعطيل أي بوت آخر
@@ -12,6 +13,66 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# قائمة المستخدمين الذين أعطيتني إياهم
+USER_LIST = [
+    {"chat_id": 6292405444, "username": "@moheb204", "name": "Moheb 🖤🔱"},
+    {"chat_id": 6524548429, "username": "@nour_almansi", "name": "Nour🫀"},
+    {"chat_id": 6462342575, "username": None, "name": "يحيى ابو نعمة"},
+    {"chat_id": 1364052628, "username": "@jbarat908", "name": "محمد"},
+    {"chat_id": 8136273269, "username": None, "name": "A"},
+    {"chat_id": 892554801, "username": None, "name": "منى العاجز"},
+    {"chat_id": 8062169668, "username": None, "name": "Ss . Ss"},
+    {"chat_id": 1114529081, "username": "@Malak_hantash", "name": "𝓶𝓪𝓵𝓪𝓴"},
+    {"chat_id": 8154874031, "username": None, "name": "Hala Mwafi"},
+    {"chat_id": 466448881, "username": None, "name": "Rasha Ashraf"},
+    {"chat_id": 5960984359, "username": None, "name": "𓂐『 𝒊𝒕’𝒔 ⌯D𝙾𝚞𝙷𝙰 𝚂𝙰𝚈𝙴𝙴𝙳 𝙰𝙷𝙼𝙰𝙳』♱..࿅ 𓈪"},
+    {"chat_id": 2060193932, "username": "@Ha04d", "name": "Hamed Hamada"},
+    {"chat_id": 5542428772, "username": "@momo_mr7", "name": "momo♡⁠♡"},
+    {"chat_id": 1638266350, "username": None, "name": "Bhaa Hrebat"},
+    {"chat_id": 8016302252, "username": "@abo_whwus", "name": "Abod Amr"},
+    {"chat_id": 2022661945, "username": None, "name": "لؤي درابيع"},
+    {"chat_id": 7864501387, "username": None, "name": "شادي النشوية"},
+    {"chat_id": 1962357190, "username": None, "name": "Gada Saleh"},
+    {"chat_id": 7159119198, "username": None, "name": "Osayd Amer"},
+    {"chat_id": 5229468726, "username": "@ahmad_kassar", "name": "Ahmad Sayarah"},
+    {"chat_id": 7384931394, "username": None, "name": "محمد عايد عمرو"},
+    {"chat_id": 6168933957, "username": None, "name": "Pal 1710"},
+    {"chat_id": 805134098, "username": None, "name": "BOOS"},
+    {"chat_id": 6592462064, "username": None, "name": "اسماء سهيل"},
+    {"chat_id": 6350785760, "username": None, "name": "Wajd Alotabe"},
+    {"chat_id": 2111564767, "username": None, "name": "محمد ❤️🥀"},
+    {"chat_id": 7096019126, "username": None, "name": "علي شرحة"},
+    {"chat_id": 903858484, "username": "@Abood_jber", "name": "عَبوُدْ ❤️🤍"},
+    {"chat_id": 7064463149, "username": None, "name": "(صلاح)🖤"},
+    {"chat_id": 7972688199, "username": None, "name": "yamen amjad"},
+    {"chat_id": 1145190313, "username": "@doaaahmad553", "name": "doaa ahmad"},
+    {"chat_id": 7013143584, "username": None, "name": "m"},
+    {"chat_id": 7328824299, "username": None, "name": "Roq Mis"},
+    {"chat_id": 7921265217, "username": None, "name": "ODAY"},
+    {"chat_id": 5945418878, "username": None, "name": "Hayel Amro"},
+    {"chat_id": 6587290235, "username": None, "name": "بنان ابو عبيد"},
+    {"chat_id": 6938645185, "username": None, "name": "رنين 🥹🩷"},
+    {"chat_id": 6487817066, "username": None, "name": "Shadi Bbb"},
+    {"chat_id": 7998443155, "username": None, "name": "Zaina Amro"},
+    {"chat_id": 5963156894, "username": None, "name": "qais gh"},
+    {"chat_id": 6858176744, "username": None, "name": "Mohamed Abo Hamada"},
+    {"chat_id": 5842911171, "username": None, "name": "Roaa Qasem"},
+    {"chat_id": 948234118, "username": None, "name": "Roaa Radi"},
+    {"chat_id": 5563438183, "username": "@Amar_Amro", "name": "彡صــــيــــاد彡"},
+    {"chat_id": 6519091931, "username": None, "name": "Zahraa Sharawi"},
+    {"chat_id": 8292920352, "username": None, "name": "..."},
+    {"chat_id": 6917948667, "username": None, "name": "Diala𓂆"},
+    {"chat_id": 6308552323, "username": None, "name": "🔻المحآرب' ے"},
+    {"chat_id": 7456156305, "username": None, "name": "🤏🏼🙄"},
+    {"chat_id": 6800862466, "username": None, "name": "✨𝑪𝒍𝒆𝒐𝒑𝒂𝒕𝒓𝒂 ✨"},
+    {"chat_id": 5700416962, "username": "@anaa2027", "name": "Ansam Gatasha"},
+    {"chat_id": 8078889212, "username": None, "name": "Madleen | مَآدليّن🤍"},
+    {"chat_id": 7953952976, "username": None, "name": "Maysa 🤍."},
+    {"chat_id": 6014723242, "username": None, "name": "marah darabee"},
+    {"chat_id": 7337336058, "username": None, "name": "Amal"},
+    {"chat_id": 1851786931, "username": None, "name": "Eᔕᖇᗩᗩ.Y Zozo"}
+]
 
 def test_token():
     """اختبار صحة التوكن"""
@@ -40,58 +101,179 @@ def test_token():
         logger.error(f"❌ خطأ في اختبار التوكن: {e}")
         return False
 
-def fix_all_passwords():
-    """إصلاح جميع كلمات المرور المشفرة القديمة"""
-    try:
-        from database import get_conn, decrypt_text
+def setup_manual_message_sender():
+    """إعداد إرسال الرسائل يدوياً للأدمن"""
+    
+    @bot.message_handler(func=lambda m: m.text == "📨 إرسال رسالة تحديث" and m.chat.id in [6292405444, 1851786931])
+    def handle_send_update_request(message):
+        """معالجة طلب إرسال رسالة تحديث"""
+        chat_id = message.chat.id
         
-        conn = get_conn()
-        if not conn:
-            logger.warning("⚠️ لا يمكن الاتصال بقاعدة البيانات")
-            return False
+        # إنشاء زر تأكيد
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        confirm_btn = types.InlineKeyboardButton("✅ نعم، أرسل الآن", callback_data="send_update_now")
+        preview_btn = types.InlineKeyboardButton("👁️ معاينة الرسالة", callback_data="preview_update_msg")
+        cancel_btn = types.InlineKeyboardButton("❌ إلغاء", callback_data="cancel_update_msg")
+        markup.add(confirm_btn, preview_btn, cancel_btn)
         
-        with conn.cursor() as cursor:
-            # 1. جلب جميع المستخدمين
-            cursor.execute("SELECT chat_id, password FROM users WHERE password IS NOT NULL AND password != ''")
-            users = cursor.fetchall()
-            
-            fixed_count = 0
-            problem_count = 0
-            
-            for chat_id, password in users:
-                try:
-                    # 2. محاولة فك التشفير
-                    decrypted = decrypt_text(password)
-                    
-                    # 3. إذا كان النص مشفراً بمفتاح قديم (يبدأ بـ gAAAAAB)
-                    if isinstance(password, str) and password.startswith('gAAAAAB'):
-                        logger.warning(f"⚠️ كلمة مرور قديمة للمستخدم {chat_id}")
-                        problem_count += 1
-                        
-                        # 4. تعيين كلمة مرور فارغة (سيتعين على المستخدم إعادة التسجيل)
-                        cursor.execute(
-                            "UPDATE users SET password = '' WHERE chat_id = %s",
-                            (chat_id,)
-                        )
-                        fixed_count += 1
-                        
-                except Exception as e:
-                    logger.error(f"❌ خطأ في معالجة المستخدم {chat_id}: {e}")
-            
-            conn.commit()
-            
-            if fixed_count > 0 or problem_count > 0:
-                logger.info(f"✅ تمت معالجة {len(users)} مستخدم")
-                logger.info(f"📊 إحصائيات: {fixed_count} تم إصلاحه، {problem_count} به مشكلة")
-            else:
-                logger.info("✅ جميع كلمات المرور سليمة")
-            
-            return True
-            
-    except Exception as e:
-        logger.error(f"❌ فشل إصلاح كلمات المرور: {e}")
-        return False
+        bot.send_message(
+            chat_id,
+            "⚠️ *إرسال رسالة تحديث لجميع المستخدمين*\n\n"
+            f"📊 العدد: *{len(USER_LIST)}* مستخدم\n"
+            "⏰ الوقت المتوقع: *2-3 دقائق*\n\n"
+            "هل تريد المتابعة؟",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    
+    @bot.callback_query_handler(func=lambda call: call.data == "preview_update_msg")
+    def preview_update_message(call):
+        """معاينة الرسالة قبل الإرسال"""
+        chat_id = call.message.chat.id
+        
+        message_text = """
+🎓 *رسالة مهمة من فريق دعم UniAcademix BOT*
 
+عزيزي الطالب/الطالبة،
+
+نود إعلامك أننا قمنا *بتحديث نظام البوت* لتحسين الأمان والأداء.
+
+⚠️ *ما عليك فعله:*
+1. اختر زر *"👤 تسجيل الدخول"* من القائمة الرئيسية
+2. أدخل *رقمك الجامعي* وكلمة المرور كما كنت تفعل سابقاً
+3. بعد التسجيل، ستستعيد جميع خدماتك السابقة
+
+🔄 *ملاحظة:*
+- سيتم تحديث جميع بياناتك تلقائياً
+- لن تفقد أي من سجلاتك أو إعداداتك
+- الخدمات ستكون أسرع وأكثر استقراراً
+- ستكون هذه الفترة مخصصة لتحديث البوت وتطويرهه
+
+🙏 نعتذر للإزعاج ونشكرك على تفهمك.
+
+📞 للاستفسارات: يمكنك التواصل مع الدعم الفني.
+
+مع أطيب التمنيات،  
+فريق دعم * UniAcademix BOT *
+"""
+        
+        # زر العودة
+        markup = types.InlineKeyboardMarkup()
+        back_btn = types.InlineKeyboardButton("↩️ العودة للخيارات", callback_data="back_to_options")
+        markup.add(back_btn)
+        
+        # تحرير الرسالة الأصلية
+        bot.edit_message_text(
+            "📝 *معاينة الرسالة:*\n\n" + message_text,
+            chat_id,
+            call.message.message_id,
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    
+    @bot.callback_query_handler(func=lambda call: call.data == "back_to_options")
+    def back_to_options(call):
+        """العودة لخيارات الإرسال"""
+        chat_id = call.message.chat.id
+        
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        confirm_btn = types.InlineKeyboardButton("✅ نعم، أرسل الآن", callback_data="send_update_now")
+        preview_btn = types.InlineKeyboardButton("👁️ معاينة الرسالة", callback_data="preview_update_msg")
+        cancel_btn = types.InlineKeyboardButton("❌ إلغاء", callback_data="cancel_update_msg")
+        markup.add(confirm_btn, preview_btn, cancel_btn)
+        
+        bot.edit_message_text(
+            "⚠️ *إرسال رسالة تحديث لجميع المستخدمين*\n\n"
+            f"📊 العدد: *{len(USER_LIST)}* مستخدم\n"
+            "⏰ الوقت المتوقع: *2-3 دقائق*\n\n"
+            "هل تريد المتابعة؟",
+            chat_id,
+            call.message.message_id,
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    
+    @bot.callback_query_handler(func=lambda call: call.data == "send_update_now")
+    def send_update_confirmed(call):
+        """بدء إرسال الرسائل بعد التأكيد"""
+        chat_id = call.message.chat.id
+        
+        # تحديث الرسالة لإظهار التقدم
+        bot.edit_message_text(
+            "🔄 *جاري إرسال الرسائل...*\n\n"
+            "⏳ الرجاء الانتظار، هذه العملية قد تستغرق بضع دقائق.",
+            chat_id,
+            call.message.message_id,
+            parse_mode="Markdown"
+        )
+        
+        # بدء الإرسال في خيط منفصل لتجنب تجميد البوت
+        import threading
+        
+        def send_messages_thread():
+            try:
+                success_count, failed_count = send_message_to_all_users()
+                
+                # إنشاء تقرير النتائج
+                report = f"""
+✅ *تم الانتهاء من إرسال الرسائل*
+
+📊 *النتائج النهائية:*
+• ✅ النجاح: {success_count}
+• ❌ الفشل: {failed_count}
+• 📈 نسبة النجاح: {(success_count/len(USER_LIST))*100:.1f}%
+
+👥 *التفاصيل:*
+• تم إرسال الرسالة إلى {success_count} مستخدم
+• فشل الإرسال إلى {failed_count} مستخدم
+• المجموع: {len(USER_LIST)} مستخدم
+"""
+                
+                # إرسال التقرير
+                bot.send_message(
+                    chat_id,
+                    report,
+                    parse_mode="Markdown"
+                )
+                
+            except Exception as e:
+                bot.send_message(
+                    chat_id,
+                    f"❌ *حدث خطأ أثناء الإرسال:*\n{str(e)}",
+                    parse_mode="Markdown"
+                )
+        
+        # تشغيل الخيط
+        thread = threading.Thread(target=send_messages_thread)
+        thread.start()
+        
+        # إضافة زر لتتبع التقدم
+        markup = types.InlineKeyboardMarkup()
+        progress_btn = types.InlineKeyboardButton("🔄 جاري الإرسال...", callback_data="sending_in_progress")
+        markup.add(progress_btn)
+        
+        bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=markup)
+    
+    @bot.callback_query_handler(func=lambda call: call.data == "sending_in_progress")
+    def sending_in_progress(call):
+        """عند النقر أثناء الإرسال"""
+        bot.answer_callback_query(
+            call.id,
+            "⏳ جاري إرسال الرسائل... الرجاء الانتظار",
+            show_alert=False
+        )
+    
+    @bot.callback_query_handler(func=lambda call: call.data == "cancel_update_msg")
+    def cancel_update_message(call):
+        """إلغاء عملية الإرسال"""
+        chat_id = call.message.chat.id
+        
+        bot.edit_message_text(
+            "❌ *تم إلغاء عملية الإرسال*",
+            chat_id,
+            call.message.message_id,
+            parse_mode="Markdown"
+        )
 def initialize_components():
     """تهيئة المكونات"""
     try:
@@ -100,11 +282,6 @@ def initialize_components():
         init_db()
         get_all_users()
         logger.info("✅ قاعدة البيانات")
-        
-        # إصلاح كلمات المرور القديمة
-        logger.info("🔄 جاري فحص كلمات المرور...")
-        fix_all_passwords()
-        
     except Exception as e:
         logger.warning(f"⚠️ قاعدة البيانات: {e}")
     
@@ -159,24 +336,28 @@ def register_handlers():
 
 def main():
     """الدالة الرئيسية"""
-    logger.info("=" * 50)
+    logger.info("=" * 60)
     logger.info("🚀 بدء تشغيل البوت الرئيسي")
-    logger.info("=" * 50)
+    logger.info("=" * 60)
     
     # 1. اختبار التوكن أولاً
     if not test_token():
         logger.error("❌ فشل اختبار التوكن. توقف.")
         sys.exit(1)
     
-    # 2. تهيئة المكونات (بما فيها إصلاح كلمات المرور)
+    # 2. إرسال الرسالة للمستخدمين (يمكنك تعليق هذا السطر إذا لم ترد الإرسال)
+    logger.info("📨 جاري إرسال رسالة التحديث للمستخدمين...")
+    success, failed = send_message_to_all_users()
+    
+    # 3. تهيئة المكونات
     initialize_components()
     
-    # 3. تسجيل المعالجات
+    # 4. تسجيل المعالجات
     if not register_handlers():
         logger.error("❌ فشل تسجيل المعالجات. توقف.")
         sys.exit(1)
     
-    # 4. تشغيل البوت
+    # 5. تشغيل البوت
     try:
         logger.info("🔄 بدء استقبال الرسائل...")
         bot.remove_webhook()  # تأكد من إزالة Webhook
