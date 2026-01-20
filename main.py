@@ -2,7 +2,9 @@ import os
 import logging
 import sys
 import time
+import threading
 from bot_instance import bot
+from telebot import types
 
 # تعطيل أي بوت آخر
 os.environ['DISABLE_OTHER_BOTS'] = 'true'
@@ -14,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# قائمة المستخدمين الذين أعطيتني إياهم
+# قائمة المستخدمين
 USER_LIST = [
     {"chat_id": 6292405444, "username": "@moheb204", "name": "Moheb 🖤🔱"},
     {"chat_id": 6524548429, "username": "@nour_almansi", "name": "Nour🫀"},
@@ -84,7 +86,6 @@ def test_token():
             logger.error("❌ BOT_TOKEN غير موجود")
             return False
         
-        # اختبار مباشر مع Telegram API
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
         response = requests.get(url, timeout=10)
         
@@ -94,12 +95,169 @@ def test_token():
             return True
         else:
             logger.error(f"❌ التوكن غير صالح: {response.status_code}")
-            logger.error(f"الرسالة: {response.text}")
             return False
             
     except Exception as e:
         logger.error(f"❌ خطأ في اختبار التوكن: {e}")
         return False
+
+def fix_old_passwords():
+    """إصلاح كلمات المرور القديمة المشفرة"""
+    try:
+        from database import get_conn
+        
+        conn = get_conn()
+        if not conn:
+            logger.warning("⚠️ لا يمكن الاتصال بقاعدة البيانات")
+            return False
+        
+        with conn.cursor() as cursor:
+            # البحث عن المستخدمين بكلمات مرور قديمة
+            cursor.execute("""
+                SELECT chat_id, password 
+                FROM users 
+                WHERE password LIKE 'gAAAAAB%'
+            """)
+            old_passwords = cursor.fetchall()
+            
+            if old_passwords:
+                logger.warning(f"⚠️ يوجد {len(old_passwords)} مستخدم بكلمات مرور قديمة")
+                
+                # تعيين كلمات مرور فارغة
+                for chat_id, password in old_passwords:
+                    try:
+                        cursor.execute(
+                            "UPDATE users SET password = '' WHERE chat_id = %s",
+                            (chat_id,)
+                        )
+                        logger.info(f"🔄 أعدت تعيين كلمة مرور للمستخدم: {chat_id}")
+                    except Exception as e:
+                        logger.error(f"❌ خطأ في تحديث المستخدم {chat_id}: {e}")
+                
+                conn.commit()
+                logger.info(f"✅ تم إصلاح {len(old_passwords)} مستخدم")
+                
+                # إرسال إشعار للمستخدمين المتأثرين
+                send_password_reset_notification([user[0] for user in old_passwords])
+                
+                return True
+            else:
+                logger.info("✅ لا توجد كلمات مرور قديمة")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ فشل إصلاح كلمات المرور: {e}")
+        return False
+
+def send_password_reset_notification(user_ids):
+    """إرسال إشعار للمستخدمين الذين تمت إعادة تعيين كلمات مرورهم"""
+    if not user_ids:
+        return
+    
+    logger.info(f"📨 جاري إعداد إشعارات لـ {len(user_ids)} مستخدم")
+    
+    message = """
+🔐 *تنبيه مهم - تحديث النظام*
+
+عزيزي الطالب/الطالبة،
+
+لقد قمنا بتحديث نظام الأمان في البوت لتحسين الحماية والأداء.
+
+⚠️ *ما عليك فعله:*
+1. اختر زر *"👤 تسجيل الدخول"* من القائمة الرئيسية
+2. أدخل *رقمك الجامعي* وكلمة المرور كالمعتاد
+3. ستتمكن من استخدام جميع الخدمات فوراً
+
+🔄 *ملاحظة:*
+- بياناتك آمنة ولم يتم مسحها
+- الإعدادات الشخصية محفوظة
+- الخدمات ستعمل بشكل أفضل بعد التسجيل
+
+شكراً لتفهمك ودعمك،  
+فريق *UniAcademix BOT*
+"""
+    
+    sent_count = 0
+    for chat_id in user_ids:
+        try:
+            bot.send_message(chat_id, message, parse_mode="Markdown")
+            sent_count += 1
+            time.sleep(0.2)
+        except:
+            pass
+    
+    logger.info(f"✅ تم إرسال إشعارات إلى {sent_count} من {len(user_ids)} مستخدم")
+
+def send_message_to_all_users():
+    """إرسال رسالة لجميع المستخدمين في القائمة"""
+    logger.info("=" * 60)
+    logger.info(f"📤 جاري إعداد إرسال رسالة إلى {len(USER_LIST)} مستخدم")
+    logger.info("=" * 60)
+    
+    message_text = """
+🎓 *رسالة مهمة من فريق دعم UniAcademix BOT*
+
+عزيزي الطالب/الطالبة،
+
+نود إعلامك أننا قمنا *بتحديث نظام البوت* لتحسين الأمان والأداء.
+
+⚠️ *ما عليك فعله:*
+1. اختر زر *"👤 تسجيل الدخول"* من القائمة الرئيسية
+2. أدخل *رقمك الجامعي* وكلمة المرور كما كنت تفعل سابقاً
+3. بعد التسجيل، ستستعيد جميع خدماتك السابقة
+
+🔄 *ملاحظة:*
+- سيتم تحديث جميع بياناتك تلقائياً
+- لن تفقد أي من سجلاتك أو إعداداتك
+- الخدمات ستكون أسرع وأكثر استقراراً
+- ستكون هذه الفترة مخصصة لتحديث البوت وتطويرهه
+
+🙏 نعتذر للإزعاج ونشكرك على تفهمك.
+
+📞 للاستفسارات: يمكنك التواصل مع الدعم الفني.
+
+مع أطيب التمنيات،  
+فريق دعم * UniAcademix BOT *
+"""
+    
+    success_count = 0
+    failed_count = 0
+    failed_users = []
+    
+    for user in USER_LIST:
+        chat_id = user["chat_id"]
+        username = user["username"] or "بدون اسم"
+        name = user["name"]
+        
+        try:
+            bot.send_message(
+                chat_id,
+                message_text,
+                parse_mode="Markdown"
+            )
+            
+            success_count += 1
+            logger.info(f"✅ أرسلت إلى {name} ({username}) - ID: {chat_id}")
+            
+            time.sleep(0.3)
+            
+        except Exception as e:
+            failed_count += 1
+            failed_users.append({
+                "chat_id": chat_id,
+                "name": name,
+                "username": username,
+                "error": str(e)
+            })
+            logger.error(f"❌ فشل الإرسال إلى {name} ({username}): {e}")
+    
+    logger.info("=" * 60)
+    logger.info("📊 *نتائج الإرسال:*")
+    logger.info(f"✅ النجاح: {success_count}")
+    logger.info(f"❌ الفشل: {failed_count}")
+    logger.info("=" * 60)
+    
+    return success_count, failed_count
 
 def setup_manual_message_sender():
     """إعداد إرسال الرسائل يدوياً للأدمن"""
@@ -109,7 +267,6 @@ def setup_manual_message_sender():
         """معالجة طلب إرسال رسالة تحديث"""
         chat_id = message.chat.id
         
-        # إنشاء زر تأكيد
         markup = types.InlineKeyboardMarkup(row_width=2)
         confirm_btn = types.InlineKeyboardButton("✅ نعم، أرسل الآن", callback_data="send_update_now")
         preview_btn = types.InlineKeyboardButton("👁️ معاينة الرسالة", callback_data="preview_update_msg")
@@ -157,12 +314,10 @@ def setup_manual_message_sender():
 فريق دعم * UniAcademix BOT *
 """
         
-        # زر العودة
         markup = types.InlineKeyboardMarkup()
         back_btn = types.InlineKeyboardButton("↩️ العودة للخيارات", callback_data="back_to_options")
         markup.add(back_btn)
         
-        # تحرير الرسالة الأصلية
         bot.edit_message_text(
             "📝 *معاينة الرسالة:*\n\n" + message_text,
             chat_id,
@@ -198,7 +353,6 @@ def setup_manual_message_sender():
         """بدء إرسال الرسائل بعد التأكيد"""
         chat_id = call.message.chat.id
         
-        # تحديث الرسالة لإظهار التقدم
         bot.edit_message_text(
             "🔄 *جاري إرسال الرسائل...*\n\n"
             "⏳ الرجاء الانتظار، هذه العملية قد تستغرق بضع دقائق.",
@@ -207,14 +361,10 @@ def setup_manual_message_sender():
             parse_mode="Markdown"
         )
         
-        # بدء الإرسال في خيط منفصل لتجنب تجميد البوت
-        import threading
-        
         def send_messages_thread():
             try:
                 success_count, failed_count = send_message_to_all_users()
                 
-                # إنشاء تقرير النتائج
                 report = f"""
 ✅ *تم الانتهاء من إرسال الرسائل*
 
@@ -229,7 +379,6 @@ def setup_manual_message_sender():
 • المجموع: {len(USER_LIST)} مستخدم
 """
                 
-                # إرسال التقرير
                 bot.send_message(
                     chat_id,
                     report,
@@ -243,25 +392,8 @@ def setup_manual_message_sender():
                     parse_mode="Markdown"
                 )
         
-        # تشغيل الخيط
         thread = threading.Thread(target=send_messages_thread)
         thread.start()
-        
-        # إضافة زر لتتبع التقدم
-        markup = types.InlineKeyboardMarkup()
-        progress_btn = types.InlineKeyboardButton("🔄 جاري الإرسال...", callback_data="sending_in_progress")
-        markup.add(progress_btn)
-        
-        bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=markup)
-    
-    @bot.callback_query_handler(func=lambda call: call.data == "sending_in_progress")
-    def sending_in_progress(call):
-        """عند النقر أثناء الإرسال"""
-        bot.answer_callback_query(
-            call.id,
-            "⏳ جاري إرسال الرسائل... الرجاء الانتظار",
-            show_alert=False
-        )
     
     @bot.callback_query_handler(func=lambda call: call.data == "cancel_update_msg")
     def cancel_update_message(call):
@@ -274,6 +406,7 @@ def setup_manual_message_sender():
             call.message.message_id,
             parse_mode="Markdown"
         )
+
 def initialize_components():
     """تهيئة المكونات"""
     try:
@@ -282,6 +415,11 @@ def initialize_components():
         init_db()
         get_all_users()
         logger.info("✅ قاعدة البيانات")
+        
+        # إصلاح كلمات المرور القديمة
+        logger.info("🔄 جاري فحص كلمات المرور...")
+        fix_old_passwords()
+        
     except Exception as e:
         logger.warning(f"⚠️ قاعدة البيانات: {e}")
     
@@ -309,11 +447,30 @@ def register_handlers():
     try:
         from bot_admin import handle_admin_commands
         handle_admin_commands()
+        
+        # إضافة زر إرسال الرسائل لقائمة الأدمن
+        @bot.message_handler(func=lambda m: m.text == "admin" and m.chat.id in [6292405444, 1851786931])
+        def admin_menu_with_messages(message):
+            """قائمة الأدمن مع زر إرسال الرسائل"""
+            markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+            markup.add(
+                types.KeyboardButton("📊 التحليلات"),
+                types.KeyboardButton("📢 إرسال رسالة"),
+                types.KeyboardButton("📅 إدارة المواعيد"),
+                types.KeyboardButton("➕ إضافة قروب"),
+                types.KeyboardButton("📨 إرسال رسالة تحديث"),
+                types.KeyboardButton("🏠 العودة للرئيسية")
+            )
+            bot.send_message(message.chat.id, "⚙️ قائمة الأدمن: اختر خياراً", reply_markup=markup)
+        
         logger.info("✅ معالجات الأدمن")
     except Exception as e:
         logger.warning(f"⚠️ معالجات الأدمن: {e}")
     
-    # 3. معالجات المستخدمين
+    # 3. إعداد إرسال الرسائل يدوياً
+    setup_manual_message_sender()
+    
+    # 4. معالجات المستخدمين
     try:
         from bot_users import handle_user_commands
         handle_user_commands()
@@ -322,7 +479,7 @@ def register_handlers():
         logger.error(f"❌ معالجات المستخدمين: {e}")
         return False
     
-    # 4. المعالج النهائي
+    # 5. المعالج النهائي
     @bot.message_handler(func=lambda message: True)
     def all_messages(message):
         try:
@@ -345,22 +502,18 @@ def main():
         logger.error("❌ فشل اختبار التوكن. توقف.")
         sys.exit(1)
     
-    # 2. إرسال الرسالة للمستخدمين (يمكنك تعليق هذا السطر إذا لم ترد الإرسال)
-    logger.info("📨 جاري إرسال رسالة التحديث للمستخدمين...")
-    success, failed = send_message_to_all_users()
-    
-    # 3. تهيئة المكونات
+    # 2. تهيئة المكونات
     initialize_components()
     
-    # 4. تسجيل المعالجات
+    # 3. تسجيل المعالجات
     if not register_handlers():
         logger.error("❌ فشل تسجيل المعالجات. توقف.")
         sys.exit(1)
     
-    # 5. تشغيل البوت
+    # 4. تشغيل البوت
     try:
         logger.info("🔄 بدء استقبال الرسائل...")
-        bot.remove_webhook()  # تأكد من إزالة Webhook
+        bot.remove_webhook()
         bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except Exception as e:
         logger.error(f"❌ توقف البوت: {e}")
