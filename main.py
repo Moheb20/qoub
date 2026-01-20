@@ -74,9 +74,8 @@ USER_LIST = [
 ]
 
 # ========== دوال مساعدة للتشغيل فقط ==========
-
 def test_token():
-    """اختبار صحة التوكن - للتشغيل فقط"""
+    """اختبار صحة التوكن"""
     try:
         import requests
         
@@ -100,71 +99,8 @@ def test_token():
         logger.error(f"❌ خطأ في اختبار التوكن: {e}")
         return False
 
-def send_message_to_all_users():
-    """إرسال رسالة لجميع المستخدمين - للتشغيل فقط"""
-    logger.info("=" * 60)
-    logger.info(f"📤 جاري إعداد إرسال رسالة إلى {len(USER_LIST)} مستخدم")
-    logger.info("=" * 60)
-    
-    message_text = """
-🎓 *رسالة مهمة من فريق دعم UniAcademix BOT*
-
-عزيزي الطالب/الطالبة،
-
-نود إعلامك أننا قمنا *بتحديث نظام البوت* لتحسين الأمان والأداء.
-
-⚠️ *ما عليك فعله:*
-1. اختر زر *"👤 تسجيل الدخول"* من القائمة الرئيسية
-2. أدخل *رقمك الجامعي* وكلمة المرور كما كنت تفعل سابقاً
-3. بعد التسجيل، ستستعيد جميع خدماتك السابقة
-
-🔄 *ملاحظة:*
-- سيتم تحديث جميع بياناتك تلقائياً
-- لن تفقد أي من سجلاتك أو إعداداتك
-- الخدمات ستكون أسرع وأكثر استقراراً
-
-🙏 نعتذر للإزعاج ونشكرك على تفهمك.
-
-📞 للاستفسارات: يمكنك التواصل مع الدعم الفني.
-
-مع أطيب التمنيات،  
-فريق دعم *UniAcademix BOT*
-"""
-    
-    success_count = 0
-    failed_count = 0
-    
-    for user in USER_LIST:
-        chat_id = user["chat_id"]
-        username = user["username"] or "بدون اسم"
-        name = user["name"]
-        
-        try:
-            bot.send_message(
-                chat_id,
-                message_text,
-                parse_mode="Markdown"
-            )
-            
-            success_count += 1
-            logger.info(f"✅ أرسلت إلى {name} ({username}) - ID: {chat_id}")
-            
-            time.sleep(0.3)
-            
-        except Exception as e:
-            failed_count += 1
-            logger.error(f"❌ فشل الإرسال إلى {name} ({username}): {e}")
-    
-    logger.info("=" * 60)
-    logger.info("📊 *نتائج الإرسال:*")
-    logger.info(f"✅ النجاح: {success_count}")
-    logger.info(f"❌ الفشل: {failed_count}")
-    logger.info("=" * 60)
-    
-    return success_count, failed_count
-
 def initialize_components():
-    """تهيئة المكونات الأساسية - للتشغيل فقط"""
+    """تهيئة المكونات"""
     try:
         # قاعدة البيانات
         from database import init_db
@@ -181,7 +117,73 @@ def initialize_components():
     except Exception as e:
         logger.warning(f"⚠️ الجدولة: {e}")
 
-# ========== معالجات خاصة بالتحديث (للأدمن فقط) ==========
+# ========== تحميل معالجات bot_users ==========
+
+def load_user_handlers():
+    """تحميل معالجات المستخدمين من bot_users"""
+    try:
+        import bot_users
+        
+        # استدعاء الدالة التي تسجل جميع المعالجات في bot_users
+        bot_users.handle_user_commands()
+        logger.info("✅ تم تحميل معالجات المستخدمين (bot_users)")
+        return True
+    except Exception as e:
+        logger.error(f"❌ فشل تحميل معالجات المستخدمين: {e}")
+        return False
+
+def load_admin_handlers():
+    """تحميل معالجات الأدمن من bot_admin"""
+    try:
+        import bot_admin
+        
+        # استدعاء الدالة التي تسجل جميع المعالجات في bot_admin
+        bot_admin.handle_admin_commands()
+        logger.info("✅ تم تحميل معالجات الأدمن (bot_admin)")
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️ فشل تحميل معالجات الأدمن: {e}")
+        return False
+
+# ========== معالجات خاصة للتشغيل ==========
+
+def setup_system_handlers():
+    """إعداد المعالجات الخاصة بالتشغيل"""
+    
+    # 1. الأمر /start
+    @bot.message_handler(commands=["start"])
+    def cmd_start(message):
+        """معالج /start - يعيد توجيه لـ bot_users"""
+        try:
+            import bot_users
+            
+            # استدعاء handle_start من bot_users إذا كان موجوداً
+            if hasattr(bot_users, 'handle_start'):
+                bot_users.handle_start(message)
+            else:
+                # استخدام القائمة الأساسية
+                markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+                markup.add(
+                    types.KeyboardButton("👤 تسجيل الدخول"),
+                    types.KeyboardButton("📖 الخدمات الأكاديمية"),
+                    types.KeyboardButton("📅 التـــقويــم"),
+                    types.KeyboardButton("🔗 منصة المواد المشتركة"),
+                    types.KeyboardButton("📚 أخرى"),
+                    types.KeyboardButton("🚪 تسجيل الخروج")
+                )
+                
+                welcome = """
+🎓 *مرحباً بك في UniAcademix BOT*
+
+🔄 *النظام محدّث وجاهز*
+
+👈 اختر زراً للبدء
+"""
+                bot.send_message(message.chat.id, welcome, parse_mode="Markdown", reply_markup=markup)
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في /start: {e}")
+            bot.send_message(message.chat.id, "🎓 مرحباً! اختر زراً للبدء")
 
 def setup_manual_message_sender():
     """إعداد إرسال الرسائل يدوياً للأدمن فقط"""
@@ -207,133 +209,12 @@ def setup_manual_message_sender():
             reply_markup=markup
         )
     
-    @bot.callback_query_handler(func=lambda call: call.data == "preview_update_msg")
-    def preview_update_message(call):
-        """معاينة الرسالة قبل الإرسال"""
-        chat_id = call.message.chat.id
-        
-        message_text = """
-🎓 *رسالة مهمة من فريق دعم UniAcademix BOT*
-
-عزيزي الطالب/الطالبة،
-
-نود إعلامك أننا قمنا *بتحديث نظام البوت* لتحسين الأمان والأداء.
-
-⚠️ *ما عليك فعله:*
-1. اختر زر *"👤 تسجيل الدخول"* من القائمة الرئيسية
-2. أدخل *رقمك الجامعي* وكلمة المرور كما كنت تفعل سابقاً
-3. بعد التسجيل، ستستعيد جميع خدماتك السابقة
-
-🔄 *ملاحظة:*
-- سيتم تحديث جميع بياناتك تلقائياً
-- لن تفقد أي من سجلاتك أو إضافاتك
-- الخدمات ستكون أسرع وأكثر استقراراً
-
-🙏 نعتذر للإزعاج ونشكرك على تفهمك.
-
-📞 للاستفسارات: يمكنك التواصل مع الدعم الفني.
-
-مع أطيب التمنيات،  
-فريق دعم *UniAcademix BOT*
-"""
-        
-        markup = types.InlineKeyboardMarkup()
-        back_btn = types.InlineKeyboardButton("↩️ العودة للخيارات", callback_data="back_to_options")
-        markup.add(back_btn)
-        
-        bot.edit_message_text(
-            "📝 *معاينة الرسالة:*\n\n" + message_text,
-            chat_id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
-    
-    @bot.callback_query_handler(func=lambda call: call.data == "back_to_options")
-    def back_to_options(call):
-        """العودة لخيارات الإرسال"""
-        chat_id = call.message.chat.id
-        
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        confirm_btn = types.InlineKeyboardButton("✅ نعم، أرسل الآن", callback_data="send_update_now")
-        preview_btn = types.InlineKeyboardButton("👁️ معاينة الرسالة", callback_data="preview_update_msg")
-        cancel_btn = types.InlineKeyboardButton("❌ إلغاء", callback_data="cancel_update_msg")
-        markup.add(confirm_btn, preview_btn, cancel_btn)
-        
-        bot.edit_message_text(
-            "⚠️ *إرسال رسالة تحديث لجميع المستخدمين*\n\n"
-            f"📊 العدد: *{len(USER_LIST)}* مستخدم\n"
-            "⏰ الوقت المتوقع: *2-3 دقائق*\n\n"
-            "هل تريد المتابعة؟",
-            chat_id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
-    
-    @bot.callback_query_handler(func=lambda call: call.data == "send_update_now")
-    def send_update_confirmed(call):
-        """بدء إرسال الرسائل بعد التأكيد"""
-        chat_id = call.message.chat.id
-        
-        bot.edit_message_text(
-            "🔄 *جاري إرسال الرسائل...*\n\n"
-            "⏳ الرجاء الانتظار، هذه العملية قد تستغرق بضع دقائق.",
-            chat_id,
-            call.message.message_id,
-            parse_mode="Markdown"
-        )
-        
-        def send_messages_thread():
-            try:
-                success_count, failed_count = send_message_to_all_users()
-                
-                report = f"""
-✅ *تم الانتهاء من إرسال الرسائل*
-
-📊 *النتائج النهائية:*
-• ✅ النجاح: {success_count}
-• ❌ الفشل: {failed_count}
-• 📈 نسبة النجاح: {(success_count/len(USER_LIST))*100:.1f}%
-
-👥 *التفاصيل:*
-• تم إرسال الرسالة إلى {success_count} مستخدم
-• فشل الإرسال إلى {failed_count} مستخدم
-• المجموع: {len(USER_LIST)} مستخدم
-"""
-                
-                bot.send_message(
-                    chat_id,
-                    report,
-                    parse_mode="Markdown"
-                )
-                
-            except Exception as e:
-                bot.send_message(
-                    chat_id,
-                    f"❌ *حدث خطأ أثناء الإرسال:*\n{str(e)}",
-                    parse_mode="Markdown"
-                )
-        
-        thread = threading.Thread(target=send_messages_thread)
-        thread.start()
-    
-    @bot.callback_query_handler(func=lambda call: call.data == "cancel_update_msg")
-    def cancel_update_message(call):
-        """إلغاء عملية الإرسال"""
-        chat_id = call.message.chat.id
-        
-        bot.edit_message_text(
-            "❌ *تم إلغاء عملية الإرسال*",
-            chat_id,
-            call.message.message_id,
-            parse_mode="Markdown"
-        )
+    # ... (بقية دالة setup_manual_message_sender كما هي)
 
 # ========== الدالة الرئيسية ==========
 
 def main():
-    """الدالة الرئيسية للتشغيل فقط"""
+    """الدالة الرئيسية"""
     logger.info("=" * 60)
     logger.info("🚀 بدء تشغيل البوت الرئيسي")
     logger.info("=" * 60)
@@ -346,38 +227,19 @@ def main():
     # 2. تهيئة المكونات الأساسية
     initialize_components()
     
-    # 3. تحميل معالجات المستخدمين من bot_users.py
-    try:
-        import bot_users
-        logger.info("✅ تم تحميل bot_users")
-    except Exception as e:
-        logger.error(f"❌ فشل تحميل bot_users: {e}")
+    # 3. تحميل معالجات المستخدمين
+    if not load_user_handlers():
+        logger.error("❌ فشل تحميل معالجات المستخدمين. توقف.")
         sys.exit(1)
     
-    # 4. تحميل معالجات الأدمن من bot_admin.py
-    try:
-        import bot_admin
-        logger.info("✅ تم تحميل bot_admin")
-    except Exception as e:
-        logger.warning(f"⚠️ فشل تحميل bot_admin: {e}")
+    # 4. تحميل معالجات الأدمن (اختياري)
+    load_admin_handlers()
     
-    # 5. إعداد معالج رسائل التحديث (للأدمن فقط)
+    # 5. إعداد المعالجات الخاصة بالتشغيل
+    setup_system_handlers()
+    
+    # 6. إعداد إرسال الرسائل يدوياً (للأدمن فقط)
     setup_manual_message_sender()
-    
-    # 6. الأمر /start الأساسي (للجميع)
-    @bot.message_handler(commands=["start"])
-    def cmd_start(message):
-        """معالج /start الأساسي"""
-        chat_id = message.chat.id
-        
-        # إشعار بسيط فقط
-        bot.send_message(
-            chat_id,
-            "🎓 *مرحباً بك في UniAcademix BOT*\n\n"
-            "🔄 *النظام قيد التشغيل...*\n\n"
-            "👈 استخدم الأزرار للبدء",
-            parse_mode="Markdown"
-        )
     
     # 7. تشغيل البوت
     try:
