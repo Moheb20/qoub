@@ -11,37 +11,47 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# إضافة دالة لطباعة المفتاح الحالي
-def print_current_fernet_key():
-    """طباعة المفتاح الحالي المستخدم للتشفير"""
+# إضافة دالة لطباعة المفتاح الحالي بالكامل
+def print_current_fernet_key_full():
+    """طباعة المفتاح الحالي المستخدم للتشفير بالكامل"""
     print("\n" + "="*60)
-    print("🔑 المفتاح الحالي المستخدم للتشفير:")
+    print("🔑 المفتاح الحالي الكامل للتشفير:")
     print("="*60)
     
     # 1. فحص FERNET_KEY من البيئة
     fernet_key = os.getenv("FERNET_KEY")
     if fernet_key:
-        print(f"1. FERNET_KEY من البيئة: {fernet_key}")
+        print(f"1. FERNET_KEY من البيئة:")
+        print(f"   {fernet_key}")
         print(f"   الطول: {len(fernet_key)} حرف")
         if len(fernet_key) == 44:
             print("   ✅ الطول صحيح (44 حرفاً)")
         else:
             print(f"   ⚠️ الطول غير قياسي (المفترض 44، حصلنا {len(fernet_key)})")
+        
+        # تسجيل المفتاح الكامل في السجلات
+        logger.info(f"🔑 المفتاح FERNET_KEY الكامل: {fernet_key}")
     else:
         print("1. FERNET_KEY: غير موجود في البيئة")
+        logger.info("🔑 FERNET_KEY: غير موجود في البيئة")
     
     # 2. فحص ENCRYPTION_KEY من البيئة
     encryption_key = os.getenv("ENCRYPTION_KEY")
     if encryption_key:
-        print(f"2. ENCRYPTION_KEY من البيئة: {encryption_key}")
+        print(f"\n2. ENCRYPTION_KEY من البيئة:")
+        print(f"   {encryption_key}")
         print(f"   الطول: {len(encryption_key)} حرف")
+        logger.info(f"🔑 المفتاح ENCRYPTION_KEY الكامل: {encryption_key}")
     else:
-        print("2. ENCRYPTION_KEY: غير موجود في البيئة")
+        print("\n2. ENCRYPTION_KEY: غير موجود في البيئة")
+        logger.info("🔑 ENCRYPTION_KEY: غير موجود في البيئة")
     
     # 3. المفتاح الافتراضي
     default_key = "tO3Xb54Q-CVVRTgZgAbL_E7y7yWnEr7GX9NcT-KSdDY="
-    print(f"3. المفتاح الافتراضي: {default_key}")
+    print(f"\n3. المفتاح الافتراضي:")
+    print(f"   {default_key}")
     print(f"   الطول: {len(default_key)} حرف")
+    logger.info(f"🔑 المفتاح الافتراضي الكامل: {default_key}")
     
     print("="*60)
     print("📋 ما سيستخدمه البوت فعلياً:")
@@ -73,15 +83,21 @@ def print_current_fernet_key():
             key_source = "المفتاح الافتراضي"
     
     print(f"📌 المصدر: {key_source}")
-    print(f"🔐 المفتاح الفعلي: {actual_key}")
+    print(f"🔐 المفتاح الفعلي الكامل:")
+    print(f"   {actual_key}")
     print(f"📏 الطول: {len(actual_key)} حرف")
+    
+    # تسجيل المفتاح الفعلي في السجلات
+    logger.info(f"🔑 المفتاح الفعلي الكامل: {actual_key}")
     
     # اختبار المفتاح
     try:
         Fernet(actual_key.encode())
         print("✅ المفتاح صالح ويمكن استخدامه")
+        logger.info("✅ المفتاح صالح ويمكن استخدامه")
     except Exception as e:
         print(f"❌ المفتاح غير صالح: {e}")
+        logger.error(f"❌ المفتاح غير صالح: {e}")
     
     print("="*60)
     print("💡 للحصول على مفتاح جديد، استخدم generate_new_key()")
@@ -98,6 +114,7 @@ def get_cipher():
         return Fernet(FERNET_KEY.encode())
     except Exception as e:
         logger.error(f"❌ خطأ في إنشاء cipher: {e}")
+        logger.error(f"❌ المفتاح المستخدم: {FERNET_KEY}")
         return None
 
 cipher = get_cipher()
@@ -109,7 +126,8 @@ def decrypt_text_simple(token):
     
     # إذا كان النص مشفراً بمفتاح قديم
     if isinstance(token, str) and token.startswith('gAAAAAB'):
-        logger.debug(f"⚠️ كلمة مرور قديمة: {token[:30]}...")
+        logger.debug(f"⚠️ كلمة مرور قديمة: {token}")
+        logger.info(f"🔑 المفتاح الحالي: {FERNET_KEY}")
         return ""  # إرجاع فارغ ليتم إعادة التسجيل
     
     if not cipher:
@@ -150,7 +168,7 @@ def init_fernet():
     global fernet_instance, current_fernet_key
     
     # طباعة معلومات المفتاح
-    print_current_fernet_key()
+    actual_key = print_current_fernet_key_full()
     
     # المحاولة 1: FERNET_KEY مباشر
     fernet_key = os.getenv("FERNET_KEY")
@@ -159,13 +177,16 @@ def init_fernet():
             # تأكد من تنسيق المفتاح (32 بايت مشفرة base64)
             if len(fernet_key) != 44:  # طول مفتاح Fernet القياسي
                 logger.warning(f"⚠️ FERNET_KEY طول غير قياسي: {len(fernet_key)}")
+                logger.warning(f"⚠️ المفتاح الكامل: {fernet_key}")
             
             fernet_instance = Fernet(fernet_key.encode())
             current_fernet_key = fernet_key
-            logger.info(f"✅ تم تهيئة التشفير باستخدام FERNET_KEY (الطول: {len(fernet_key)})")
+            logger.info(f"✅ تم تهيئة التشفير باستخدام FERNET_KEY")
+            logger.info(f"🔑 المفتاح الكامل: {fernet_key}")
             return True
         except Exception as e:
             logger.error(f"❌ FERNET_KEY غير صالح: {e}")
+            logger.error(f"❌ المفتاح: {fernet_key}")
     
     # المحاولة 2: ENCRYPTION_KEY وتحويله
     encryption_key = os.getenv("ENCRYPTION_KEY", "QOU_BOT_ENCRYPTION_KEY_2024_FOR_STUDENTS_!")
@@ -194,9 +215,11 @@ def init_fernet():
         fernet_instance = Fernet(key_base64)
         current_fernet_key = key_base64.decode('utf-8')
         logger.info(f"✅ تم تهيئة التشفير باستخدام ENCRYPTION_KEY (المشتق)")
+        logger.info(f"🔑 المفتاح المشتق الكامل: {current_fernet_key}")
         return True
     except Exception as e:
         logger.error(f"❌ فشل إنشاء مفتاح من ENCRYPTION_KEY: {e}")
+        logger.error(f"❌ ENCRYPTION_KEY المستخدم: {encryption_key}")
     
     # المحاولة 3: مفتاح افتراضي
     try:
@@ -204,6 +227,7 @@ def init_fernet():
         fernet_instance = Fernet(default_key.encode())
         current_fernet_key = default_key
         logger.warning("⚠️ استخدام مفتاح افتراضي للتشفير")
+        logger.info(f"🔑 المفتاح الافتراضي الكامل: {default_key}")
         return True
     except Exception as e:
         logger.error(f"❌ فشل المفتاح الافتراضي: {e}")
@@ -229,6 +253,7 @@ def encrypt_text(text):
         return encrypted.decode('utf-8')
     except Exception as e:
         logger.error(f"❌ فشل تشفير النص: {e}")
+        logger.error(f"🔑 المفتاح المستخدم: {current_fernet_key}")
         return text
 
 def decrypt_text(encrypted_text):
@@ -239,6 +264,9 @@ def decrypt_text(encrypted_text):
     if fernet_instance is None:
         logger.error("❌ نظام التشفير غير مهيأ")
         return encrypted_text
+    
+    # تسجيل المفتاح الحالي في حالة فشل الفك
+    current_key = current_fernet_key or "غير معروف"
     
     # المحاولة 1: فك التشفير العادي
     try:
@@ -265,12 +293,12 @@ def decrypt_text(encrypted_text):
         logger.debug(f"المحاولة 2 فشلت: {type(e).__name__}")
     
     # المحاولة 3: قد يكون النص غير مشفر
-    logger.warning(f"⚠️ فشل فك تشفير، قد يكون النص غير مشفر: {encrypted_text[:30]}...")
+    logger.warning(f"⚠️ فشل فك تشفير، قد يكون النص غير مشفر: {encrypted_text}")
     
     # المحاولة 4: إذا بدأ بـ gAAAAAB فهو مشفر بمفتاح مختلف
     if encrypted_text.startswith('gAAAAAB'):
-        logger.error(f"❌ النص مشفر بمفتاح مختلف: {encrypted_text[:50]}...")
-        logger.error(f"   المفتاح الحالي: {current_fernet_key[:30]}..." if current_fernet_key else "   المفتاح الحالي: غير معروف")
+        logger.error(f"❌ النص مشفر بمفتاح مختلف: {encrypted_text}")
+        logger.error(f"❌ المفتاح الحالي الكامل: {current_key}")
         return "[PASSWORD_NEEDS_RESET]"
     
     # إذا فشل كل شيء، ارجع النص كما هو
@@ -294,6 +322,9 @@ def generate_new_key():
     print("3. احفظ وأعد التشغيل")
     print("="*60)
     
+    # تسجيل المفتاح الجديد في السجلات
+    logger.info(f"🔑 المفتاح الجديد الكامل: {key_str}")
+    
     return key_str
 
 # دالة إضافية: الحصول على المفتاح الحالي
@@ -301,6 +332,30 @@ def get_current_fernet_key():
     """الحصول على المفتاح الحالي المستخدم"""
     return current_fernet_key
 
+# دالة جديدة: تسجيل جميع مفاتيح البيئة (باستثناء الحساسة)
+def log_environment_keys():
+    """تسجيل مفاتيح البيئة في السجلات"""
+    logger.info("="*60)
+    logger.info("🔑 مفاتيح البيئة:")
+    logger.info("="*60)
+    
+    # قائمة بالمفاتيح الحساسة التي يجب عدم عرضها كاملة
+    sensitive_keys = ['DATABASE_URL', 'API_KEY', 'SECRET', 'TOKEN', 'PASSWORD']
+    
+    for key, value in os.environ.items():
+        if any(sensitive in key.upper() for sensitive in sensitive_keys):
+            # تسجيل جزئي للمفاتيح الحساسة
+            if value and len(value) > 10:
+                logger.info(f"{key}: {value[:10]}...")
+            else:
+                logger.info(f"{key}: {value}")
+        else:
+            logger.info(f"{key}: {value}")
+    
+    logger.info("="*60)
+
+# استدعاء الدالة عند التشغيل
+log_environment_keys()
 
 # ---------- إنشاء الجداول ----------
 def init_db():
