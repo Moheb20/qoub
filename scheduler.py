@@ -8,7 +8,6 @@ import threading
 import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from suggestion_bot import run_suggestion_bot
 
 from database import (
     get_all_users,
