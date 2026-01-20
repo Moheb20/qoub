@@ -1,17 +1,14 @@
-import json
-import psycopg2
 import os
-import datetime
 import base64
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from typing import Dict, Any, List
 import logging
+import psycopg2
 
 logger = logging.getLogger(__name__)
 
-# ---------- نظام التشفير الرئيسي ----------
+# ---------- نظام التشفير ----------
 fernet_instance = None
 current_fernet_key = None
 
@@ -19,59 +16,46 @@ def init_fernet():
     """تهيئة نظام التشفير"""
     global fernet_instance, current_fernet_key
     
-    print("\n" + "="*60)
-    print("🔑 نظام التشفير - التهيئة")
-    print("="*60)
-    
-    # 1. محاولة الحصول على المفتاح من البيئة
+    # محاولة الحصول على المفتاح من البيئة
     fernet_key = os.getenv("FERNET_KEY")
     
     if fernet_key:
-        print(f"✅ وجد FERNET_KEY من البيئة")
-        print(f"   الطول: {len(fernet_key)} حرف")
-        
-        if len(fernet_key) == 44:
-            print("   ✅ الطول صحيح (44 حرفاً)")
-        else:
-            print(f"   ⚠️ الطول غير قياسي (المفترض 44)")
-        
         try:
             fernet_instance = Fernet(fernet_key.encode())
             current_fernet_key = fernet_key
-            print(f"✅ تم تهيئة التشفير بنجاح")
-            print(f"🔑 المفتاح: {fernet_key[:20]}..." if len(fernet_key) > 20 else f"🔑 المفتاح: {fernet_key}")
+            logger.info(f"✅ تم تهيئة التشفير باستخدام FERNET_KEY")
             return True
         except Exception as e:
-            print(f"❌ فشل تهيئة التشفير: {e}")
+            logger.error(f"❌ FERNET_KEY غير صالح: {e}")
     
-    # 2. استخدام مفتاح افتراضي
-    print("⚠️ لم يتم العثور على FERNET_KEY، استخدام مفتاح افتراضي")
-    
+    # استخدام المفتاح الافتراضي
     default_key = "tO3Xb54Q-CVVRTgZgAbL_E7y7yWnEr7GX9NcT-KSdDY="
-    
     try:
         fernet_instance = Fernet(default_key.encode())
         current_fernet_key = default_key
-        print(f"✅ تم تهيئة التشفير بالمفتاح الافتراضي")
+        logger.warning("⚠️ استخدام مفتاح افتراضي للتشفير")
         return True
     except Exception as e:
-        print(f"❌ فشل المفتاح الافتراضي: {e}")
-    
-    print("="*60)
-    return False
+        logger.error(f"❌ فشل المفتاح الافتراضي: {e}")
+        return False
+
+# تهيئة التشفير عند الاستيراد
+if not init_fernet():
+    logger.error("❌ فشل تهيئة نظام التشفير!")
 
 # ---------- دوال التشفير الرئيسية ----------
 def encrypt_text(text):
     """تشفير النص"""
-    if not text:
-        return text
+    if text is None or text == "":
+        return None
     
     if fernet_instance is None:
         if not init_fernet():
             return text
     
     try:
-        return fernet_instance.encrypt(text.encode()).decode('utf-8')
+        encrypted = fernet_instance.encrypt(text.encode())
+        return encrypted.decode('utf-8')
     except Exception as e:
         logger.error(f"❌ فشل تشفير النص: {e}")
         return text
@@ -85,7 +69,7 @@ def decrypt_text(encrypted_text):
         if not init_fernet():
             return encrypted_text
     
-    # إذا كان النص غير مشفر (لا يبدأ بـ gAAAAAB)
+    # إذا كان النص غير مشفر
     if not encrypted_text.startswith('gAAAAAB'):
         return encrypted_text
     
@@ -95,35 +79,32 @@ def decrypt_text(encrypted_text):
     except InvalidToken:
         # النص مشفر بمفتاح مختلف
         logger.warning(f"⚠️ النص مشفر بمفتاح مختلف")
-        logger.warning(f"🔑 المفتاح الحالي: {current_fernet_key[:20]}..." if current_fernet_key else "🔑 لا يوجد مفتاح")
+        logger.warning(f"🔑 المفتاح الحالي: {current_fernet_key}")
         return "[PASSWORD_NEEDS_RESET]"
     except Exception as e:
         logger.error(f"❌ فشل فك التشفير: {e}")
         return encrypted_text
 
-# ---------- دوال التشفير البسيطة (للتوافق) ----------
+# ---------- دوال التوافق ----------
 def decrypt_text_simple(token):
-    """فك تشفير مبسط - للتوافق مع الكود القديم"""
+    """فك تشفير مبسط - للتوافق"""
     return decrypt_text(token)
 
 def encrypt_text_simple(text):
-    """تشفير مبسط - للتوافق مع الكود القديم"""
+    """تشفير مبسط - للتوافق"""
     return encrypt_text(text)
 
 def get_cipher():
     """الحصول على كائن التشفير - للتوافق"""
-    if fernet_instance is None:
-        init_fernet()
     return fernet_instance
 
 # ---------- اتصال قاعدة البيانات ----------
-# الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
     """الحصول على اتصال قاعدة البيانات"""
     if not DATABASE_URL:
-        logger.warning("⚠️ DATABASE_URL not set, returning None")
+        logger.warning("⚠️ DATABASE_URL غير معين")
         return None
     
     try:
@@ -145,14 +126,11 @@ def generate_new_key():
     print(key_str)
     print("="*60)
     print(f"📏 الطول: {len(key_str)} حرف")
-    print("\n📋 التعليمات:")
+    print("\n📋 التعليمات للاستخدام على Render:")
     print("1. انسخ المفتاح أعلاه")
     print("2. Render → Environment → Add FERNET_KEY")
     print("3. احفظ وأعد التشغيل")
     print("="*60)
-    
-    # تسجيل المفتاح الجديد في السجلات
-    logger.info(f"🔑 المفتاح الجديد الكامل: {key_str}")
     
     return key_str
 
@@ -160,53 +138,52 @@ def get_current_fernet_key():
     """الحصول على المفتاح الحالي المستخدم"""
     return current_fernet_key
 
-# ---------- إصلاح البيانات ----------
-def fix_encryption_problems():
-    """حل مشاكل التشفير"""
-    print("\n" + "="*60)
-    print("🔧 حل مشاكل التشفير")
-    print("="*60)
+def fix_encrypted_data():
+    """إصلاح البيانات المشفرة بالمفتاح القديم"""
+    logger.info("🔄 فحص البيانات المشفرة بالمفتاح القديم...")
     
-    # 1. عرض المفتاح الحالي
-    print(f"🔑 المفتاح الحالي: {current_fernet_key}")
-    
-    # 2. عرض المشكلة
-    print("\n⚠️ المشكلة: البيانات القديمة مشفرة بمفتاح مختلف")
-    print("   الحل: سيتم وضع علامة [PASSWORD_NEEDS_RESET]")
-    print("   للمستخدمين الذين يحتاجون إعادة إدخال بياناتهم")
-    
-    print("\n💡 للحل الكامل:")
-    print("1. استخدم generate_new_key() لإنشاء مفتاح جديد")
-    print("2. ضع المفتاح في Render كمتغير FERNET_KEY")
-    print("3. أعد تشغيل البوت")
-    print("="*60)
+    # هذا مجرد إشعار، الكود الفعلي يجب أن يكون في مكان آخر
+    logger.warning("""
+    ⚠️ البيانات القديمة مشفرة بمفتاح مختلف
+    الحل المقترح:
+    1. استخدم generate_new_key() لإنشاء مفتاح جديد
+    2. ضع المفتاح في Render كـ FERNET_KEY
+    3. أعد تشغيل البوت
+    4. سيتم وضع علامة [PASSWORD_NEEDS_RESET] للمستخدمين
+       الذين يحتاجون إعادة إدخال بياناتهم
+    """)
     
     return True
 
-# ---------- دوال مساعدة ----------
-def print_key_info():
-    """طباعة معلومات المفتاح"""
+# ---------- دالة مساعدة ----------
+def print_encryption_info():
+    """طباعة معلومات التشفير"""
     print("\n" + "="*60)
-    print("🔑 معلومات مفتاح التشفير")
+    print("🔐 معلومات نظام التشفير")
     print("="*60)
     
     fernet_key = os.getenv("FERNET_KEY")
     if fernet_key:
         print(f"✅ FERNET_KEY موجود في البيئة")
-        print(f"   الطول: {len(fernet_key)} حرف")
+        print(f"📏 الطول: {len(fernet_key)} حرف")
+        if len(fernet_key) == 44:
+            print("✅ الطول صحيح")
+        else:
+            print("⚠️ الطول غير قياسي (المفترض 44 حرف)")
     else:
         print("⚠️ FERNET_KEY غير موجود في البيئة")
     
-    print(f"🔑 المفتاح المستخدم حالياً: {current_fernet_key}")
+    if current_fernet_key:
+        print(f"🔑 المفتاح المستخدم حالياً: {current_fernet_key[:30]}...")
+    
     print("="*60)
 
-# ---------- التهيئة التلقائية ----------
-# تهيئة نظام التشفير عند الاستيراد
-if not init_fernet():
-    logger.error("❌ فشل تهيئة نظام التشفير!")
-
-# طباعة معلومات المفتاح عند البدء
-print_key_info()
+# طباعة المعلومات عند الاستيراد
+if __name__ == "__main__":
+    print_encryption_info()
+else:
+    # فقط سجل المعلومات عند الاستيراد كوحدة
+    logger.info("✅ تم تحميل نظام التشفير")
 # ---------- إنشاء الجداول ----------
 def init_db():
     try:
