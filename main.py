@@ -1,110 +1,134 @@
 import os
-from dotenv import load_dotenv
-from flask import Flask
-from bot_instance import bot
 import logging
+from flask import Flask, request
+from bot_instance import bot
+import telebot
+from waitress import serve
 
-# استيراد الملفات المقسمة
-from bot_admin import handle_admin_commands
-from bot_users import handle_user_commands, handle_all_messages
-from database import init_db, get_all_users
-from scheduler import start_scheduler
-
-load_dotenv()
-
+# إعداد السجل
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-@app.route("/")
+# المتغيرات البيئية
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 8080))
+
+@app.route('/')
 def home():
-    return "✅ البوت يعمل بنجاح!"
+    return "✅ البوت يعمل بنجاح! 🚀"
 
-def run_flask():
-    app.run(host="0.0.0.0", port=8080)
+@app.route('/health')
+def health_check():
+    return "🟢 البوت يعمل بشكل طبيعي", 200
 
-def check_bot_token():
-    """فحص صحة التوكن"""
-    try:
-        token = os.getenv("BOT_TOKEN")
-        if not token:
-            logger.error("❌ BOT_TOKEN غير موجود في ملف .env")
-            return False
-            
-        # اختبار بسيط للتوكن
-        from telebot.apihelper import ApiTelegramException
+@app.route(WEBHOOK_PATH, methods=['POST'])
+def webhook():
+    """Webhook endpoint for Telegram"""
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return 'OK', 200
+    else:
+        return 'Bad Request', 400
+
+def setup_bot_handlers():
+    """إعداد جميع معالجات البوت في مكان واحد"""
+    
+    # معالج الأمر /start
+    @bot.message_handler(commands=["start"])
+    def handle_start(message):
+        # استيراد الدالة من bot_users أو كتابتها هنا
         try:
-            bot.get_me()
-            logger.info("✅ التوكن صالح")
-            return True
-        except ApiTelegramException as e:
-            logger.error(f"❌ التوكن غير صالح: {e}")
+            from bot_users import handle_start as user_start
+            user_start(message)
+        except ImportError:
+            # نسخة بديلة
+            chat_id = message.chat.id
+            username = message.from_user.username or "بدون اسم مستخدم"
+            bot.send_message(chat_id, f"👋 مرحباً {username}!")
+    
+    # معالجات أخرى...
+    # يمكنك استيرادها أو كتابتها هنا
+    
+    # المعالج النهائي للرسائل
+    @bot.message_handler(func=lambda message: True)
+    def handle_all_messages(message):
+        chat_id = message.chat.id
+        text = (message.text or "").strip()
+        
+        # حاول استيراد معالج الرسائل من bot_users
+        try:
+            from bot_users import handle_main_message_flow
+            handle_main_message_flow(chat_id, text)
+        except ImportError:
+            # رد بديل
+            bot.reply_to(message, "📝 اختر زراً من القائمة أدناه")
+
+def initialize_bot():
+    """تهيئة البوت"""
+    try:
+        # فحص التوكن
+        if not BOT_TOKEN:
+            logger.error("❌ BOT_TOKEN غير موجود في البيئة")
             return False
+        
+        # اختبار البوت
+        bot_info = bot.get_me()
+        logger.info(f"✅ البوت جاهز: @{bot_info.username}")
+        
+        # استيراد وتهيئة المكونات
+        try:
+            from database import init_db, get_all_users
+            from scheduler import start_scheduler
             
+            init_db()
+            get_all_users()
+            start_scheduler()
+            logger.info("✅ تم تهيئة قاعدة البيانات والجدولة")
+        except ImportError as e:
+            logger.warning(f"⚠️ بعض المكونات غير متوفرة: {e}")
+        
+        # إعداد معالجات البوت
+        setup_bot_handlers()
+        logger.info("✅ تم إعداد معالجات البوت")
+        
+        return True
     except Exception as e:
-        logger.error(f"❌ خطأ في فحص التوكن: {e}")
+        logger.error(f"❌ فشل تهيئة البوت: {e}")
         return False
 
-def setup_webhook():
-    """إعداد Webhook (اختياري)"""
-    try:
-        import requests
-        token = os.getenv("BOT_TOKEN")
-        webhook_url = os.getenv("WEBHOOK_URL")
-        
-        if webhook_url:
-            # حذف أي Webhook موجود
-            delete_url = f"https://api.telegram.org/bot{token}/deleteWebhook"
-            response = requests.post(delete_url, timeout=5)
-            if response.status_code == 200:
-                logger.info("✅ تم حذف Webhook السابق")
+if __name__ == '__main__':
+    logger.info(f"🚀 بدء تشغيل البوت على المنفذ {PORT}...")
+    
+    # تهيئة البوت
+    if initialize_bot():
+        # إذا كان هناك WEBHOOK_URL، استخدم Webhook
+        if WEBHOOK_URL:
+            logger.info(f"🌐 استخدام Webhook: {WEBHOOK_URL}")
             
-            # تعيين Webhook جديد
-            set_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
-            response = requests.post(set_url, timeout=5)
-            if response.status_code == 200:
+            try:
+                bot.remove_webhook()
+                logger.info("✅ تم حذف Webhook السابق")
+                
+                webhook_url = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
+                bot.set_webhook(url=webhook_url)
                 logger.info(f"✅ تم تعيين Webhook: {webhook_url}")
-            else:
-                logger.warning("⚠️ لم يتم تعيين Webhook، سيتم استخدام Polling")
-    except Exception as e:
-        logger.warning(f"⚠️ لم يتم إعداد Webhook: {e}")
-
-if __name__ == "__main__":
-    # تهيئة السجل
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    logger.info("🚀 بدء تشغيل البوت...")
-    
-    # فحص التوكن أولاً
-    if not check_bot_token():
-        logger.error("❌ فشل تشغيل البوت بسبب التوكن غير الصالح")
-        exit(1)
-    
-    # تهيئة قاعدة البيانات والجدولة
-    init_db()
-    get_all_users()
-    start_scheduler()
-    
-    # إعداد Webhook (اختياري)
-    setup_webhook()
-    
-    # تسجيل معالجات الأدمن
-    handle_admin_commands()
-    
-    # تسجيل معالجات المستخدمين
-    handle_user_commands()
-    
-    # تسجيل معالج الرسائل العام
-    @bot.message_handler(func=lambda message: True)
-    def final_handler(message):
-        handle_all_messages(message)
-    
-    # تشغيل البوت باستخدام Polling
-    logger.info("🔄 بدء Polling...")
-    try:
-        bot.infinity_polling(timeout=60, long_polling_timeout=60)
-    except Exception as e:
-        logger.error(f"❌ توقف البوت: {e}")
+            except Exception as e:
+                logger.error(f"❌ فشل إعداد Webhook: {e}")
+            
+            logger.info(f"🌍 تشغيل Flask على المنفذ {PORT}")
+            serve(app, host='0.0.0.0', port=PORT)
+        else:
+            logger.info("🔄 استخدام Polling المباشر")
+            bot.remove_webhook()
+            bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    else:
+        logger.error("❌ فشل تشغيل البوت")
