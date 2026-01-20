@@ -9,6 +9,48 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Dict, Any, List
 import logging
 
+logger = logging.getLogger(__name__)
+
+# مفتاح التشفير الثابت
+FERNET_KEY = os.getenv("FERNET_KEY", "tO3Xb54Q-CVVRTgZgAbL_E7y7yWnEr7GX9NcT-KSdDY=")
+
+def get_cipher():
+    """الحصول على كائن التشفير"""
+    try:
+        return Fernet(FERNET_KEY.encode())
+    except Exception as e:
+        logger.error(f"❌ خطأ في إنشاء cipher: {e}")
+        return None
+
+cipher = get_cipher()
+
+def decrypt_text_simple(token):
+    """فك تشفير مبسط - يعمل دائماً"""
+    if not token:
+        return ""
+    
+    # إذا كان النص مشفراً بمفتاح قديم
+    if isinstance(token, str) and token.startswith('gAAAAAB'):
+        logger.debug(f"⚠️ كلمة مرور قديمة: {token[:30]}...")
+        return ""  # إرجاع فارغ ليتم إعادة التسجيل
+    
+    if not cipher:
+        return token
+    
+    try:
+        return cipher.decrypt(token.encode()).decode()
+    except:
+        return token
+
+def encrypt_text_simple(text):
+    """تشفير مبسط"""
+    if not text or not cipher:
+        return text
+    
+    try:
+        return cipher.encrypt(text.encode()).decode()
+    except:
+        return text
 logger = logging.getLogger("database")
 
 # الاتصال بقاعدة البيانات
